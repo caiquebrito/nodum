@@ -13,6 +13,23 @@
   --orange: #ff9f1a;
   --red: #f85149;
   --teal: #39d353;
+  --canvas-bg: #080c12;
+}
+
+[data-theme="light"] {
+  --bg: #ffffff;
+  --bg2: #f6f8fa;
+  --bg3: #eaeef2;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --text2: #656d76;
+  --accent: #0969da;
+  --green: #2da44e;
+  --purple: #8250df;
+  --orange: #e36209;
+  --red: #cf222e;
+  --teal: #2da44e;
+  --canvas-bg: #f0f2f5;
 }
 
 body {
@@ -306,7 +323,7 @@ body {
   flex: 1;
   position: relative;
   overflow: hidden;
-  background: #080c12;
+  background: var(--canvas-bg);
 }
 
 #cy {
