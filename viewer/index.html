@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAG Viewer</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="topbar-logo">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="4"  r="2.5" fill="#58a6ff"/>
+      <circle cx="3"  cy="16" r="2.5" fill="#3fb950"/>
+      <circle cx="17" cy="16" r="2.5" fill="#bc8cff"/>
+      <line x1="10" y1="4" x2="3"  y2="16" stroke="#58a6ff" stroke-width="1.2" stroke-opacity=".5"/>
+      <line x1="10" y1="4" x2="17" y2="16" stroke="#bc8cff" stroke-width="1.2" stroke-opacity=".5"/>
+      <line x1="3"  y1="16" x2="17" y2="16" stroke="#3fb950" stroke-width="1.2" stroke-opacity=".5"/>
+    </svg>
+    <span>RAG</span>
+  </div>
+
+  <div class="search-wrap">
+    <input
+      type="text"
+      id="search-input"
+      placeholder="Buscar função, arquivo, componente..."
+      oninput="onSearch(this.value)"
+      autocomplete="off"
+    />
+    <div class="search-results" id="search-results" style="display:none"></div>
+  </div>
+
+  <div class="project-picker" id="project-picker">
+    <button class="project-picker-btn" id="project-picker-btn" onclick="toggleProjectMenu()">
+      <span id="current-project-name">—</span>
+      <span class="picker-arrow">▾</span>
+    </button>
+    <div class="project-picker-menu" id="project-picker-menu" style="display:none"></div>
+  </div>
+
+  <div class="topbar-actions">
+    <button class="btn" onclick="syncProject()" id="btn-sync" title="Sync project (re-scan code)">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"/></svg>
+      Sync
+    </button>
+    <button class="btn" onclick="showMemory()" id="btn-memory" title="Memory / RESUMO.md">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 8.75 4.25V1.5Zm5.75.56v2.19c0 .138.112.25.25.25h2.19Z"/></svg>
+      Memory
+    </button>
+    <button class="btn" onclick="toggleLogs()" id="btn-logs" title="Session logs">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Z"/></svg>
+      Logs
+    </button>
+    <button class="btn" onclick="resetLayout()" title="Reheat simulation">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"/></svg>
+      Layout
+    </button>
+    <button class="btn" onclick="zoomFit()" title="Fit all in view">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M1.75 10a.75.75 0 0 1 .75.75v2.5c0 .138.112.25.25.25h2.5a.75.75 0 0 1 0 1.5h-2.5A1.75 1.75 0 0 1 1 13.25v-2.5a.75.75 0 0 1 .75-.75Zm12.5 0a.75.75 0 0 1 .75.75v2.5A1.75 1.75 0 0 1 13.25 15h-2.5a.75.75 0 0 1 0-1.5h2.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 .75-.75ZM2.75 2.5a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0v-2.5C1 1.784 1.784 1 2.75 1h2.5a.75.75 0 0 1 0 1.5ZM10 1.75a.75.75 0 0 1 .75-.75h2.5C14.216 1 15 1.784 15 2.75v2.5a.75.75 0 0 1-1.5 0v-2.5a.25.25 0 0 0-.25-.25h-2.5a.75.75 0 0 1-.75-.75Z"/></svg>
+      Fit
+    </button>
+    <button class="btn" onclick="exportPNG()" title="Download PNG">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14ZM7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06Z"/></svg>
+      PNG
+    </button>
+  </div>
+</div>
+
+<!-- Main layout -->
+<div class="layout">
+
+  <!-- Sidebar: file tree -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Explorer</span>
+      <button class="sidebar-collapse-btn" onclick="collapseAll()" title="Recolher tudo">⊟</button>
+    </div>
+    <div class="node-list" id="node-list"></div>
+  </div>
+
+  <!-- Graph canvas + logs drawer -->
+  <div class="canvas-wrap" id="canvas-wrap">
+    <div id="cy"></div>
+
+    <!-- Loading overlay -->
+    <div class="canvas-loading" id="canvas-loading" style="display:none">
+      <div class="loading-spinner"></div>
+      <span class="loading-text">Carregando grafo…</span>
+    </div>
+
+    <!-- Logs drawer (slide up from bottom) -->
+    <div class="logs-drawer" id="logs-drawer" style="display:none">
+      <div class="logs-drawer-inner">
+
+        <!-- Lista de datas (coluna esquerda) -->
+        <div class="logs-dates-col">
+          <div class="logs-col-header">
+            <span>Sessões</span>
+          </div>
+          <div class="logs-dates-list" id="logs-dates-list"></div>
+        </div>
+
+        <!-- Conteúdo do log (coluna direita) -->
+        <div class="logs-content-col">
+          <div class="logs-col-header" id="logs-content-title">
+            <span>Selecione uma sessão</span>
+            <button class="logs-close-btn" onclick="toggleLogs()">✕</button>
+          </div>
+          <div class="logs-content-body" id="logs-content-body">
+            <p class="logs-empty">Nenhum log carregado.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Details panel -->
+  <div class="details hidden" id="details">
+    <div class="details-header">
+      <span id="details-title">Detalhes</span>
+      <span class="details-close" onclick="closeDetails()">✕</span>
+    </div>
+    <div class="details-body" id="details-body"></div>
+  </div>
+
+</div>
+
+<!-- Notification Toast -->
+<div class="notification-toast" id="notification-toast">
+  <div class="toast-icon" id="toast-icon">✓</div>
+  <div class="toast-content" id="toast-content">Sucesso!</div>
+  <button class="toast-close" onclick="closeNotification()">✕</button>
+</div>
+
+<!-- Stats bar -->
+<div class="statsbar">
+  <span class="stat-project-badge" id="stat-project-badge">—</span>
+  <span>Arquivos <strong id="stat-files">0</strong></span>
+  <span>Funções <strong id="stat-fns">0</strong></span>
+  <span>Classes <strong id="stat-cls">0</strong></span>
+  <span>Arestas <strong id="stat-edges">0</strong></span>
+  <span class="statsbar-legend">
+    <span class="legend-item"><span class="legend-dot" style="background:#58a6ff"></span>api</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#3fb950"></span>service</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#ff9f1a"></span>model</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#bc8cff"></span>ui</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#f78166"></span>hook</span>
+  </span>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

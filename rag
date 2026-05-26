@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+"""
+Usage:
+  python3 ~/Dev/Rag/rag /path/to/project   # sync a project
+  python3 ~/Dev/Rag/rag --serve            # open 3D viewer in browser
+  python3 ~/Dev/Rag/rag --status           # list all synced projects
+  python3 ~/Dev/Rag/rag --list             # alias for --status
+"""
+import sys
+import subprocess
+from pathlib import Path
+
+RAG_ROOT = Path(__file__).parent
+
+if '--serve' in sys.argv:
+    subprocess.run([sys.executable, str(RAG_ROOT / 'serve.py')])
+else:
+    subprocess.run([sys.executable, str(RAG_ROOT / 'scripts' / 'sync.py')] + sys.argv[1:])
