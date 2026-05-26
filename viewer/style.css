@@ -314,9 +314,11 @@ body {
   height: 100%;
 }
 
-/* O canvas WebGL gerado pelo 3d-force-graph */
-#cy canvas {
-  display: block;
+.graph-tooltip {
+  position: fixed;
+  pointer-events: none;
+  z-index: 200;
+  display: none;
 }
 
 /* ── Loading overlay ── */

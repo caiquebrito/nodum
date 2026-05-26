@@ -1,14 +1,14 @@
-// RAG Viewer — app.js (3D Edition)
+// RAG Viewer — app.js (2D Concentric Edition)
 
-const RAG_ROOT = '..';
+const RAG_ROOT = '../data';
 
-let graph3d      = null;
-let allNodes     = [];
-let currentProject   = null;
-let currentGraphData = null; // raw { nodes, edges }
-let projects     = {};
+let cy              = null;
+let allNodes        = [];
+let currentProject  = null;
+let currentGraphData = null;
+let projects        = {};
 
-// ── Paleta ────────────────────────────────────────────────────────────────────
+// ── Palette ────────────────────────────────────────────────────────────────────
 
 const GROUP_COLORS = {
   api:     '#58a6ff',
@@ -33,11 +33,11 @@ function nodeColor(node) {
   return TYPE_COLORS[node.type] ?? '#6e7681';
 }
 
-function nodeSize3D(type, deg, maxDeg) {
+function nodeSize2D(type, deg, maxDeg) {
   const t = Math.sqrt((deg || 0) / maxDeg);
-  if (type === 'file')     return 4  + t * 16;
-  if (type === 'class')    return 2.5 + t * 7;
-  return 1.2 + t * 4;
+  if (type === 'file')     return 14 + t * 26;
+  if (type === 'class')    return 9  + t * 12;
+  return 6 + t * 8;
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -127,19 +127,18 @@ async function loadProject(name) {
     renderGraph(graph);
     renderNodeList(graph.nodes, graph.edges);
     updateStats(graph);
-    if (logsOpen) await loadLogsList(); // atualiza logs se drawer estiver aberto
+    if (logsOpen) await loadLogsList();
   } catch {
     hideLoading();
     showProjectEmpty(name);
   }
 }
 
-// ── 3D Graph ──────────────────────────────────────────────────────────────────
+// ── 2D Concentric Graph ───────────────────────────────────────────────────────
 
 function renderGraph(graph) {
-  const elem = document.getElementById('cy');
+  const container = document.getElementById('cy');
 
-  // Grau de cada nó (para tamanho)
   const degree = {};
   for (const e of graph.edges) {
     if (e.source) degree[e.source] = (degree[e.source] || 0) + 1;
@@ -147,87 +146,136 @@ function renderGraph(graph) {
   }
   const maxDeg = Math.max(1, ...Object.values(degree));
 
-  const gData = {
-    nodes: graph.nodes.map(n => ({
-      id:    n.id,
-      label: n.label,
-      type:  n.type,
-      group: n.group,
-      file:  n.file,
-      color: nodeColor(n),
-      val:   nodeSize3D(n.type, degree[n.id] || 0, maxDeg),
+  const elements = [
+    ...graph.nodes.map(n => ({
+      data: {
+        id:    n.id,
+        label: n.label,
+        type:  n.type,
+        group: n.group,
+        file:  n.file,
+        color: nodeColor(n),
+        size:  nodeSize2D(n.type, degree[n.id] || 0, maxDeg),
+        deg:   degree[n.id] || 0,
+      },
     })),
-    links: graph.edges
+    ...graph.edges
       .filter(e => e.source && e.target && e.source !== e.target)
-      .map(e => ({ source: e.source, target: e.target, relation: e.relation })),
-  };
+      .map(e => ({
+        data: {
+          source:   e.source,
+          target:   e.target,
+          relation: e.relation,
+        },
+      })),
+  ];
 
-  // Destruir grafo anterior
-  if (graph3d) {
-    try { graph3d._destructor(); } catch (_) {}
-    elem.innerHTML = '';
+  if (cy) {
+    cy.destroy();
+    cy = null;
   }
 
-  graph3d = ForceGraph3D({ antialias: true, alpha: false })(elem)
-    .width(elem.offsetWidth  || elem.parentElement.offsetWidth)
-    .height(elem.offsetHeight || elem.parentElement.offsetHeight)
-    .backgroundColor('#080c12')
-    .graphData(gData)
-
-    // Nós
-    .nodeLabel(n => labelHtml(n))
-    .nodeVal(n  => n.val)
-    .nodeColor(n => n.color)
-    .nodeOpacity(0.92)
-    .nodeResolution(14)
-
-    // Links
-    .linkColor(l  => l.relation === 'imports' ? '#1a4d9e' : '#1c2128')
-    .linkOpacity(0.5)
-    .linkWidth(l  => l.relation === 'imports' ? 0.8 : 0.3)
-    .linkDirectionalArrowLength(l  => l.relation === 'imports' ? 5  : 0)
-    .linkDirectionalArrowRelPos(1)
-    // Partículas fluindo nos imports — efeito Obsidian
-    .linkDirectionalParticles(l      => l.relation === 'imports' ? 2 : 0)
-    .linkDirectionalParticleWidth(1.8)
-    .linkDirectionalParticleSpeed(0.005)
-    .linkDirectionalParticleColor(() => '#4d94ff')
-
-    // Para simulação após 300 ticks para não travar no loading
-    .cooldownTicks(300)
-
-    // Interação
-    .onNodeClick(node => {
-      focusNode(node.id);
-      showDetailsFromNode(node);
-    })
-    .onBackgroundClick(() => closeDetails());
-
-  // Rotação suave automática
-  graph3d.controls().autoRotate      = true;
-  graph3d.controls().autoRotateSpeed = 0.35;
-
-  // Enquadra tudo na primeira parada da simulação
-  // Fallback: esconde loading após 3s mesmo que engine não pare
-  let fitted = false;
-  const loadingFallback = setTimeout(() => {
-    if (!fitted) { fitted = true; graph3d?.zoomToFit(400, 80); hideLoading(); }
-  }, 3000);
-
-  graph3d.onEngineStop(() => {
-    if (!fitted) {
-      clearTimeout(loadingFallback);
-      fitted = true;
-      graph3d.zoomToFit(600, 80);
-      hideLoading();
-    }
+  cy = cytoscape({
+    container,
+    elements,
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'background-color': 'data(color)',
+          'width':  'data(size)',
+          'height': 'data(size)',
+          'label':  '',
+          'border-width': 0,
+          'overlay-opacity': 0,
+        },
+      },
+      {
+        selector: 'node:selected',
+        style: {
+          'border-width': 2.5,
+          'border-color': '#58a6ff',
+        },
+      },
+      {
+        selector: 'edge[relation="imports"]',
+        style: {
+          'line-color':           '#1a4d9e',
+          'width':                1.2,
+          'target-arrow-shape':   'triangle',
+          'target-arrow-color':   '#1a4d9e',
+          'curve-style':          'bezier',
+          'opacity':              0.7,
+          'arrow-scale':          0.7,
+        },
+      },
+      {
+        selector: 'edge[relation="defines"]',
+        style: {
+          'line-color':   '#2a3040',
+          'width':        0.6,
+          'curve-style':  'straight',
+          'opacity':      0.5,
+        },
+      },
+      {
+        selector: 'edge',
+        style: {
+          'overlay-opacity': 0,
+        },
+      },
+    ],
+    layout: concentricLayout(),
+    userZoomingEnabled:   true,
+    userPanningEnabled:   true,
+    boxSelectionEnabled:  false,
+    autoungrabify:        true,
   });
+
+  cy.on('tap', 'node', evt => {
+    const node = evt.target;
+    focusNodeCy(node.id());
+    showDetailsFromNode(node.data());
+  });
+
+  cy.on('tap', evt => {
+    if (evt.target === cy) closeDetails();
+  });
+
+  // Hover tooltip
+  const tooltip = document.getElementById('graph-tooltip');
+  cy.on('mouseover', 'node', evt => {
+    const node = evt.target;
+    tooltip.innerHTML = labelHtml(node.data());
+    tooltip.style.display = 'block';
+  });
+  cy.on('mousemove', 'node', evt => {
+    tooltip.style.left = (evt.originalEvent.clientX + 14) + 'px';
+    tooltip.style.top  = (evt.originalEvent.clientY - 10) + 'px';
+  });
+  cy.on('mouseout', 'node', () => {
+    tooltip.style.display = 'none';
+  });
+
+  hideLoading();
+}
+
+function concentricLayout() {
+  return {
+    name:           'concentric',
+    animate:        false,
+    concentric:     n => n.data('deg'),
+    levelWidth:     () => 2,
+    minNodeSpacing: 40,
+    spacingFactor:  1.4,
+    padding:        60,
+  };
 }
 
 function labelHtml(n) {
   return `
     <div style="
-      background:rgba(22,27,34,0.9);
+      background:rgba(22,27,34,0.95);
       border:1px solid #30363d;
       padding:6px 10px;
       border-radius:6px;
@@ -235,6 +283,7 @@ function labelHtml(n) {
       font-size:12px;
       color:#e6edf3;
       pointer-events:none;
+      max-width:300px;
     ">
       <b style="color:${n.color}">${n.label}</b>
       <span style="color:#8b949e;margin-left:6px;font-size:10px">${n.type}</span>
@@ -243,44 +292,42 @@ function labelHtml(n) {
   `;
 }
 
-// ── Foco em nó ────────────────────────────────────────────────────────────────
+// ── Focus on node ─────────────────────────────────────────────────────────────
 
 function focusNode(id) {
-  if (!graph3d) return;
-  const node = graph3d.graphData().nodes.find(n => n.id === id);
-  if (!node) return;
+  if (!cy) return;
+  focusNodeCy(id);
+  const nodeData = cy.$(`#${CSS.escape(id)}`).data();
+  if (nodeData) showDetailsFromNode(nodeData);
+}
 
-  // Pausa rotação enquanto foca
-  graph3d.controls().autoRotate = false;
+function focusNodeCy(id) {
+  if (!cy) return;
+  const eles = cy.$(`#${CSS.escape(id)}`);
+  if (eles.empty()) return;
 
-  const dist  = 90;
-  const len   = Math.hypot(node.x || 0.01, node.y || 0.01, node.z || 0.01);
-  const ratio = 1 + dist / len;
+  cy.elements().unselect();
+  eles.select();
 
-  graph3d.cameraPosition(
-    { x: (node.x || 0) * ratio, y: (node.y || 0) * ratio, z: (node.z || 0) * ratio },
-    node,
-    800,
-  );
+  cy.animate({
+    fit: { eles, padding: 120 },
+  }, { duration: 0 });
 
-  // Retoma rotação depois de 5s
-  setTimeout(() => { if (graph3d) graph3d.controls().autoRotate = true; }, 5000);
-
-  // Sincroniza sidebar
+  // Sync sidebar
   document.querySelectorAll('.tree-file.selected, .node-item.selected')
     .forEach(i => i.classList.remove('selected'));
   const el = document.querySelector(`[data-id="${CSS.escape(id)}"]`);
   if (el) { el.classList.add('selected'); el.scrollIntoView({ block: 'nearest' }); }
-
-  showDetailsFromNode(graph3d.graphData().nodes.find(n => n.id === id));
 }
 
 function resetLayout() {
-  if (graph3d) graph3d.d3ReheatSimulation();
+  if (!cy) return;
+  cy.layout(concentricLayout()).run();
 }
 
 function zoomFit() {
-  if (graph3d) graph3d.zoomToFit(600, 80);
+  if (!cy) return;
+  cy.fit(undefined, 60);
 }
 
 // ── Details panel ─────────────────────────────────────────────────────────────
@@ -360,6 +407,7 @@ function closeDetails() {
   document.getElementById('btn-memory')?.classList.remove('active');
   document.querySelectorAll('.tree-file.selected, .node-item.selected')
     .forEach(i => i.classList.remove('selected'));
+  if (cy) cy.elements().unselect();
 }
 
 // ── Sidebar — file tree ───────────────────────────────────────────────────────
@@ -556,9 +604,9 @@ function updateStats(graph) {
 function showEmpty() {
   document.getElementById('cy').innerHTML = `
     <div class="empty">
-      <h2>RAG Viewer 3D</h2>
+      <h2>RAG Viewer</h2>
       <p>Nenhum projeto sincronizado ainda. Vá ao seu projeto real e rode:</p>
-      <code>python3 /Users/koala/Dev/Rag/scripts/sync.py /caminho/do/projeto</code>
+      <code>python3 /path/to/nodum/scripts/sync.py /caminho/do/projeto</code>
       <p style="margin-top:8px">Depois recarregue esta página.</p>
     </div>
   `;
@@ -569,7 +617,7 @@ function showProjectEmpty(name) {
     <div class="empty">
       <h2>${name}</h2>
       <p>Grafo ainda não gerado. Rode:</p>
-      <code>python3 ~/Dev/nodum/scripts/sync.py /caminho/para/${name}</code>
+      <code>python3 /path/to/nodum/scripts/sync.py /caminho/para/${name}</code>
       <p style="margin-top:8px">Depois recarregue esta página.</p>
     </div>
   `;
@@ -601,16 +649,13 @@ async function loadLogsList() {
   const listEl = document.getElementById('logs-dates-list');
   listEl.innerHTML = '';
 
-  // Lê do projects.json (já em memória) — sem depender de directory listing
   let dates = projects[currentProject]?.log_dates ?? [];
 
-  // Se o projects.json ainda não tem log_dates (sync antigo), tenta buscar
   if (dates.length === 0) {
     try {
       const fresh = await fetch(`${RAG_ROOT}/projects.json`);
       const data  = await fresh.json();
       dates = data.projects?.[currentProject]?.log_dates ?? [];
-      // Atualiza cache local
       if (data.projects?.[currentProject]) {
         projects[currentProject] = data.projects[currentProject];
       }
@@ -634,14 +679,13 @@ async function loadLogsList() {
     listEl.appendChild(btn);
   }
 
-  loadLogFile(dates[0]); // abre o mais recente
+  loadLogFile(dates[0]);
 }
 
 async function loadLogFile(date) {
   if (!currentProject) return;
   activeLogDate = date;
 
-  // Highlight botão ativo
   document.querySelectorAll('.log-date-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.date === date)
   );
@@ -712,7 +756,6 @@ async function showMemory() {
   const body  = document.getElementById('details-body');
   const btn   = document.getElementById('btn-memory');
 
-  // Toggle: se já está mostrando memory, fecha
   if (btn.classList.contains('active')) {
     closeDetails();
     btn.classList.remove('active');
@@ -737,40 +780,30 @@ async function showMemory() {
 // ── Export PNG ────────────────────────────────────────────────────────────────
 
 function exportPNG() {
-  if (!graph3d) return;
-  // Força render do frame atual no canvas WebGL
-  graph3d.renderer().render(graph3d.scene(), graph3d.camera());
-  graph3d.renderer().domElement.toBlob(blob => {
-    if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${currentProject ?? 'graph'}-3d.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, 'image/png');
+  if (!cy) return;
+  const dataUrl = cy.png({ output: 'base64uri', bg: '#080c12', full: true, scale: 2 });
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = `${currentProject ?? 'graph'}-2d.png`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
-// ── Notifications ──────────────────────────────────────────────────────────
+// ── Notifications ─────────────────────────────────────────────────────────────
 
 let notificationTimeout = null;
 
 function showNotification(message, type = 'success') {
   const toast = document.getElementById('notification-toast');
-  const icon = document.getElementById('toast-icon');
   const content = document.getElementById('toast-content');
 
-  // Clear previous timeout
   if (notificationTimeout) clearTimeout(notificationTimeout);
 
-  // Update content
   content.textContent = message;
   toast.className = `notification-toast ${type}`;
   toast.classList.remove('hide');
 
-  // Auto-hide after 4 seconds
   notificationTimeout = setTimeout(() => {
     toast.classList.add('hide');
   }, 4000);
@@ -782,7 +815,7 @@ function closeNotification() {
   if (notificationTimeout) clearTimeout(notificationTimeout);
 }
 
-// ── Sync Project ──────────────────────────────────────────────────────────
+// ── Sync Project ──────────────────────────────────────────────────────────────
 
 async function syncProject() {
   if (!currentProject) {
@@ -795,7 +828,6 @@ async function syncProject() {
   btn.disabled = true;
   btn.textContent = 'Sincronizando…';
 
-  // Get project path from projects.json
   const projData = projects[currentProject];
   if (!projData || !projData.project_path) {
     showNotification('Caminho do projeto não encontrado. Execute sync.py uma vez para registrar o caminho.', 'error');
@@ -815,7 +847,6 @@ async function syncProject() {
 
     if (result.success) {
       showNotification('✓ Projeto sincronizado com sucesso!', 'success');
-      // Reload the graph
       await loadProject(currentProject);
     } else {
       showNotification(`✗ Erro ao sincronizar: ${result.error || result.output}`, 'error');
@@ -830,9 +861,8 @@ async function syncProject() {
 
 window.addEventListener('load', init);
 
-// Resize responsivo
 window.addEventListener('resize', () => {
-  if (!graph3d) return;
-  const elem = document.getElementById('cy');
-  graph3d.width(elem.offsetWidth).height(elem.offsetHeight);
+  if (!cy) return;
+  // Cytoscape auto-resizes to container; just invalidate to redraw
+  cy.invalidateDimensions();
 });

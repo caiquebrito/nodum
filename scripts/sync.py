@@ -16,7 +16,9 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 
-RAG_ROOT = Path(__file__).parent.parent  # /Dev/Rag
+NODUM_ROOT = Path(__file__).parent.parent        # nodum repo root
+DATA_ROOT  = NODUM_ROOT / 'data'                 # all synced project data lives here
+RAG_ROOT   = DATA_ROOT                           # alias kept for internal use
 
 # ── Análise automática do projeto ─────────────────────────────────────────────
 
@@ -293,7 +295,7 @@ def sync_project(project_path: Path):
     (rag_dir / 'logs').mkdir(parents=True, exist_ok=True)
 
     # 1. Gerar grafo
-    graph_gen = RAG_ROOT / 'scripts' / 'graph_gen.py'
+    graph_gen = NODUM_ROOT / 'scripts' / 'graph_gen.py'
     out_graph = rag_dir / 'graph'
 
     print(f"\n📊 Gerando grafo...")
@@ -476,9 +478,9 @@ Atualizar grafo e memória:
 python3 {sync_script} {project_path}
 ```
 
-Visualizador 3D:
+Visualizador:
 ```bash
-python3 {rag_root}/rag --serve
+python3 {rag_root}/serve.py
 ```
 <!-- end-rag-section -->
 """
@@ -494,9 +496,9 @@ def update_claude_md(project_path: Path, name: str):
         memory_dir=str(rag_dir / 'memory'),
         graph_file=str(rag_dir / 'graph' / 'graph.json'),
         log_file=str(rag_dir / 'logs' / 'activity.md'),
-        sync_script=str(RAG_ROOT / 'scripts' / 'sync.py'),
+        sync_script=str(NODUM_ROOT / 'scripts' / 'sync.py'),
         project_path=str(project_path),
-        rag_root=str(RAG_ROOT),
+        rag_root=str(NODUM_ROOT),
     )
 
     if claude_md.exists():
@@ -629,13 +631,15 @@ def list_projects():
         stats = info.get('stats', {})
         print(f"  {name:<20} {sync_time:<22} {stats.get('files', 0):>6} {stats.get('functions', 0):>6}")
     print(f"{'─' * 60}")
-    print(f"\nVisualizar: open {RAG_ROOT}/viewer/index.html")
+    print(f"\nVisualizar: python3 {NODUM_ROOT}/serve.py")
 
 
 def status():
     list_projects()
-    for d in RAG_ROOT.iterdir():
-        if d.is_dir() and not d.name.startswith('.') and d.name not in ('scripts', 'viewer'):
+    if not DATA_ROOT.exists():
+        return
+    for d in DATA_ROOT.iterdir():
+        if d.is_dir() and not d.name.startswith('.'):
             graph = d / 'graph' / 'graph.json'
             memory = d / 'memory' / 'RESUMO.md'
             log = d / 'logs' / 'activity.md'
@@ -661,8 +665,8 @@ if __name__ == '__main__':
     else:
         # Usar CWD
         cwd = Path.cwd()
-        if cwd == RAG_ROOT or cwd == RAG_ROOT / 'scripts':
-            print("❌ Rode este script a partir do seu projeto real, não do RAG.")
-            print("   Uso: python3 /Dev/nodum/scripts/sync.py /Dev/meu-projeto")
+        if cwd == NODUM_ROOT or cwd == NODUM_ROOT / 'scripts':
+            print("❌ Rode este script a partir do seu projeto real, não do nodum.")
+            print(f"   Uso: python3 {NODUM_ROOT}/scripts/sync.py /caminho/do/projeto")
             sys.exit(1)
         sync_project(cwd)
