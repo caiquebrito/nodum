@@ -1,48 +1,48 @@
-# nodum — Memória Local de Código para o Claude
+# nodum — Local Code Memory for Claude
 
-> Um grafo de conhecimento self-hosted que dá ao Claude memória persistente sobre seus projetos — com um visualizador 3D interativo.
+> A self-hosted knowledge graph that gives Claude persistent memory about your projects — with an interactive 3D visualizer.
 
-![RAG Viewer](https://img.shields.io/badge/viewer-grafo_3D-58a6ff?style=flat-square)
+![Knowledge Graph](https://img.shields.io/badge/viewer-3D_graph-58a6ff?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.9+-3fb950?style=flat-square)
-![License](https://img.shields.io/badge/licença-MIT-bc8cff?style=flat-square)
-![No cloud](https://img.shields.io/badge/cloud-nenhum-ff9f1a?style=flat-square)
-![Made in Brazil](https://img.shields.io/badge/feito%20no-Brasil%20🇧🇷-009c3b?style=flat-square)
+![License](https://img.shields.io/badge/license-MIT-bc8cff?style=flat-square)
+![No cloud](https://img.shields.io/badge/cloud-none-ff9f1a?style=flat-square)
+![Made in Brazil](https://img.shields.io/badge/made%20in-Brazil%20🇧🇷-009c3b?style=flat-square)
 
 ---
 
-## O problema
+## The Problem
 
-Toda vez que você abre uma nova sessão no Claude Code, ele começa do zero. Você explica a stack de novo. Re-descreve a arquitetura. Cola os mesmos caminhos de arquivo de sempre. O Claude é inteligente, mas não tem memória — e essa re-explicação constante desperdiça tempo e quebra o raciocínio.
+Every time you open a new Claude Code session, it starts from scratch. You explain your stack again. Re-describe the architecture. Paste the same file paths over and over. Claude is smart, but it has no memory — and this constant re-explanation wastes time and breaks your train of thought.
 
-A solução mais comum é jogar tudo no `CLAUDE.md`. Mas isso vira uma bagunça rápido: sem estrutura, sem automação, desatualizado assim que o código muda, e você ainda escreve tudo na mão.
-
----
-
-## A ideia
-
-E se o Claude sempre soubesse do seu projeto — os arquivos, as funções, as dependências, as decisões que você tomou semana passada — sem você precisar explicar de novo?
-
-É isso que o nodum faz. Um **grafo de conhecimento local** que fica do lado dos seus projetos:
-
-- Escaneia o código e monta um mapa estruturado de arquivos, funções, classes e imports
-- Detecta automaticamente sua stack (Node.js, Python, Go, Rust, Docker…) e gera um resumo do projeto
-- Mantém logs de sessão — o que o Claude trabalhou cada dia, o que foi decidido, o que vem a seguir
-- Injeta contexto no `CLAUDE.md` para o Claude ler o grafo antes de responder **qualquer coisa**
-- Serve um **visualizador 3D interativo** — orbite, zoom, clique nos nós, veja as conexões ao vivo
-
-Tudo roda localmente. Sem chamadas de API, sem cloud, sem assinatura.
+The common solution is to dump everything into `CLAUDE.md`. But that becomes a mess quickly: no structure, no automation, outdated as soon as the code changes, and you still write it all manually.
 
 ---
 
-## Como foi feito
+## The Idea
 
-O objetivo foi manter o mais simples possível — sem frameworks, sem build step, sem gerenciador de pacotes. Só Python e JS puro.
+What if Claude always knew about your project — the files, functions, dependencies, the decisions you made last week — without you needing to explain it again?
 
-O script de sync (`scripts/sync.py`) lê os arquivos do projeto usando o módulo `ast` do Python para código Python e regex para JS/TS. Percorre a árvore de diretórios, extrai nós (arquivos, funções, classes) e arestas (imports, definições), e escreve um `graph.json`. Também lê os arquivos de config — `package.json`, `pyproject.toml`, `go.mod`, `.env.example` — e gera um `RESUMO.md` com stack, scripts e variáveis de ambiente já preenchidos.
+That's what nodum does. A **local knowledge graph** that lives alongside your projects:
 
-O visualizador (`viewer/app.js`) usa o [3d-force-graph](https://github.com/vasturiano/3d-force-graph) — um grafo de força 3D em WebGL — para renderizar o código como um átomo vivo que você pode orbitar e explorar. Os nós são dimensionados pela quantidade de conexões. As arestas de import têm partículas animadas fluindo por elas. Clique num nó e um painel de detalhes desliza mostrando tudo que ele importa e tudo que o usa.
+- Scans your code and builds a structured map of files, functions, classes, and imports
+- Automatically detects your stack (Android, Kotlin, Python, Go, Rust, Docker…) and generates a project summary
+- Maintains session logs — what Claude worked on each day, what was decided, what's next
+- Injects context into `CLAUDE.md` so Claude reads the graph before answering **anything**
+- Serves an **interactive 3D visualizer** — orbit, zoom, click nodes, see connections live
 
-A injeção no `CLAUDE.md` força o Claude a imprimir um bloco de contexto formatado no início de cada sessão — stack, contagem de arquivos, data do último sync, resumo do projeto — antes de responder qualquer coisa.
+Everything runs locally. No API calls, no cloud, no subscription.
+
+---
+
+## How It Works
+
+The goal was to keep it simple — no frameworks, no build step, no package managers. Just Python and vanilla JS.
+
+The sync script (`scripts/sync.py`) reads your project files using Python's `ast` module for Kotlin/Java and regex patterns for other languages. It traverses the directory tree, extracts nodes (files, functions, classes) and edges (imports, definitions), and writes a `graph.json`. It also reads config files — `build.gradle`, `AndroidManifest.xml`, `settings.gradle`, `.env.example` — and generates a `SUMMARY.md` with stack, build variants, and environment variables already filled in.
+
+The visualizer (`viewer/app.js`) uses [3d-force-graph](https://github.com/vasturiano/3d-force-graph) — a 3D force-directed graph in WebGL — to render your code as a living atom you can orbit and explore. Nodes are sized by connection count. Import edges have animated particles flowing through them. Click a node and a detail panel slides in showing everything it imports and everything that uses it.
+
+The injection into `CLAUDE.md` forces Claude to print a formatted context block at the start of each session — stack, file count, last sync date, project summary — before answering anything.
 
 ---
 
@@ -51,350 +51,298 @@ A injeção no `CLAUDE.md` força o Claude a imprimir um bloco de contexto forma
 ```
 ┌─ nodum Viewer (localhost:7842) ────────────────────────────────────┐
 │                                                                      │
-│  [Explorer]        [  ●  grafo 3D — orbite com o mouse  ●  ]       │
-│  ▼ src                                                               │
-│    ▼ api           Nós brilham por grupo: api · service · model     │
-│      users.ts  5   Partículas fluem pelas arestas de import         │
-│        ƒ getUser   Clique num nó → painel de detalhes desliza       │
-│        ƒ create                                                      │
-│    ▶ services   [ Logs ]   ── logs diários de sessão ──             │
-│    ▶ models     [ Memory ] ── RESUMO.md do projeto ──               │
+│  [Explorer]        [  ●  3D graph — orbit with mouse  ●  ]         │
+│  ▼ app                                                               │
+│    ▼ ui            Nodes glow by group: ui · service · model        │
+│      MainActivity.kt 12  Particles flow along import edges          │
+│        ƒ onCreate     Click a node → detail panel slides in         │
+│        ƒ setupViews                                                 │
+│    ▶ services    [ Logs ]   ── daily session logs ──                │
+│    ▶ models      [ Memory ] ── SUMMARY.md of project ──             │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Como funciona
+## Project Structure
 
 ```
-~/Dev/Rag/                     ← este repo
+nodum/                        ← this repository
 │
 ├── scripts/
-│   ├── sync.py                ← escaneia um projeto e grava os dados
-│   └── graph_gen.py           ← parser AST (JS/TS/Python)
+│   ├── sync.py                ← scans a project and saves the data
+│   └── graph_gen.py           ← AST parser (Kotlin/Java/Python/JS)
 │
-├── viewer/                    ← visualizador 3D (servido via HTTP)
+├── viewer/                    ← 3D visualizer (served via HTTP)
 │   ├── index.html
 │   ├── app.js
 │   └── style.css
 │
-├── projects.json              ← índice de todos os projetos sincronizados
+├── projects.json              ← index of all synced projects
 │
-└── <nome-do-projeto>/         ← uma pasta por projeto
-    ├── graph/graph.json       ← grafo do código (gerado automaticamente)
-    ├── memory/RESUMO.md       ← resumo do projeto (gerado + editável)
+└── <project-name>/            ← one folder per project
+    ├── graph/graph.json       ← code graph (auto-generated)
+    ├── memory/SUMMARY.md      ← project summary (generated + editable)
     └── logs/
-        ├── activity.md        ← histórico de syncs
-        └── 2024-01-15.md      ← log diário de sessão
+        ├── activity.md        ← sync history
+        └── 2024-01-15.md      ← daily session log
 
-~/Dev/meu-projeto/             ← seu projeto real (não é modificado)
-    └── CLAUDE.md              ← instruções RAG injetadas aqui
+<your-project>/               ← your actual project (not modified)
+    └── CLAUDE.md              ← RAG context injected here
 ```
 
-Seus projetos reais **nunca são modificados**, exceto o `CLAUDE.md`.
+Your actual projects **are never modified**, except for `CLAUDE.md`.
 
 ---
 
-## Início rápido
+## Quick Start
 
-### 1. Clone este repo
-
-```bash
-git clone https://github.com/seu-usuario/nodum ~/Dev/nodum
-```
-
-Sem dependências para instalar — apenas Python 3.9+ (biblioteca padrão).
-
-### 2. Sincronize um projeto
+### 1. Clone this repo
 
 ```bash
-python3 ~/Dev/Rag/rag /caminho/para/meu-projeto
+git clone https://github.com/caiquebrito/nodum ~/path/to/nodum
+cd ~/path/to/nodum
 ```
 
-Isso vai:
-- Parsear todos os arquivos `.js`, `.ts`, `.jsx`, `.tsx`, `.py` e gerar o grafo
-- Detectar a stack a partir de `package.json`, `pyproject.toml`, `go.mod`, etc.
-- Criar `<projeto>/memory/RESUMO.md` já preenchido com stack, scripts e variáveis de ambiente
-- Escrever um `CLAUDE.md` no projeto forçando o Claude a carregar o contexto a cada sessão
-- Criar um log diário em `<projeto>/logs/AAAA-MM-DD.md`
+No dependencies to install — just Python 3.9+ (standard library only).
 
-### 3. Inicie o visualizador
+### 2. Sync a project
 
 ```bash
-python3 ~/Dev/Rag/rag --serve
+python3 scripts/sync.py /path/to/your/android/project
 ```
 
-Abre `http://localhost:7842/viewer/` automaticamente. O grafo 3D é interativo:
-- **Arrastar** para orbitar, **scroll** para zoom
-- **Clicar** num nó para ver suas conexões no painel de detalhes
-- **Hover** para tooltip com nome, tipo e caminho do arquivo
-- **Sidebar** mostra a árvore de pastas real com funções aninhadas sob os arquivos
-- Botão **Sync** rescaneia o código do projeto atual (sem precisar rodar comando no terminal)
-- Botão **Memory** mostra o RESUMO.md do projeto
-- Botão **Logs** mostra os logs diários de sessão
+This will:
+- Parse all `.kt`, `.java`, `.gradle`, `.py`, `.js`, `.ts` files and generate the graph
+- Auto-detect the stack from `build.gradle`, `package.json`, `pyproject.toml`, etc.
+- Create `<project>/memory/SUMMARY.md` pre-filled with stack, build variants, and dependencies
+- Write a `CLAUDE.md` in your project forcing Claude to load context each session
+- Create a daily log in `<project>/logs/YYYY-MM-DD.md`
 
-### 4. Ver status dos projetos
+### 3. Start the visualizer
 
 ```bash
-python3 ~/Dev/Rag/rag --status
+python3 serve.py
 ```
 
----
+Opens `http://localhost:7842/` automatically. The 3D graph is interactive:
+- **Drag** to orbit, **scroll** to zoom
+- **Click** a node to see its connections in the detail panel
+- **Hover** for tooltip with name, type, and file path
+- **Sidebar** shows the real folder tree with functions nested under files
+- **Sync button** rescans the current project's code (no terminal needed)
+- **Memory button** shows the SUMMARY.md of the project
+- **Logs button** navigates through daily session logs
 
-## Integração com Claude Code
+### 4. Check project status
 
-Após o sync, o `CLAUDE.md` do seu projeto vai conter:
-
-```markdown
-## RAG — Contexto obrigatório
-
-REGRA ABSOLUTA: no início de cada sessão, ANTES de responder qualquer coisa, você DEVE:
-
-1. Ler os arquivos listados abaixo em ordem
-2. Imprimir um bloco de contexto:
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  RAG carregado: meu-projeto
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Stack:      Node.js + TypeScript, NestJS, Prisma
-  Arquivos:   205 arquivos · 102 funções · 198 classes
-  Último sync: 2024-01-15 14:32
-  Memória:    API REST para autenticação de usuários...
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-O Claude lê o grafo, a memória e os logs **antes de cada resposta** — e sempre conhece o projeto sem você re-explicar.
-
-### Skills para Claude Code
-
-Adicione no seu `~/.claude/CLAUDE.md` global para atalhos de slash command. Veja a seção **Salvar a sessão** logo abaixo para entender quando usar cada um.
-
-**`/salvar-grafo`** — re-sincroniza o grafo e registra o que foi feito hoje:
-
-Execute este comando **no final da sua sessão** para:
-- Re-escanear o projeto (pega mudanças no código que aconteceram desde o último sync)
-- Atualizar o grafo automaticamente
-- Criar ou atualizar o log diário (`logs/AAAA-MM-DD.md`) com um resumo do que você trabalhou
-
-Exemplo: após implementar uma feature, rode `/salvar-grafo` para que o Claude saiba que o código mudou e registre o que foi feito no log da sessão.
-
-```markdown
-# salvar-grafo
-Quando o usuário digitar `/salvar-grafo`:
-1. Rode python3 /Dev/Rag/scripts/sync.py no projeto atual (path vem do CLAUDE.md injetado)
-2. Crie ou atualize logs/AAAA-MM-DD.md com um bloco de sessão contendo:
-   - Data/hora
-   - Resumo: tarefa principal de hoje em 1-3 bullets
-   - Status: o que ficou pronto, o que ficou para fazer
-3. Imprima "✅ Grafo sincronizado e sessão registrada"
-```
-
-**`/retomar-grafo`** — carrega tudo que você fez antes em outro projeto:
-
-Execute este comando **no início de uma sessão com novo projeto** para:
-- Ler o último log de sessão do projeto anterior (saber onde parou)
-- Injetar o contexto do novo projeto no seu CLAUDE.md
-- Imprimir um resumo formatado do projeto, da stack, das funções principais e dos últimos 3 dias de trabalho
-
-Exemplo: você estava trabalhando em `~/Dev/projeto-A`, faz `/salvar-grafo` lá. Depois muda para `~/Dev/projeto-B`. Abre Claude e roda `/retomar-grafo` para carregar o contexto do projeto-B antes de começar.
-
-```markdown
-# retomar-grafo
-Quando o usuário digitar `/retomar-grafo`:
-1. Detecte o projeto atual (path do CWD ou do git root)
-2. Leia memory/RESUMO.md + logs/AAAA-MM-DD.md (últimas 3 linhas)
-3. Injete no CLAUDE.md injetado pelo sync uma seção extra com:
-   - Stack do projeto
-   - Arquivos-chave e funções mais importantes
-   - Últimas sessões (logs dos últimos 3 dias)
-4. Imprima um bloco formatado resumindo tudo
-```
-
-#### Quando usar cada skill
-
-| Situação | Comando | O que faz |
-|----------|---------|----------|
-| **Terminei meu trabalho do dia** | `/salvar-grafo` | Rescaneia o código, atualiza o grafo e registra no log de sessão o que você fez |
-| **Voltei a um projeto depois de dias** | `/retomar-grafo` | Lê os logs das últimas sessões e injeta todo o contexto no início |
-| **Mudei de projeto no mesmo dia** | `/retomar-grafo` (no novo projeto) | Carrega o contexto do novo projeto antes de começar |
-| **Quero saber o status de tudo** | `python3 ~/Dev/Rag/rag --status` | Lista todos os projetos, última atualização, e stats |
-
-#### Fluxo recomendado
-
-```
-Sessão 1 — Projeto A
-├─ Abre Claude Code em ~/Dev/projeto-A
-├─ Trabalha no projeto
-└─ Ao final: `/salvar-grafo` ← registra o que fez
-
-Sessão 2 — Projeto B (dias depois)
-├─ Abre Claude Code em ~/Dev/projeto-B
-├─ Roda: `/retomar-grafo` ← carrega contexto antigo
-├─ Trabalha
-└─ Ao final: `/salvar-grafo` ← registra do projeto B
-
-Sessão 3 — Volta ao Projeto A
-├─ Abre Claude Code em ~/Dev/projeto-A
-├─ Roda: `/retomar-grafo` ← vê que deixou pendências em outro arquivo
-├─ Continua o trabalho sabendo onde parou
-└─ Ao final: `/salvar-grafo`
+```bash
+python3 scripts/sync.py --status
 ```
 
 ---
 
-## Stack detectada automaticamente
+## Integration with Claude Code
 
-O `sync.py` lê os arquivos do projeto e preenche o `memory/RESUMO.md` automaticamente:
+After syncing, your project's `CLAUDE.md` will contain:
 
-| Arquivo | O que é detectado |
-|---------|------------------|
-| `package.json` | Runtime (Node/Bun), linguagem (TS/JS), frameworks (React, Next, Express, NestJS…), ORMs (Prisma, Drizzle, Mongoose…), libs (Zod, JWT, Socket.io…) |
+```markdown
+## Knowledge Graph Context — Required
+
+ABSOLUTE RULE: at the start of each session, BEFORE answering anything, you MUST:
+
+1. Read the files listed below in order
+2. Print a context block:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Knowledge Graph loaded: myapp
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Stack:      Android · Kotlin · Jetpack Compose
+  Files:      127 files · 84 classes · 312 functions
+  Last sync:  2024-01-15 14:32
+  Memory:     Mobile app for tracking user workouts...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+Claude reads the graph, memory, and logs **before each response** — and always knows the project without re-explaining.
+
+### Skills for Claude Code
+
+The `/rag-sync` skill is available for use during Claude Code sessions. More details and improvements coming soon.
+
+#### Installing Skills
+
+Nodum includes ready-to-use Claude Code skills in the `claude-skills/` folder. To use them in your project:
+
+1. Copy the skills from nodum into your project's `.claude` folder:
+   ```bash
+   cp -r /path/to/nodum/claude-skills/* /path/to/your/project/.claude/
+   ```
+
+2. Skills are now available as slash commands (e.g., `/rag-sync`) during your Claude Code sessions.
+
+If `.claude` folder doesn't exist in your project, Claude Code will create it automatically on first use.
+
+---
+
+## Automatically Detected Stack
+
+The `sync.py` reads your project files and populates `memory/SUMMARY.md` automatically:
+
+| File | What gets detected |
+|------|-------------------|
+| `build.gradle` | Language (Kotlin/Java), Android version, libraries, build flavors |
+| `AndroidManifest.xml` | App name, permissions, Activities, Services |
+| `settings.gradle` | Module structure and dependencies |
+| `package.json` | Runtime (Node/Bun), language (TS/JS), frameworks (React, Next, Express…), ORMs, libraries |
 | `pyproject.toml` / `requirements.txt` | Python + FastAPI / Django / Flask / SQLAlchemy |
 | `go.mod` | Go + Gin / Echo / Fiber |
 | `Cargo.toml` | Rust |
-| `docker-compose.yml` | Docker Compose |
-| `.env.example` | Nomes de todas as variáveis de ambiente |
-| `Makefile` | Targets `make` disponíveis |
-| `README.md` | Primeiro parágrafo como descrição do projeto |
+| `docker-compose.yml` | Docker Compose services |
+| `.env.example` | All environment variable names |
+| `Makefile` | Available `make` targets |
+| `README.md` | First paragraph as project description |
 
-Seções que não podem ser detectadas automaticamente (`## Depende de`, `## Expõe para`, `## Observações`) ficam em branco para você preencher.
-
----
-
-## Linguagens suportadas
-
-| Linguagem | Extensões | O que é extraído |
-|-----------|----------|-----------------|
-| JavaScript | `.js`, `.mjs`, `.cjs` | imports, funções, classes |
-| TypeScript | `.ts`, `.tsx` | imports, funções, classes, interfaces |
-| JSX | `.jsx` | imports, funções, componentes |
-| Python | `.py` | imports, funções, classes (via AST) |
+Sections that can't be auto-detected (`## Dependencies On`, `## Exposes To`, `## Notes`) are left blank for you to fill.
 
 ---
 
-## Estrutura da memória do projeto
+## Supported Languages
+
+| Language | Extensions | What gets extracted |
+|----------|-----------|-----------------|
+| Kotlin | `.kt` | imports, functions, classes, objects |
+| Java | `.java` | imports, methods, classes |
+| JavaScript | `.js`, `.mjs`, `.cjs` | imports, functions, classes |
+| TypeScript | `.ts`, `.tsx` | imports, functions, classes, interfaces |
+| JSX | `.jsx` | imports, functions, components |
+| Python | `.py` | imports, functions, classes (via AST) |
+
+---
+
+## Project Memory Structure
 
 ```
-<nome-do-projeto>/
+<project-name>/
 ├── graph/
-│   └── graph.json          # nós (arquivo/função/classe) + arestas (imports/defines)
+│   └── graph.json          # nodes (file/function/class) + edges (imports/defines)
 ├── memory/
-│   └── RESUMO.md           # resumo gerado automaticamente, edite livremente
+│   └── SUMMARY.md          # auto-generated, freely editable
 └── logs/
-    ├── activity.md         # cada sync registrado aqui
-    ├── 2024-01-15.md       # log diário de sessão (criado pelo /salvar-grafo)
+    ├── activity.md         # each sync recorded here
+    ├── 2024-01-15.md       # daily session log (created by /rag-sync)
     └── 2024-01-16.md
 ```
 
-### Formato do graph.json
+### graph.json Format
 
 ```json
 {
-  "project": "meu-projeto",
-  "stats": { "files": 205, "functions": 102, "classes": 11, "edges": 312 },
+  "project": "myapp",
+  "stats": { "files": 127, "functions": 312, "classes": 84, "edges": 498 },
   "nodes": [
-    { "id": "src_api_users_ts", "label": "users.ts", "type": "file",
-      "file": "src/api/users.ts", "group": "api" },
-    { "id": "src_api_users_ts__getUser", "label": "getUser", "type": "function",
-      "file": "src/api/users.ts", "group": "api" }
+    { "id": "app_ui_MainActivity_kt", "label": "MainActivity.kt", "type": "file",
+      "file": "app/ui/MainActivity.kt", "group": "ui" },
+    { "id": "app_ui_MainActivity_kt__onCreate", "label": "onCreate", "type": "function",
+      "file": "app/ui/MainActivity.kt", "group": "ui" }
   ],
   "edges": [
-    { "source": "src_api_users_ts", "target": "src_services_user_ts",
+    { "source": "app_ui_MainActivity_kt", "target": "app_services_LocationService_kt",
       "relation": "imports" }
   ]
 }
 ```
 
-### Grupos de nós
+### Node Groups
 
-| Grupo | Diretórios |
+| Group | Directories |
 |-------|-----------|
-| `api` | `api/`, `routes/`, `controllers/` |
-| `ui` | `components/`, `pages/`, `views/` |
+| `ui` | `ui/`, `fragments/`, `activities/`, `screens/` |
 | `service` | `services/`, `service/` |
-| `model` | `models/`, `model/`, `schema/` |
-| `hook` | `hooks/` |
-| `util` | `utils/`, `helpers/`, `lib/` |
-| `config` | `config/`, `settings/`, `env/` |
-| `test` | `test/`, `tests/`, `__tests__/`, `spec/` |
+| `model` | `models/`, `data/`, `entities/`, `schema/` |
+| `repo` | `repository/`, `repositories/` |
+| `util` | `utils/`, `helpers/`, `lib/`, `common/` |
+| `config` | `config/`, `settings/`, `di/` |
+| `test` | `test/`, `tests/`, `androidTest/`, `unitTest/` |
 
 ---
 
-## Funcionalidades do visualizador
+## Visualizer Features
 
-- **Grafo 3D de força** — nós se repelem, câmera orbita livremente (WebGL via three.js)
-- **Auto-fit ao carregar** — o grafo sempre fica enquadrado ao trocar de projeto
-- **Tamanho por grau** — nós mais conectados aparecem maiores
-- **Partículas nas arestas de import** — pontos animados fluem pelas setas de dependência
-- **Sidebar com árvore de arquivos** — mesma estrutura de pastas do projeto, funções aninhadas
-- **Seletor de projeto** — dropdown suportando projetos ilimitados
-- **Botão Sync** — rescaneia o código sem sair da interface (roda sync.py automaticamente)
-- **Painel Memory** — clique em Memory para ler o RESUMO.md do projeto
-- **Logs de sessão** — clique em Logs para navegar pelos logs diários
-- **Busca** — encontra qualquer função, arquivo ou componente no grafo
-- **Painel de detalhes** — clique num nó para ver o que ele importa e o que o usa
-- **Exportar PNG** — baixa um screenshot da visão atual
-- **Rotação automática** — órbita suave quando ocioso, pausa na interação
+- **3D force graph** — nodes repel each other, camera orbits freely (WebGL via three.js)
+- **Auto-fit on load** — graph always fits when switching projects
+- **Size by degree** — more connected nodes appear larger
+- **Animated particles on import edges** — points flow along dependency arrows
+- **Sidebar with file tree** — same folder structure, functions nested under files
+- **Project selector** — dropdown supporting unlimited projects
+- **Sync button** — rescans code without leaving the interface (runs sync.py automatically)
+- **Memory panel** — click Memory to read the SUMMARY.md
+- **Session logs** — click Logs to browse daily session logs
+- **Search** — find any function, file, or class in the graph
+- **Detail panel** — click a node to see what it imports and what uses it
+- **Export PNG** — download a screenshot of the current view
+- **Auto-rotation** — smooth orbit when idle, pauses on interaction
 
 ---
 
-## Referência de comandos
+## Command Reference
 
 ```bash
-# Sincronizar um projeto (criar ou atualizar todos os dados)
-python3 ~/Dev/Rag/rag /caminho/para/o/projeto
+# Sync a project (create or update all data)
+python3 scripts/sync.py /path/to/your/project
 
-# Iniciar o visualizador 3D em localhost:7842
-python3 ~/Dev/Rag/rag --serve
+# Start the 3D visualizer on localhost:7842
+python3 serve.py
 
-# Listar todos os projetos sincronizados com stats
-python3 ~/Dev/Rag/rag --status
+# Check all synced projects with stats
+python3 scripts/sync.py --status
 ```
 
-| Arquivo | Escrito por | Contém |
-|---------|------------|--------|
-| `graph/graph.json` | sync (automático) | Grafo do código |
-| `memory/RESUMO.md` | sync + você | Resumo do projeto |
-| `logs/activity.md` | sync (automático) | Histórico de syncs |
-| `logs/AAAA-MM-DD.md` | Claude (`/salvar-grafo`) | Log diário de sessão |
-| `projects.json` | sync (automático) | Índice de projetos |
+| File | Written by | Contains |
+|------|-----------|----------|
+| `graph/graph.json` | sync (auto) | Code graph |
+| `memory/SUMMARY.md` | sync + you | Project summary |
+| `logs/activity.md` | sync (auto) | Sync history |
+| `logs/YYYY-MM-DD.md` | Claude (`/rag-sync`) | Daily session log |
+| `projects.json` | sync (auto) | Project index |
 
 ---
 
-## Ignorando arquivos
+## Ignoring Files
 
-O scanner ignora estes diretórios por padrão:
+The scanner ignores these directories by default:
 
 ```
 node_modules  .git  dist  build  .next  __pycache__  coverage
+.gradle  build/  .idea/  .DS_Store
 ```
 
 ---
 
-## Contribuindo
+## Contributing
 
-PRs são bem-vindos. O código é intencionalmente simples — sem build step, sem gerenciador de pacotes, sem framework.
+PRs welcome. The code is intentionally simple — no build step, no package manager, no framework.
 
 ```
-scripts/sync.py       ~330 linhas  — orquestrador
-scripts/graph_gen.py  ~200 linhas  — parser AST
-viewer/app.js         ~600 linhas  — visualizador 3D (JS puro)
-viewer/style.css      ~400 linhas  — tema dark
-serve.py               ~30 linhas  — servidor HTTP local
+scripts/sync.py       ~330 lines  — orchestrator
+scripts/graph_gen.py  ~200 lines  — AST parser
+viewer/app.js         ~600 lines  — 3D visualizer (vanilla JS)
+viewer/style.css      ~400 lines  — dark theme
+serve.py               ~30 lines  — local HTTP server
 ```
 
 ---
 
-## Autor
+## Author
 
-Feito com foco por **Lucas Amaral** — 🇧🇷 Brasil.
+Made with focus by **Lucas Amaral** — 🇧🇷 Brazil.
 
-Se isso te economizou tempo, considera um café:
+If this saved you time, consider buying a coffee:
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/koalitos)
 
 ---
 
-## Licença
+## License
 
 MIT
