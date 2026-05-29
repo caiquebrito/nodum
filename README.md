@@ -335,11 +335,7 @@ serve.py               ~30 lines  — local HTTP server
 
 ## Author
 
-Made with focus by **Lucas Amaral** — 🇧🇷 Brazil.
-
-If this saved you time, consider buying a coffee:
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/koalitos)
+Feito com foco por **Caique Brito** — 🇧🇷 Brasil.
 
 ---
 
