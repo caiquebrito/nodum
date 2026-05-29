@@ -387,11 +387,7 @@ serve.py               ~30 linhas  — servidor HTTP local
 
 ## Autor
 
-Feito com foco por **Lucas Amaral** — 🇧🇷 Brasil.
-
-Se isso te economizou tempo, considera um café:
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/koalitos)
+Feito com foco por **Caique Brito** — 🇧🇷 Brasil.
 
 ---
 
