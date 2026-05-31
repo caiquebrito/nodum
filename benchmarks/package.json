@@ -1,0 +1,19 @@
+{
+  "name": "nodum-benchmarks",
+  "version": "1.0.0",
+  "description": "Benchmark suite for measuring nodum RAG effectiveness",
+  "type": "module",
+  "scripts": {
+    "run": "node --loader ts-node/esm ./harness.ts",
+    "run:sample": "node --loader ts-node/esm ./harness.ts ./projects/sample-next-app"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.28.0",
+    "@caiquebrito/nodum-core": "file:../packages/core"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "ts-node": "^10.9.0"
+  }
+}

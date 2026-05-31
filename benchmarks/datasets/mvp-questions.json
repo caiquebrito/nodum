@@ -1,0 +1,182 @@
+[
+  {
+    "id": "ts-01-api-routes",
+    "category": "function",
+    "difficulty": "medium",
+    "language": "typescript",
+    "question": "What are all the HTTP API endpoints defined in this project? List the route paths and the handlers/middleware that process them.",
+    "expectedElements": {
+      "files": ["app.ts", "server.ts", "route", "api"],
+      "concepts": ["endpoint", "route", "handler", "middleware"]
+    },
+    "context": "Assesses whether the graph helps find all API surface area without manual file search"
+  },
+  {
+    "id": "ts-02-state-management",
+    "category": "architecture",
+    "difficulty": "hard",
+    "language": "typescript",
+    "question": "Walk me through the complete user authentication flow from login form submission to authenticated API calls. What files and functions are involved?",
+    "expectedElements": {
+      "functions": ["authenticate", "login", "token", "verify", "guard"],
+      "concepts": ["auth", "session", "JWT", "middleware", "protected"]
+    },
+    "context": "Tests whether graph helps understand cross-file architectural patterns"
+  },
+  {
+    "id": "ts-03-component-hierarchy",
+    "category": "architecture",
+    "difficulty": "medium",
+    "language": "typescript",
+    "question": "What is the component hierarchy for the main application layout? Which components are parents/children of each other?",
+    "expectedElements": {
+      "concepts": ["component", "layout", "parent", "child", "render"],
+      "files": ["component", "layout"]
+    },
+    "context": "Assesses understanding of UI component structure"
+  },
+  {
+    "id": "ts-04-error-handling",
+    "category": "refactor",
+    "difficulty": "medium",
+    "language": "typescript",
+    "question": "Find all the places where errors are caught and handled in API requests. What's the pattern used and are there inconsistencies?",
+    "expectedElements": {
+      "functions": ["catch", "error", "handler", "try"],
+      "concepts": ["error handling", "exception", "fallback"]
+    },
+    "context": "Tests whether graph helps identify code patterns across files"
+  },
+  {
+    "id": "ts-05-database-queries",
+    "category": "dependency",
+    "difficulty": "hard",
+    "language": "typescript",
+    "question": "How does the application interact with the database? What models are queried, what relationships exist between them, and where are queries executed?",
+    "expectedElements": {
+      "functions": ["query", "select", "find", "create", "update", "delete"],
+      "concepts": ["database", "model", "ORM", "schema", "query"]
+    },
+    "context": "Tests understanding of data flow and dependencies"
+  },
+  {
+    "id": "py-01-flask-routes",
+    "category": "function",
+    "difficulty": "medium",
+    "language": "python",
+    "question": "List all Flask or FastAPI routes in this project. Show the HTTP method, path, and the function that handles each route.",
+    "expectedElements": {
+      "functions": ["route", "app", "get", "post", "put", "delete"],
+      "concepts": ["endpoint", "handler", "decorator", "request"]
+    },
+    "context": "Basic API discovery for Python backends"
+  },
+  {
+    "id": "py-02-models-schema",
+    "category": "dependency",
+    "difficulty": "medium",
+    "language": "python",
+    "question": "What are the data models in this project? What fields do they have and how are they related to each other?",
+    "expectedElements": {
+      "functions": ["class", "model", "field", "relationship"],
+      "concepts": ["database", "schema", "ORM", "entity"]
+    },
+    "context": "Assesses understanding of data structure"
+  },
+  {
+    "id": "py-03-dependency-injection",
+    "category": "architecture",
+    "difficulty": "hard",
+    "language": "python",
+    "question": "How does this project handle dependency injection? What dependencies are injected and where?",
+    "expectedElements": {
+      "functions": ["inject", "provide", "depends", "init"],
+      "concepts": ["dependency", "injection", "service", "provider"]
+    },
+    "context": "Tests understanding of application architecture patterns"
+  },
+  {
+    "id": "py-04-async-patterns",
+    "category": "architecture",
+    "difficulty": "hard",
+    "language": "python",
+    "question": "Identify all async/await patterns in this codebase. Which functions are async and what are they waiting for?",
+    "expectedElements": {
+      "functions": ["async", "await", "asyncio"],
+      "concepts": ["asynchronous", "concurrent", "blocking", "IO"]
+    },
+    "context": "Tests whether graph helps find concurrency patterns"
+  },
+  {
+    "id": "py-05-middleware-stack",
+    "category": "architecture",
+    "difficulty": "medium",
+    "language": "python",
+    "question": "What middleware is applied to API requests in this application? In what order are they applied?",
+    "expectedElements": {
+      "functions": ["middleware", "decorator", "before", "after"],
+      "concepts": ["middleware", "request", "response", "handler"]
+    },
+    "context": "Tests understanding of request processing pipeline"
+  },
+  {
+    "id": "mixed-01-configuration",
+    "category": "dependency",
+    "difficulty": "easy",
+    "language": "mixed",
+    "question": "Where are application configuration values defined? What environment variables are used and how are they accessed?",
+    "expectedElements": {
+      "files": ["config", "env", ".env"],
+      "concepts": ["environment", "configuration", "settings", "variable"]
+    },
+    "context": "Cross-language config management"
+  },
+  {
+    "id": "mixed-02-monorepo-structure",
+    "category": "architecture",
+    "difficulty": "medium",
+    "language": "mixed",
+    "question": "If this is a monorepo, what are the main packages/modules and how do they depend on each other?",
+    "expectedElements": {
+      "concepts": ["module", "package", "dependency", "workspace", "import"],
+      "files": ["package.json", "workspace"]
+    },
+    "context": "Tests understanding of multi-package architecture"
+  },
+  {
+    "id": "mixed-03-build-process",
+    "category": "architecture",
+    "difficulty": "hard",
+    "language": "mixed",
+    "question": "Describe the build and deployment process. What build tools are used, what are the build steps, and what artifacts are produced?",
+    "expectedElements": {
+      "concepts": ["build", "compile", "bundle", "deploy", "artifact"],
+      "files": ["package.json", "Dockerfile", "Makefile", "build", "script"]
+    },
+    "context": "Tests understanding of CI/CD and build infrastructure"
+  },
+  {
+    "id": "mixed-04-cross-language-integration",
+    "category": "architecture",
+    "difficulty": "hard",
+    "language": "mixed",
+    "question": "How do the different language components (if any) communicate with each other? What are the integration points and message formats?",
+    "expectedElements": {
+      "concepts": ["API", "contract", "interface", "protocol", "serialization"],
+      "functions": ["call", "request", "response"]
+    },
+    "context": "Tests understanding of multi-language systems"
+  },
+  {
+    "id": "mixed-05-testing-strategy",
+    "category": "architecture",
+    "difficulty": "medium",
+    "language": "mixed",
+    "question": "What testing framework(s) are used and what is the overall testing strategy (unit, integration, e2e)? Where are tests located?",
+    "expectedElements": {
+      "concepts": ["test", "unit", "integration", "mock", "assertion"],
+      "files": ["test", "spec", ".test", ".spec"]
+    },
+    "context": "Tests understanding of QA approach"
+  }
+]
