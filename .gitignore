@@ -2,3 +2,23 @@ data/
 __pycache__/
 *.pyc
 .DS_Store
+
+# Node & TypeScript
+node_modules
+dist
+*.js
+*.js.map
+*.d.ts
+.env
+.env.local
+.env.*.local
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.coverage
+coverage
+.turbo
+.next
+out

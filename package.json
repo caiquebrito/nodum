@@ -1,0 +1,48 @@
+{
+  "name": "@caiquebrito/nodum",
+  "version": "1.0.0",
+  "description": "Local knowledge graph for Claude — scan code, build interactive 3D dependency graph, inject context into CLAUDE.md",
+  "type": "module",
+  "private": false,
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "scripts": {
+    "build:core": "cd packages/core && npm run build",
+    "build:cli": "cd packages/cli && npm run build",
+    "build:server": "cd packages/server && npm run build",
+    "build": "npm run build:core && npm run build:cli && npm run build:server",
+    "dev": "npm run dev --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "eslint packages --ext .ts",
+    "clean": "rm -rf packages/*/dist && rm -rf dist",
+    "prepare": "npm run build"
+  },
+  "workspaces": [
+    "packages/core",
+    "packages/cli",
+    "packages/server"
+  ],
+  "keywords": [
+    "claude",
+    "rag",
+    "knowledge-graph",
+    "code-analysis",
+    "dependency-graph",
+    "ast-parser"
+  ],
+  "author": "Caique Brito",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/caiquebrito/nodum"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  }
+}
