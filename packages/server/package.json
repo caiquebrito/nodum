@@ -15,7 +15,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@caiquebrito/nodum-core": "file:../core",
+    "@caiquebrito/nodum-core": "^2.0.0",
     "express": "^4.18.0",
     "open": "^9.1.0"
   },

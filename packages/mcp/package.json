@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
-    "@caiquebrito/nodum-core": "file:../core",
+    "@caiquebrito/nodum-core": "^2.0.0",
     "@modelcontextprotocol/sdk": "^0.7.0"
   },
   "devDependencies": {
