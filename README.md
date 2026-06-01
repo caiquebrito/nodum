@@ -72,12 +72,11 @@ Add to `~/.claude/settings.json`:
 
 ```json
 {
-  "mcpServers": [
-    {
-      "name": "nodum",
+  "mcpServers": {
+    "nodum": {
       "command": "nodum-mcp"
     }
-  ]
+  }
 }
 ```
 
