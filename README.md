@@ -59,16 +59,19 @@ Scans your project and creates a knowledge graph at `~/.nodum/my-project/`.
 
 ### 3. Configure Claude Code
 
-**Option A: Using Claude Code UI** (Desktop/Web app)
-1. Open Settings (⚙️ icon)
-2. Find "MCP Servers"
-3. Click "Add Server"
-4. Name: `nodum`, Command: `nodum-mcp`
-5. Save and restart Claude Code
+Claude Code reads MCP servers from a `.mcp.json` file in your project root, or from its own user config — **not** from `settings.json` (the `mcpServers` field there is silently ignored). Pick one:
 
-**Option B: Using settings.json** (CLI/Headless setup)
+**Option A: `claude mcp add`** (recommended — handles PATH for you)
 
-Add to `~/.claude/settings.json`:
+```bash
+claude mcp add nodum -- nodum-mcp
+```
+
+Restart Claude Code, then run `/mcp` to confirm `nodum` is connected.
+
+**Option B: `.mcp.json` in your project root**
+
+Create a `.mcp.json` file at the root of the project you want indexed:
 
 ```json
 {
@@ -80,7 +83,29 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
-Then restart Claude Code or reload the settings.
+When Claude Code opens in that directory it will prompt you to trust the server — accept it, then it appears in `/mcp`.
+
+#### Troubleshooting: "command not found" / server won't connect
+
+Claude Code spawns the MCP server **without your shell's full `PATH`**, so it may not find the global npm bin. Point the config at absolute paths instead. Find them with:
+
+```bash
+which node        # e.g. /opt/homebrew/bin/node
+which nodum-mcp   # e.g. /opt/homebrew/bin/nodum-mcp
+```
+
+Then in `.mcp.json`, launch node directly with the script path:
+
+```json
+{
+  "mcpServers": {
+    "nodum": {
+      "command": "/opt/homebrew/bin/node",
+      "args": ["/opt/homebrew/bin/nodum-mcp"]
+    }
+  }
+}
+```
 
 ### 4. Use Claude
 

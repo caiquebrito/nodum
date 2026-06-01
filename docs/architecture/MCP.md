@@ -349,23 +349,36 @@ Create `packages/mcp/package.json`:
 npm install -g @caiquebrito/nodum-mcp
 ```
 
-### Step 2: Configure in Claude Code Settings
+### Step 2: Register the MCP server
 
-In Claude Code → Settings → MCP Servers:
+Use the CLI (recommended):
+
+```bash
+claude mcp add nodum -- nodum-mcp
+```
+
+Or create a `.mcp.json` in your project root:
 
 ```json
 {
-  "name": "nodum",
-  "command": "node",
-  "args": ["/path/to/node_modules/@caiquebrito/nodum-mcp/dist/index.js"]
+  "mcpServers": {
+    "nodum": {
+      "command": "nodum-mcp"
+    }
+  }
 }
 ```
 
-Or simpler:
+If Claude Code can't find `nodum-mcp` on its `PATH`, point at absolute paths:
+
 ```json
 {
-  "name": "nodum",
-  "command": "nodum-mcp"
+  "mcpServers": {
+    "nodum": {
+      "command": "/opt/homebrew/bin/node",
+      "args": ["/opt/homebrew/bin/nodum-mcp"]
+    }
+  }
 }
 ```
 
