@@ -27,7 +27,7 @@
     <input
       type="text"
       id="search-input"
-      placeholder="Buscar função, arquivo, componente..."
+      placeholder="Search function, file, component..."
       oninput="onSearch(this.value)"
       autocomplete="off"
     />
@@ -52,7 +52,7 @@
       <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"/></svg>
       Sync
     </button>
-    <button class="btn" onclick="showMemory()" id="btn-memory" title="Memory / RESUMO.md">
+    <button class="btn" onclick="showMemory()" id="btn-memory" title="Memory / SUMMARY.md">
       <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 8.75 4.25V1.5Zm5.75.56v2.19c0 .138.112.25.25.25h2.19Z"/></svg>
       Memory
     </button>
@@ -94,29 +94,29 @@
     <!-- Loading overlay -->
     <div class="canvas-loading" id="canvas-loading" style="display:none">
       <div class="loading-spinner"></div>
-      <span class="loading-text">Carregando grafo…</span>
+      <span class="loading-text">Loading graph…</span>
     </div>
 
     <!-- Logs drawer (slide up from bottom) -->
     <div class="logs-drawer" id="logs-drawer" style="display:none">
       <div class="logs-drawer-inner">
 
-        <!-- Lista de datas (coluna esquerda) -->
+        <!-- Date list (left column) -->
         <div class="logs-dates-col">
           <div class="logs-col-header">
-            <span>Sessões</span>
+            <span>Sessions</span>
           </div>
           <div class="logs-dates-list" id="logs-dates-list"></div>
         </div>
 
-        <!-- Conteúdo do log (coluna direita) -->
+        <!-- Log content (right column) -->
         <div class="logs-content-col">
           <div class="logs-col-header" id="logs-content-title">
-            <span>Selecione uma sessão</span>
+            <span>Select a session</span>
             <button class="logs-close-btn" onclick="toggleLogs()">✕</button>
           </div>
           <div class="logs-content-body" id="logs-content-body">
-            <p class="logs-empty">Nenhum log carregado.</p>
+            <p class="logs-empty">No log loaded.</p>
           </div>
         </div>
 
@@ -145,8 +145,8 @@
 <!-- Stats bar -->
 <div class="statsbar">
   <span class="stat-project-badge" id="stat-project-badge">—</span>
-  <span>Arquivos <strong id="stat-files">0</strong></span>
-  <span>Funções <strong id="stat-fns">0</strong></span>
+  <span>Files <strong id="stat-files">0</strong></span>
+  <span>Functions <strong id="stat-fns">0</strong></span>
   <span>Classes <strong id="stat-cls">0</strong></span>
   <span>Arestas <strong id="stat-edges">0</strong></span>
   <span class="statsbar-legend">

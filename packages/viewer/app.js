@@ -67,8 +67,8 @@ function renderTabs() {
   const names = Object.keys(projects);
 
   if (names.length === 0) {
-    document.getElementById('current-project-name').textContent = 'Nenhum projeto';
-    menu.innerHTML = '<div style="padding:10px 14px;font-size:11px;color:#8b949e">Rode sync.py num projeto</div>';
+    document.getElementById('current-project-name').textContent = 'No project';
+    menu.innerHTML = '<div style="padding:10px 14px;font-size:11px;color:#8b949e">Run nodum sync on a project</div>';
     return;
   }
 
@@ -299,11 +299,11 @@ function showDetailsFromNode(nodeData) {
       <span class="details-value">${nodeData.type}</span>
     </div>
     <div class="details-row">
-      <span class="details-label">Grupo</span>
+      <span class="details-label">Group</span>
       <span class="details-value">${nodeData.group ?? '—'}</span>
     </div>
     <div class="details-row">
-      <span class="details-label">Arquivo</span>
+      <span class="details-label">File</span>
       <span class="details-value" style="color:#8b949e;word-break:break-all;font-size:11px">${nodeData.file ?? '—'}</span>
     </div>
   `;
@@ -550,9 +550,9 @@ function showEmpty() {
   document.getElementById('cy').innerHTML = `
     <div class="empty">
       <h2>RAG Viewer 3D</h2>
-      <p>Nenhum projeto sincronizado ainda. Vá ao seu projeto real e rode:</p>
-      <code>python3 /path/to/nodum/scripts/sync.py /caminho/do/projeto</code>
-      <p style="margin-top:8px">Depois recarregue esta página.</p>
+      <p>No project synced yet. Go to your project and run:</p>
+      <code>nodum sync /path/to/project</code>
+      <p style="margin-top:8px">Then reload this page.</p>
     </div>
   `;
 }
@@ -561,9 +561,9 @@ function showProjectEmpty(name) {
   document.getElementById('cy').innerHTML = `
     <div class="empty">
       <h2>${name}</h2>
-      <p>Grafo ainda não gerado. Rode:</p>
-      <code>python3 ~/Dev/nodum/scripts/sync.py /caminho/para/${name}</code>
-      <p style="margin-top:8px">Depois recarregue esta página.</p>
+      <p>Graph not generated yet. Run:</p>
+      <code>nodum sync /path/to/${name}</code>
+      <p style="margin-top:8px">Then reload this page.</p>
     </div>
   `;
 }
@@ -602,7 +602,7 @@ async function loadLogsList() {
   }
 
   if (dates.length === 0) {
-    listEl.innerHTML = '<div class="logs-empty-small">Rode sync para gerar logs.</div>';
+    listEl.innerHTML = '<div class="logs-empty-small">Run sync to generate logs.</div>';
     return;
   }
 
@@ -633,7 +633,7 @@ async function loadLogFile(date) {
 
   const body = document.getElementById('logs-content-body');
   // Logs feature coming soon - API endpoints not yet available
-  body.innerHTML = '<div class="logs-empty">Logs serão disponibilizados em breve.</div>';
+  body.innerHTML = '<div class="logs-empty">Logs coming soon.</div>';
 }
 
 function renderLogMd(text) {
@@ -679,7 +679,7 @@ function md_inline(s) {
     .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
 }
 
-// ── Memory / RESUMO ───────────────────────────────────────────────────────────
+// ── Memory / SUMMARY ──────────────────────────────────────────────────────────
 
 async function showMemory() {
   if (!currentProject) return;
@@ -696,11 +696,11 @@ async function showMemory() {
 
   panel.classList.remove('hidden');
   document.getElementById('details-title').textContent = currentProject;
-  body.innerHTML = '<div class="logs-loading">Carregando…</div>';
+  body.innerHTML = '<div class="logs-loading">Loading…</div>';
   btn.classList.add('active');
 
-  // RESUMO.md feature coming soon
-  body.innerHTML = '<div class="logs-empty">RESUMO.md será disponibilizado em breve.</div>';
+  // SUMMARY.md feature coming soon
+  body.innerHTML = '<div class="logs-empty">SUMMARY.md coming soon.</div>';
 }
 
 // ── Export PNG ────────────────────────────────────────────────────────────────
@@ -762,18 +762,18 @@ function closeNotification() {
 
 async function syncProject() {
   if (!currentProject) {
-    showNotification('Nenhum projeto selecionado.', 'error');
+    showNotification('No project selected.', 'error');
     return;
   }
 
   const btn = document.getElementById('btn-sync');
   const originalText = btn.textContent.trim();
   btn.disabled = true;
-  btn.textContent = 'Sincronizando…';
+  btn.textContent = 'Syncing…';
 
   const projData = projects[currentProject];
   if (!projData || !projData.project_path) {
-    showNotification('Caminho do projeto não encontrado. Execute sync.py uma vez para registrar o caminho.', 'error');
+    showNotification('Project path not found. Run nodum sync once to register the path.', 'error');
     btn.disabled = false;
     btn.textContent = originalText;
     return;
@@ -789,13 +789,13 @@ async function syncProject() {
     const result = await response.json();
 
     if (result.success) {
-      showNotification('✓ Projeto sincronizado com sucesso!', 'success');
+      showNotification('✓ Project synced successfully!', 'success');
       await loadProject(currentProject);
     } else {
-      showNotification(`✗ Erro ao sincronizar: ${result.error || result.output}`, 'error');
+      showNotification(`✗ Sync error: ${result.error || result.output}`, 'error');
     }
   } catch (err) {
-    showNotification(`✗ Erro: ${err.message}`, 'error');
+    showNotification(`✗ Error: ${err.message}`, 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
