@@ -1,6 +1,6 @@
 {
   "name": "@caiquebrito/nodum-server",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "HTTP server and visualizer backend for nodum",
   "type": "module",
   "main": "./dist/index.js",
