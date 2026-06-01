@@ -9,6 +9,9 @@ dist
 *.js
 *.js.map
 *.d.ts
+
+# Viewer is hand-written JS, not compiled output — keep it tracked
+!packages/viewer/app.js
 .env
 .env.local
 .env.*.local
