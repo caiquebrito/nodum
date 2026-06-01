@@ -1,185 +1,315 @@
 # Nodum Roadmap
 
-## ✅ Version 1.1.0 (Current - Published)
+## ✅ Version 2.0.0 (Current - Released 2026-05-31)
 
-### Core Features
-- ✅ Code graph generation (TypeScript, Python, Kotlin, Java)
-- ✅ Knowledge graph with nodes (files, functions, classes) and edges (dependencies)
-- ✅ CLI: `nodum sync`, `nodum serve`, `nodum status`
-- ✅ 3D interactive graph viewer (localhost:7842)
-- ✅ Benchmark suite for measuring RAG effectiveness
-- ✅ CLAUDE.md context injection into projects
-- ✅ Data storage: `~/.nodum/`
+### Token Efficiency Optimizations (Shipped)
+- ✅ Phase 1: Multi-turn conversation caching (83% token savings on repeated queries)
+- ✅ Phase 2: Semantic search with embeddings (20% better node selection)
+- ✅ Phase 3: Hierarchical clustering (68% context reduction via smart grouping)
+- ✅ `expand_cluster` MCP tool for on-demand exploration
+- ✅ Combined efficiency: 5-6x more efficient than raw graph dumps
 
-### Claude Integration
-- ✅ MCP server with 8 tools:
-  - `sync_project` - Scan and build graphs
-  - `project_status` - List synced projects
-  - `get_graph` - Fetch complete graph
-  - `search_graph` - Find code by name
-  - `get_node` - Get node details
-  - `get_dependencies` / `get_dependents` - Trace relationships
-  - `analyze_file` - Deep dive into files
-- ✅ Claude Code integration
-- ✅ NPM packages published:
-  - `@caiquebrito/nodum` (CLI + Server + Core)
-  - `@caiquebrito/nodum-mcp` (Claude MCP Server)
+### Verified & Published
+- ✅ @caiquebrito/nodum-core@2.0.0 (core engine)
+- ✅ @caiquebrito/nodum-cli@2.0.0 (CLI)
+- ✅ @caiquebrito/nodum-mcp@2.0.0 (Claude integration)
+- ✅ @caiquebrito/nodum-server@2.0.0 (HTTP server)
+- ✅ Benchmarks: 89% token reduction on multi-question sessions
+- ✅ Documentation reorganized into `/docs` folder
 
-### Documentation
-- ✅ SETUP-GUIDE.md - Complete integration guide
-- ✅ PUBLISH.md - npm publishing instructions
-- ✅ MCP.md - Architecture details
-- ✅ QUICKSTART.md - Quick start
-- ✅ RUN.md - How to run locally
+### Code Quality
+- ✅ Removed 1,200+ lines of legacy v0/v1 Python code
+- ✅ TypeScript-only monorepo
+- ✅ Clean, maintainable codebase
 
 ---
 
-## 📋 Version 2.0.0 (Planned)
+## 📋 Version 2.1.0 (Next - ETA: Q3 2026)
 
-### Incremental Sync (Priority: High)
-- [ ] File-level diffing (only rescan changed files)
-- [ ] Incremental graph updates (merge deltas)
+### Incremental Sync (Priority: HIGH)
+- [ ] File-level change detection (git-aware diffing)
+- [ ] Incremental graph updates (delta merges)
 - [ ] `nodum sync --incremental` flag
-- [ ] Metadata tracking (file hashes, timestamps)
-- [ ] Cache invalidation logic
-
-**Impact:** 10-100x faster syncs for large projects (1000+ files)
+- [ ] Metadata tracking: file hashes, timestamps, modification dates
+- [ ] Smart cache invalidation
+- **Impact:** 10-100x faster syncs for large projects (1000+ files)
 
 ### Enhanced CLI
-- [ ] `nodum watch` - Auto-sync on file changes
-- [ ] `nodum init` - Project setup wizard
-- [ ] `nodum config` - Customize scan patterns
-- [ ] `nodum export` - Export graph as JSON/GraphML
-- [ ] Performance metrics in `nodum status`
+- [ ] `nodum watch` - Auto-sync on file changes (inotify/chokidar)
+- [ ] `nodum init` - Interactive project setup wizard
+- [ ] `nodum config` - Configure scan patterns (include/exclude)
+- [ ] `nodum export` - Export graphs (JSON, GraphML, CSV)
+- [ ] `nodum diff` - Compare graph versions
 
-### Graph Features
-- [ ] Chunked storage (files.json, functions.json, etc.)
-- [ ] Graph versioning (track history)
-- [ ] Dependency cycle detection
-- [ ] Architecture violation detection
-- [ ] Dead code detection
+### Advanced Graph Analysis
+- [ ] Dependency cycle detection (circular imports)
+- [ ] Dead code detection (unreachable nodes)
+- [ ] Architecture violation detection (enforce patterns)
+- [ ] Complexity scoring (cyclomatic, cognitive)
+- [ ] Code duplication detection
 
 ### MCP Enhancements
-- [ ] `suggest_refactoring` - AI refactoring suggestions
-- [ ] `find_bottlenecks` - Performance analysis
-- [ ] `trace_impact` - Show what breaks if you change X
+- [ ] `suggest_refactoring` - ML-based refactoring recommendations
+- [ ] `find_bottlenecks` - Identify high-complexity areas
+- [ ] `trace_impact` - Show cascade of changes if you modify X
 - [ ] `explain_architecture` - Auto-generate architecture docs
-- [ ] Real-time graph updates via watch
-
-### Server Features
-- [ ] WebSocket support for live updates
-- [ ] Graph comparison (v1 vs v2)
-- [ ] Collaborative annotations (Claude notes)
-- [ ] Export 3D graph as image/video
+- [ ] `find_similar_code` - Detect duplicate patterns
 
 ---
 
-## 📈 Version 3.0.0 (Future Vision)
+## 🚀 Version 3.0.0 (Vision - ETA: Q4 2026)
 
-### Multi-Language Support Expansion
-- [ ] Go, Rust, C++, C#
-- [ ] JavaScript/Node regex improvement
-- [ ] Ruby, PHP support
+### Multi-AI Model Support
+
+Transform Nodum from **Claude-only** to a **centralized knowledge hub** for any AI model:
+
+#### OpenAI Integration
+- [ ] ChatGPT via API with graph context injection
+- [ ] GPT-4 code reasoning mode
+- [ ] Custom OpenAI function calling for graph tools
+- [ ] Fine-tuned models with code graph data
+
+#### Google Integration
+- [ ] Gemini Pro code understanding
+- [ ] Vertex AI integration
+- [ ] Custom Gemini function tools
+- [ ] MakerSuite context injection
+
+#### Open Source Models
+- [ ] Ollama local model support
+- [ ] Llama 2 with RAG context
+- [ ] Mistral integration
+- [ ] DeepSeek code models
+
+#### Generic AI Adapter Pattern
+- [ ] LLMChain integration (LangChain)
+- [ ] Unified interface for all model providers
+- [ ] Automatic context formatting for each model
+- [ ] Prompt optimization per model type
+
+### Centralized Data Hub
+
+**Concept:** Nodum becomes a **knowledge bus** for your entire development pipeline:
+
+#### CI/CD Event Integration
+```
+├── GitHub Actions
+│   ├── Failed tests → graph analysis
+│   ├── Deploy events → affected code graph
+│   └── Performance regressions → bottleneck detection
+├── GitLab CI/CD
+├── Jenkins
+└── Custom webhooks
+```
+
+Features:
+- [ ] Webhook receiver (`nodum listen --webhook`)
+- [ ] Event processor (parse CI events)
+- [ ] Graph context attachment to events
+- [ ] Multi-model analysis routing
+- [ ] Centralized event log
+
+#### Development Tools Integration
+```
+nodum-hub (central service)
+├── VS Code Extension
+│   ├── Hover → get graph context
+│   ├── Command: "Explain this function"
+│   └── Problem matcher → use graph to find similar issues
+├── JetBrains Plugin
+├── GitHub Copilot integration
+└── Terminal wrapper
+```
+
+#### Notification & Automation
+- [ ] Slack integration: "Code graph says this will break 3 other modules"
+- [ ] GitHub PR comments: "This PR affects these clusters: auth, api"
+- [ ] Email alerts: "Dead code detected: 5 unused functions"
+- [ ] Automated labeling: PR → auto-label based on affected modules
+
+#### Centralized Analysis API
+```typescript
+// Any tool/AI can query this
+POST /api/analyze
+{
+  "query": "what breaks if I change User.authenticate()?",
+  "context": "github:pr:5432",
+  "models": ["claude", "gpt4", "gemini"],
+  "return": "structured_impact_analysis"
+}
+
+// Single API, multiple AI models, consistent format
+```
+
+### Multi-Language Expansion
+- [ ] Go (AST-based parsing)
+- [ ] Rust (syn-based parsing)
+- [ ] C++/C# (preprocessor-aware)
+- [ ] Ruby, PHP (regex + basic AST)
 - [ ] SQL schema parsing
 
-### Advanced Analysis
-- [ ] Type flow analysis
-- [ ] Data flow graphs
-- [ ] Control flow analysis
-- [ ] Security vulnerability detection
+### Advanced Code Analysis
 
-### IDE Integration
-- [ ] VS Code extension
-- [ ] JetBrains plugin
-- [ ] Inline Claude suggestions
+#### Type & Data Flow
+- [ ] Type inference across files
+- [ ] Data flow graphs (track data movement)
+- [ ] Control flow analysis (execution paths)
+- [ ] Taint analysis (security: user input → output)
 
-### Telemetry & Analytics
-- [ ] Anonymous usage metrics
-- [ ] Graph complexity scoring
-- [ ] Codebase health reports
-- [ ] Team collaboration insights
+#### Security Analysis
+- [ ] Vulnerability pattern detection
+- [ ] Dependency CVE mapping
+- [ ] Hardcoded secrets detection
+- [ ] Permission flow analysis
 
-### Enterprise Features
-- [ ] Self-hosted server
+#### Performance Analysis
+- [ ] Call stack complexity analysis
+- [ ] Memory usage patterns
+- [ ] Async/await dependency graphs
+- [ ] Bottleneck identification
+
+### IDE & Editor Integrations
+- [ ] VS Code extension (inline context, hover tooltips)
+- [ ] JetBrains plugin (IntelliJ, PyCharm, WebStorm)
+- [ ] GitHub Copilot context injection
+- [ ] Vim/Neovim LSP integration
+
+### Enterprise & Collaboration
+- [ ] Self-hosted Nodum Hub server
 - [ ] Multi-project workspaces
-- [ ] Role-based access control
-- [ ] Graph encryption
+- [ ] Team annotations (shared notes on code)
+- [ ] Role-based access (viewer/editor/admin)
+- [ ] Graph versioning & rollback
+- [ ] Usage analytics & team insights
 
 ---
 
-## 🎯 Immediate Next Steps (Pick One)
+## 🎯 Strategic Direction
 
-### Option 1: Launch & Gather Feedback
-- [ ] Share nodum on Product Hunt / Hacker News
-- [ ] Get real-world usage feedback
-- [ ] Identify pain points
-- [ ] Build v2 based on user needs
+### Phase 1: Claude Excellence (✅ Complete - v2.0.0)
+Build the best code graph + Claude integration:
+- Graph generation & clustering
+- Token efficiency optimizations
+- MCP tools for code understanding
+- Benchmarks proving ROI
 
-### Option 2: Build v2 Incremental Sync
-- [ ] Implement file diffing
-- [ ] Add `--incremental` flag
-- [ ] Test on large projects (10k+ files)
-- [ ] Benchmark speed improvements
+### Phase 2: Speed & Scale (→ v2.1.0)
+Make it production-ready for large codebases:
+- Incremental sync (10-100x faster)
+- Advanced analysis tools
+- Watch mode for real-time updates
+- Enterprise graph management
 
-### Option 3: Expand MCP Tools
-- [ ] Add refactoring suggestions tool
-- [ ] Add architecture explanation tool
-- [ ] Add impact analysis tool
-- [ ] User test with Claude Code
+### Phase 3: Multi-AI Hub (→ v3.0.0)
+Become the **centralized knowledge hub** for all AI models:
+- Support any AI model (OpenAI, Google, open-source)
+- Event-driven analysis (CI/CD, webhooks)
+- IDE integrations for daily workflow
+- Team collaboration features
+
+**The Vision:** A single source of truth for your codebase that **any AI model** can use, **any tool** can query, and **any team** can benefit from.
+
+---
+
+## 💡 Key Decisions
+
+### Why Multi-AI?
+1. **Vendor independence** - Not locked into Claude
+2. **Best-of-breed** - Use different models for different tasks
+3. **Cost optimization** - Cheaper models for simple tasks
+4. **Offline capability** - Support local/open-source models
+5. **Future-proof** - Adapt as AI landscape changes
+
+### Why Centralized Hub?
+1. **Single source of truth** - One graph, infinite uses
+2. **Event-driven** - React to CI, deployments, errors
+3. **Team value** - Share insights across organization
+4. **Tool ecosystem** - Integrate with any development tool
+5. **Cost efficiency** - One graph, multiple models = amortized cost
+
+### Why This Order?
+1. v2.0: Prove Claude integration works (✅ Done - benchmarks show 5-6x improvement)
+2. v2.1: Scale to production (faster, more analysis tools)
+3. v3.0: Become the hub (multi-model, multi-tool, enterprise-ready)
 
 ---
 
 ## 📊 Success Metrics
 
-By end of 2026:
+### v2.0 (Achieved ✅)
+- ✅ 5-6x token efficiency vs raw dumps
+- ✅ 83% savings on repeated queries
+- ✅ Published to npm
+- ✅ Benchmarks verified
 
-- ✅ 500+ GitHub stars
-- ✅ 1000+ npm downloads/month
-- ✅ 5+ production users
-- ✅ Measurable Claude helpfulness increase
+### v2.1 (Target)
+- [ ] <5 second sync on 1000-file projects (incremental)
+- [ ] 10+ advanced analysis tools
+- [ ] 50+ GitHub stars
+- [ ] 5+ production users reporting 2+ hours/week time saved
 
----
-
-## 🤝 Community
-
-- [ ] GitHub discussions enabled
-- [ ] Twitter updates
-- [ ] Blog post on RAG + code graphs
-- [ ] Show & Tell demos
-
----
-
-## 💡 Notes
-
-### Technical Debt
-- Graph storage in single JSON (needs chunking at 10k+ nodes)
-- No persistent activity logs
-- Limited error handling in MCP
-
-### Known Limitations
-- Graph rebuilds entire project (slow for 1000+ files)
-- Limited to files in git (ignores .gitignore)
-- No type resolution across files
-- MCP tools are read-only
-
-### Design Decisions
-- File-based storage (~/.nodum/) for simplicity
-- No database requirement (users love this!)
-- Public npm packages (transparent, easy to fork)
-- MCP over proprietary API (follows standards)
+### v3.0 (Vision)
+- [ ] Support for 5+ AI models
+- [ ] 10+ tool integrations (VS Code, JetBrains, Slack, GitHub)
+- [ ] 500+ GitHub stars
+- [ ] Enterprise adoption (teams using for code review)
 
 ---
 
-## 🚀 Final Thought
+## 🔮 Far Future (Post-v3)
 
-Nodum is a **knowledge graph for your code**. With Claude as the interface, it becomes:
-- A smarter code reviewer
-- An architecture advisor
-- A refactoring guide
-- A codebase teacher
+### Autonomous Code Understanding
+- AI agents that understand your entire architecture
+- Auto-generate documentation from graph
+- Suggest architectural improvements
+- Predict technical debt impact
 
-v1 proves the concept. v2 scales it. v3 makes it indispensable.
+### Proactive Analysis
+- Analyze PRs before tests run
+- Predict merge conflicts
+- Suggest test coverage for changed code
+- Alert on breaking changes
+
+### Learning from Your Code
+- Pattern detection: "your team always does X in this module"
+- Style enforcement: "your code uses these patterns"
+- Quality metrics: "similar code in module Y is more efficient"
 
 ---
 
-**Questions?** Create an issue on GitHub or reach out!
+## 🚀 Getting There
+
+### Immediate (Next 2 weeks)
+- [ ] Gather user feedback on v2.0
+- [ ] Fix any reported bugs
+- [ ] Start v2.1 planning
+
+### Short-term (Next 3 months)
+- [ ] Implement incremental sync
+- [ ] Release v2.1.0
+- [ ] Reach 100+ GitHub stars
+
+### Medium-term (Next 6 months)
+- [ ] Design multi-AI adapter pattern
+- [ ] Release first multi-AI tools
+- [ ] Launch initial IDE integration
+
+### Long-term (2026 end)
+- [ ] Release v3.0.0 with full hub functionality
+- [ ] Enterprise pilot programs
+- [ ] Proven ROI at scale
+
+---
+
+## 📚 Related Docs
+
+- [AUDIT-LEGACY-FILES.md](../AUDIT-LEGACY-FILES.md) - Code cleanup & modernization
+- [docs/guides/](../guides/) - User documentation
+- [docs/architecture/](../architecture/) - Technical deep dives
+- [benchmarks/README.md](../../benchmarks/README.md) - v2.0.0 performance results
+
+---
+
+**Last Updated:** 2026-05-31 | **Status:** On Track | **Next Release:** v2.1.0 (Q3 2026)
+
+Questions? Open an issue on [GitHub](https://github.com/caiquebrito/nodum/issues)
