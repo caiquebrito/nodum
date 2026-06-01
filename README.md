@@ -2,7 +2,7 @@
 
 > A local knowledge graph that helps Claude AI understand your entire codebase. No cloud, no API keys, no subscriptions.
 
-![npm](https://img.shields.io/npm/v/@caiquebrito/nodum?style=flat-square&color=58a6ff)
+![npm](https://img.shields.io/npm/v/@caiquebrito/nodum-cli?style=flat-square&color=58a6ff)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.3+-3178c6?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-16+-339933?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-bc8cff?style=flat-square)
@@ -45,7 +45,7 @@ Then Claude understands:
 ### 1. Install
 
 ```bash
-npm install -g @caiquebrito/nodum @caiquebrito/nodum-mcp
+npm install -g @caiquebrito/nodum-cli @caiquebrito/nodum-mcp
 ```
 
 ### 2. Sync Your Project
@@ -341,13 +341,13 @@ nodum/
 
 ### Global Install (Recommended)
 ```bash
-npm install -g @caiquebrito/nodum @caiquebrito/nodum-mcp
+npm install -g @caiquebrito/nodum-cli @caiquebrito/nodum-mcp
 nodum sync
 ```
 
 ### Local Install
 ```bash
-npm install @caiquebrito/nodum @caiquebrito/nodum-mcp
+npm install @caiquebrito/nodum-cli @caiquebrito/nodum-mcp
 npx nodum sync
 ```
 
@@ -459,7 +459,7 @@ MIT — use freely, modify, distribute. See [LICENSE](./LICENSE).
 
 ## Links
 
-- 📦 **npm** (main): https://www.npmjs.com/package/@caiquebrito/nodum
+- 📦 **npm** (main): https://www.npmjs.com/package/@caiquebrito/nodum-cli
 - 🤖 **npm** (MCP): https://www.npmjs.com/package/@caiquebrito/nodum-mcp
 - 🐙 **GitHub**: https://github.com/caiquebrito/nodum
 - 💬 **Discussions**: https://github.com/caiquebrito/nodum/discussions
