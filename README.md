@@ -59,16 +59,29 @@ Scans your project and creates a knowledge graph at `~/.nodum/my-project/`.
 
 ### 3. Configure Claude Code
 
-Add to Claude Code settings → MCP Servers:
+**Option A: Using Claude Code UI** (Desktop/Web app)
+1. Open Settings (⚙️ icon)
+2. Find "MCP Servers"
+3. Click "Add Server"
+4. Name: `nodum`, Command: `nodum-mcp`
+5. Save and restart Claude Code
+
+**Option B: Using settings.json** (CLI/Headless setup)
+
+Add to `~/.claude/settings.json`:
 
 ```json
 {
-  "name": "nodum",
-  "command": "nodum-mcp"
+  "mcpServers": [
+    {
+      "name": "nodum",
+      "command": "nodum-mcp"
+    }
+  ]
 }
 ```
 
-Restart Claude Code.
+Then restart Claude Code or reload the settings.
 
 ### 4. Use Claude
 
