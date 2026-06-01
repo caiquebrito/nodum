@@ -18,12 +18,13 @@ program
   .version('1.0.0');
 
 program
-  .command('sync <projectPath>')
-  .description('Scan and index a project, generate knowledge graph')
-  .action(async (projectPath: string) => {
+  .command('sync [projectPath]')
+  .description('Scan and index a project, generate knowledge graph (defaults to current directory)')
+  .action(async (projectPath?: string) => {
     try {
       const nodumDataDir = getNodeumDataDir();
-      await syncProject(projectPath, nodumDataDir);
+      const pathToSync = projectPath || process.cwd();
+      await syncProject(pathToSync, nodumDataDir);
     } catch (error) {
       console.error('❌ Error:', error instanceof Error ? error.message : String(error));
       process.exit(1);
@@ -44,7 +45,7 @@ program
         const projectList = Object.values(projects);
 
         if (projectList.length === 0) {
-          console.log('No projects synced yet. Run: nodum sync <project-path>');
+          console.log('No projects synced yet. Run: nodum sync (or nodum sync /path/to/project)');
           return;
         }
 
@@ -55,7 +56,7 @@ program
           console.log(`     Stack: ${project.stack.languages.join(', ') || 'unknown'}\n`);
         }
       } catch {
-        console.log('No projects synced yet. Run: nodum sync <project-path>');
+        console.log('No projects synced yet. Run: nodum sync (or nodum sync /path/to/project)');
       }
     } catch (error) {
       console.error('❌ Error:', error instanceof Error ? error.message : String(error));
