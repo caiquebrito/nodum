@@ -9,6 +9,7 @@ import {
   buildAndWriteSummary,
   buildClusters,
 } from '@caiquebrito/nodum-core';
+import { makeProgressBar } from '../utils/progress.js';
 
 export async function syncProject(projectPath: string, nodumDataDir: string): Promise<void> {
   const absolutePath = resolve(projectPath);
@@ -48,8 +49,13 @@ export async function syncProject(projectPath: string, nodumDataDir: string): Pr
     );
 
     // 4.5. v2.0: Generate clusters for hierarchical compression
-    console.log('  → Generating clusters...');
-    const { clusters, nodeToCluster } = buildClusters(graph.nodes, graph.edges);
+    const clusterBar = makeProgressBar('Generating clusters');
+    const { clusters, nodeToCluster } = buildClusters(
+      graph.nodes,
+      graph.edges,
+      (processed, total) => clusterBar.update(processed, total),
+    );
+    clusterBar.done();
 
     // Update graph with clusters
     const graphWithClusters = {

@@ -36,18 +36,23 @@ export interface NodeCluster {
  */
 export function buildClusters(
   nodes: Node[],
-  edges: Edge[]
+  edges: Edge[],
+  onProgress?: (processed: number, total: number) => void
 ): { clusters: NodeCluster[]; nodeToCluster: Map<string, string> } {
   const nodeToCluster = new Map<string, string>();
   const clusters: NodeCluster[] = [];
   const clusterId = new Map<string, string>();
   let clusterCounter = 0;
 
+  // Every non-file node is examined exactly once in Group 1 below, so use the
+  // non-file node count as the total for progress reporting.
+  const nonFileNodes = nodes.filter(n => n.type !== "file");
+  const total = nonFileNodes.length;
+  let processed = 0;
+  onProgress?.(0, total);
+
   // Group 1: By file/directory (highest priority)
-  const nodesByFile = groupBy(
-    nodes.filter(n => n.type !== "file"),
-    n => n.file || "unknown"
-  );
+  const nodesByFile = groupBy(nonFileNodes, n => n.file || "unknown");
 
   for (const [file, fileNodes] of nodesByFile) {
     if (fileNodes.length > 3) {
@@ -69,6 +74,9 @@ export function buildClusters(
         types,
       });
     }
+
+    processed += fileNodes.length;
+    onProgress?.(processed, total);
   }
 
   // Group 2: By type + directory proximity (for remaining nodes)
@@ -98,6 +106,7 @@ export function buildClusters(
     }
   }
 
+  onProgress?.(total, total);
   return { clusters, nodeToCluster };
 }
 
