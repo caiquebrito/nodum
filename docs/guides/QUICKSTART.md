@@ -7,7 +7,7 @@ Get nodum running in **3 steps**.
 From the nodum repo root:
 
 ```bash
-cd /Users/caiquebrito/Documents/Repositories/nodum
+cd <nodum-repo>
 
 # Install dependencies (one time)
 npm install
@@ -22,7 +22,7 @@ Takes ~30 seconds. Builds TypeScript in `packages/*/dist/`.
 
 ```bash
 # Scan nodum project itself
-node packages/cli/dist/bin/nodum.js sync /Users/caiquebrito/Documents/Repositories/nodum
+node packages/cli/dist/bin/nodum.js sync .
 
 # Check what was scanned
 node packages/cli/dist/bin/nodum.js status
@@ -60,8 +60,8 @@ Takes ~10-15 minutes. Generates HTML report: `benchmark-report-sample-next-app-[
 
 | What | Path |
 |------|------|
-| **Nodum project** | `/Users/caiquebrito/Documents/Repositories/nodum` |
-| **Data files** | `~/.nodum/` (auto-created) |
+| **Nodum project** | `<nodum-repo>` (your local nodum folder) |
+| **Data files** | `~/.nodum/` (auto-created in your home) |
 | **CLI executable** | `packages/cli/dist/bin/nodum.js` |
 | **Benchmark** | `benchmarks/harness.ts` |
 | **Sample project** | `benchmarks/projects/sample-next-app/` |

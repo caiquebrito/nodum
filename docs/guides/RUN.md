@@ -7,7 +7,7 @@ Everything is built and ready. Here are the 3 simplest ways to use it:
 ## Option 1: Use the Full Path (No Setup)
 
 ```bash
-cd /Users/caiquebrito/Documents/Repositories/nodum
+cd <nodum-repo>
 
 # Build (only once)
 npm run build
@@ -27,8 +27,10 @@ node packages/cli/dist/bin/nodum.js serve
 Add this to your `~/.zshrc` or `~/.bashrc`:
 
 ```bash
-alias nodum="node /Users/caiquebrito/Documents/Repositories/nodum/packages/cli/dist/bin/nodum.js"
+alias nodum="node <nodum-repo>/packages/cli/dist/bin/nodum.js"
 ```
+
+Replace `<nodum-repo>` with your actual nodum folder path.
 
 Then reload:
 ```bash
@@ -47,7 +49,7 @@ nodum serve
 ## Option 3: Run the Benchmark
 
 ```bash
-cd /Users/caiquebrito/Documents/Repositories/nodum/benchmarks
+cd <nodum-repo>/benchmarks
 
 # Install once
 npm install
@@ -77,11 +79,11 @@ Report saves as: `benchmark-report-[project]-[timestamp].html`
 
 ```bash
 # 1. Build
-cd /Users/caiquebrito/Documents/Repositories/nodum
+cd <nodum-repo>
 npm run build
 
 # 2. Test on nodum itself
-node packages/cli/dist/bin/nodum.js sync /Users/caiquebrito/Documents/Repositories/nodum
+node packages/cli/dist/bin/nodum.js sync .
 
 # 3. Check it worked
 node packages/cli/dist/bin/nodum.js status
@@ -90,7 +92,7 @@ node packages/cli/dist/bin/nodum.js status
 cat ~/.nodum/nodum/memory/SUMMARY.md
 
 # 5. See the CLAUDE.md that was injected
-head -10 /Users/caiquebrito/Documents/Repositories/nodum/CLAUDE.md
+head -10 CLAUDE.md
 ```
 
 ---
