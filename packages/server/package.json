@@ -1,6 +1,6 @@
 {
   "name": "@caiquebrito/nodum-server",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "HTTP server and visualizer backend for nodum",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,10 +9,10 @@
   },
   "files": ["dist", "viewer"],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && rm -rf viewer && cp -R ../viewer viewer",
     "dev": "tsc --watch",
     "test": "vitest",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist viewer"
   },
   "dependencies": {
     "@caiquebrito/nodum-core": "^2.0.0",

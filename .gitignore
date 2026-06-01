@@ -12,6 +12,9 @@ dist
 
 # Viewer is hand-written JS, not compiled output — keep it tracked
 !packages/viewer/app.js
+
+# Build-time copy of the viewer into the server package
+packages/server/viewer/
 .env
 .env.local
 .env.*.local

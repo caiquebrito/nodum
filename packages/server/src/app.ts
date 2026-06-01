@@ -11,7 +11,7 @@ export function createApp(dataDir: string): Express {
   const app = express();
 
   app.use(express.json());
-  app.use(express.static(join(__dirname, '../../viewer')));
+  app.use(express.static(join(__dirname, '../viewer')));
 
   // Note: Sync is handled via CLI, not via HTTP API yet
 
@@ -42,7 +42,7 @@ export function createApp(dataDir: string): Express {
 
   // Serve index for SPA
   app.get('*', (_req, res) => {
-    res.sendFile(join(__dirname, '../../viewer/index.html'));
+    res.sendFile(join(__dirname, '../viewer/index.html'));
   });
 
   return app;

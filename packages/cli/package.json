@@ -1,6 +1,6 @@
 {
   "name": "@caiquebrito/nodum-cli",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "CLI interface for nodum",
   "type": "module",
   "bin": {
@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@caiquebrito/nodum-core": "^2.0.0",
+    "@caiquebrito/nodum-server": "^2.0.1",
     "commander": "^11.0.0",
     "chalk": "^5.3.0"
   },
