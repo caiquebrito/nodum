@@ -304,14 +304,22 @@ nodum/
 │   ├── cli/            # Command-line interface
 │   ├── server/         # HTTP server (3D viewer)
 │   └── mcp/            # MCP server (Claude integration)
-├── benchmarks/         # RAG effectiveness benchmarking
-├── packages/viewer/    # 3D visualization UI
-└── [docs]
-    ├── README.md       # You are here
-    ├── SETUP-GUIDE.md  # Complete setup walkthrough
-    ├── MCP.md          # MCP architecture
-    ├── ROADMAP.md      # v2/v3 features planned
-    └── LAUNCH.md       # Launch strategy
+├── benchmarks/         # Token efficiency benchmarks & demos
+├── docs/
+│   ├── guides/         # Getting started & usage
+│   │   ├── QUICKSTART.md
+│   │   ├── SETUP-GUIDE.md
+│   │   └── RUN.md
+│   ├── architecture/   # Technical deep dives
+│   │   ├── MCP.md
+│   │   └── SMART-CONTEXT.md
+│   └── development/    # Contributing & planning
+│       ├── PUBLISH.md
+│       ├── ROADMAP.md
+│       └── LAUNCH.md
+├── README.md           # Main readme (you are here)
+├── CHANGELOG.md        # Release notes
+└── CLAUDE.md           # Project context for Claude
 ```
 
 ---
@@ -377,12 +385,22 @@ See [ROADMAP.md](./ROADMAP.md) for full details.
 
 ## Documentation
 
-- **[SETUP-GUIDE.md](./SETUP-GUIDE.md)** — Complete integration walkthrough
-- **[MCP.md](./MCP.md)** — MCP architecture and API
-- **[PUBLISH.md](./PUBLISH.md)** — npm publishing details
-- **[ROADMAP.md](./ROADMAP.md)** — Future features (v2/v3)
-- **[LAUNCH.md](./LAUNCH.md)** — Launch strategy and announcements
-- **[benchmarks/README.md](./benchmarks/README.md)** — Benchmark methodology
+**Getting Started:**
+- **[Quick Start](./docs/guides/QUICKSTART.md)** — 5-minute setup
+- **[Setup Guide](./docs/guides/SETUP-GUIDE.md)** — Complete integration walkthrough
+- **[Running Nodum](./docs/guides/RUN.md)** — CLI commands and usage
+
+**Architecture:**
+- **[MCP Integration](./docs/architecture/MCP.md)** — MCP architecture and API
+- **[Smart Context](./docs/architecture/SMART-CONTEXT.md)** — v2.0 optimizations
+
+**Development:**
+- **[Publishing](./docs/development/PUBLISH.md)** — npm publishing details
+- **[Roadmap](./docs/development/ROADMAP.md)** — Future features (v2.1+)
+- **[Launch Strategy](./docs/development/LAUNCH.md)** — Release planning
+
+**Benchmarks:**
+- **[Benchmarks](./benchmarks/README.md)** — Token efficiency metrics and v2.0 results
 
 ---
 
