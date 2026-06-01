@@ -1,0 +1,38 @@
+{
+  "name": "@caiquebrito/nodum-mcp",
+  "version": "1.0.0",
+  "description": "Model Context Protocol server for Nodum — integrate code knowledge graphs with Claude AI",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "nodum-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "ai",
+    "code-analysis",
+    "knowledge-graph"
+  ],
+  "author": "Caique Brito",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/caiquebrito/nodum"
+  },
+  "dependencies": {
+    "@caiquebrito/nodum-core": "file:../core",
+    "@modelcontextprotocol/sdk": "^0.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}

@@ -11,7 +11,8 @@
     "build:core": "cd packages/core && npm run build",
     "build:cli": "cd packages/cli && npm run build",
     "build:server": "cd packages/server && npm run build",
-    "build": "npm run build:core && npm run build:cli && npm run build:server",
+    "build:mcp": "cd packages/mcp && npm run build",
+    "build": "npm run build:core && npm run build:cli && npm run build:server && npm run build:mcp",
     "dev": "npm run dev --workspaces",
     "test": "npm run test --workspaces",
     "lint": "eslint packages --ext .ts",
@@ -21,7 +22,8 @@
   "workspaces": [
     "packages/core",
     "packages/cli",
-    "packages/server"
+    "packages/server",
+    "packages/mcp"
   ],
   "keywords": [
     "claude",
