@@ -20,10 +20,15 @@ export async function injectCLAUDEContext(
 
     // Check if markers already exist
     if (existing.includes(MARKER_START) && existing.includes(MARKER_END)) {
-      // Replace content between markers
-      const before = existing.substring(0, existing.indexOf(MARKER_START) + MARKER_START.length);
-      const after = existing.substring(existing.indexOf(MARKER_END));
-      const updated = `${before}\n${contextBlock}\n${after}`;
+      // Replace everything from the first start marker to the last end marker.
+      // contextBlock already includes both markers, so we slice them out of the
+      // surrounding text. Using first-start/last-end also collapses any
+      // previously duplicated marker pairs back into a single clean block.
+      const startIdx = existing.indexOf(MARKER_START);
+      const endIdx = existing.lastIndexOf(MARKER_END) + MARKER_END.length;
+      const before = existing.substring(0, startIdx);
+      const after = existing.substring(endIdx);
+      const updated = `${before}${contextBlock}${after}`;
       await writeFile(claudePath, updated, 'utf-8');
     } else {
       // Append markers + context at the beginning
