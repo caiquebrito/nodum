@@ -9,6 +9,21 @@ export interface ProgressBar {
   done(): void;
 }
 
+/**
+ * Run a quick (effectively atomic) step while showing a completed bar for it.
+ * Useful for steps with no natural sub-progress so every line still reports a %.
+ */
+export async function runStep<T>(
+  label: string,
+  fn: () => Promise<T> | T,
+): Promise<T> {
+  const bar = makeProgressBar(label);
+  const result = await fn();
+  bar.update(1, 1);
+  bar.done();
+  return result;
+}
+
 export function makeProgressBar(label: string, width = 24): ProgressBar {
   let lastPct = -1;
   const isTTY = Boolean(process.stdout.isTTY);

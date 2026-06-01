@@ -9,7 +9,7 @@ import {
   buildAndWriteSummary,
   buildClusters,
 } from '@caiquebrito/nodum-core';
-import { makeProgressBar } from '../utils/progress.js';
+import { makeProgressBar, runStep } from '../utils/progress.js';
 
 export async function syncProject(projectPath: string, nodumDataDir: string): Promise<void> {
   const absolutePath = resolve(projectPath);
@@ -21,13 +21,17 @@ export async function syncProject(projectPath: string, nodumDataDir: string): Pr
   console.log(`📊 Scanning: ${absolutePath}`);
 
   try {
-    // 1. Generate graph
-    console.log('  → Parsing code...');
-    const graph = await generateGraph(absolutePath);
+    // 1. Generate graph (real per-file progress)
+    const parseBar = makeProgressBar('Parsing code');
+    const graph = await generateGraph(absolutePath, (processed, total) =>
+      parseBar.update(processed, total),
+    );
+    parseBar.done();
 
     // 2. Analyze project
-    console.log('  → Detecting stack...');
-    const analysis = await analyzeProject(absolutePath);
+    const analysis = await runStep('Detecting stack', () =>
+      analyzeProject(absolutePath),
+    );
 
     // 3. Create project data directory
     const projectDataDir = `${nodumDataDir}/${graph.project}`;
@@ -40,12 +44,9 @@ export async function syncProject(projectPath: string, nodumDataDir: string): Pr
     await mkdir(logsDir, { recursive: true });
 
     // 4. Write graph.json
-    console.log('  → Writing graph.json...');
     const graphPath = `${graphDir}/graph.json`;
-    await writeFile(
-      graphPath,
-      JSON.stringify(graph, null, 2),
-      'utf-8',
+    await runStep('Writing graph.json', () =>
+      writeFile(graphPath, JSON.stringify(graph, null, 2), 'utf-8'),
     );
 
     // 4.5. v2.0: Generate clusters for hierarchical compression
@@ -65,27 +66,27 @@ export async function syncProject(projectPath: string, nodumDataDir: string): Pr
     };
 
     // Write updated graph with clusters
-    await writeFile(
-      graphPath,
-      JSON.stringify(graphWithClusters, null, 2),
-      'utf-8',
+    await runStep('Writing clusters', () =>
+      writeFile(graphPath, JSON.stringify(graphWithClusters, null, 2), 'utf-8'),
     );
 
     // 5. Build and write SUMMARY.md
-    console.log('  → Generating SUMMARY.md...');
-    await buildAndWriteSummary(memoryDir, graph, analysis);
+    await runStep('Generating SUMMARY.md', () =>
+      buildAndWriteSummary(memoryDir, graph, analysis),
+    );
 
     // 6. Log activity
-    console.log('  → Logging activity...');
-    await appendActivityLog(logsDir, graph);
+    await runStep('Logging activity', () => appendActivityLog(logsDir, graph));
 
     // 7. Inject CLAUDE.md
-    console.log('  → Injecting CLAUDE.md context...');
-    await injectCLAUDEContext(absolutePath, graph, analysis);
+    await runStep('Injecting CLAUDE.md context', () =>
+      injectCLAUDEContext(absolutePath, graph, analysis),
+    );
 
     // 8. Update projects.json index
-    console.log('  → Updating projects index...');
-    await updateProjectIndex(nodumDataDir, graph, analysis);
+    await runStep('Updating projects index', () =>
+      updateProjectIndex(nodumDataDir, graph, analysis),
+    );
 
     // Done
     console.log(`\n✅ Synced: ${graph.project}`);
