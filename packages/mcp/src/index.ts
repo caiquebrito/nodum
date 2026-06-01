@@ -15,6 +15,7 @@ import {
   handleAnalyzeFile,
   handleStatus,
   handleGetNode,
+  handleExpandCluster,
 } from "./handlers.js";
 
 const server = new Server(
@@ -167,6 +168,25 @@ const tools: Tool[] = [
       required: ["project_name", "file_path"],
     },
   },
+  {
+    name: "expand_cluster",
+    description:
+      "Expand a cluster to see all member nodes and their relationships (v2.0 feature)",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_name: {
+          type: "string",
+          description: "Project name",
+        },
+        cluster_id: {
+          type: "string",
+          description: "Cluster ID (e.g., 'cluster_0', 'cluster_1')",
+        },
+      },
+      required: ["project_name", "cluster_id"],
+    },
+  },
 ];
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -220,6 +240,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         result = await handleAnalyzeFile(
           (args as any).project_name as string,
           (args as any).file_path as string
+        );
+        break;
+      case "expand_cluster":
+        result = await handleExpandCluster(
+          (args as any).project_name as string,
+          (args as any).cluster_id as string
         );
         break;
       default:

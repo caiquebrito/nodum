@@ -36,6 +36,9 @@ export {
 export { analyzeProject } from './analyzer/index.js';
 export type { EnvVariable } from './analyzer/index.js';
 
+export { buildClusters, expandCluster, getClusterIdForNode, isClusteredNode, findIncomingDeps } from './analyzer/clustering.js';
+export type { NodeCluster } from './analyzer/clustering.js';
+
 export {
   injectCLAUDEContext,
   appendActivityLog,

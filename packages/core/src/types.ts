@@ -8,6 +8,8 @@ export interface Node {
   file: string;
   group: string;
   line?: number;
+  embedding?: number[];  // v2.0: Semantic search embeddings (1536-dim)
+  clusterId?: string;     // v2.0: Cluster assignment for hierarchical compression
 }
 
 export interface Edge {

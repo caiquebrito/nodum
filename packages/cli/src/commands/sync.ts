@@ -1,5 +1,5 @@
 import { resolve } from 'path';
-import { mkdir, writeFile } from 'fs/promises';
+import { mkdir, writeFile, readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import {
   generateGraph,
@@ -7,6 +7,7 @@ import {
   injectCLAUDEContext,
   appendActivityLog,
   buildAndWriteSummary,
+  buildClusters,
 } from '@caiquebrito/nodum-core';
 
 export async function syncProject(projectPath: string, nodumDataDir: string): Promise<void> {
@@ -39,9 +40,28 @@ export async function syncProject(projectPath: string, nodumDataDir: string): Pr
 
     // 4. Write graph.json
     console.log('  → Writing graph.json...');
+    const graphPath = `${graphDir}/graph.json`;
     await writeFile(
-      `${graphDir}/graph.json`,
+      graphPath,
       JSON.stringify(graph, null, 2),
+      'utf-8',
+    );
+
+    // 4.5. v2.0: Generate clusters for hierarchical compression
+    console.log('  → Generating clusters...');
+    const { clusters, nodeToCluster } = buildClusters(graph.nodes, graph.edges);
+
+    // Update graph with clusters
+    const graphWithClusters = {
+      ...graph,
+      clusters,
+      nodeToCluster: Object.fromEntries(nodeToCluster),
+    };
+
+    // Write updated graph with clusters
+    await writeFile(
+      graphPath,
+      JSON.stringify(graphWithClusters, null, 2),
       'utf-8',
     );
 
