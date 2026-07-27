@@ -49,6 +49,23 @@ program
   });
 
 program
+  .command('watch [projectPath]')
+  .description('Watch a project and automatically sync on file changes (incremental)')
+  .option('--debounce <ms>', 'Milliseconds to wait after a change before syncing', '500')
+  .action(async (projectPath: string | undefined, options: { debounce: string }) => {
+    try {
+      const nodumDataDir = getNodeumDataDir();
+      const { watchProject } = await import('../commands/watch.js');
+      await watchProject(projectPath || process.cwd(), nodumDataDir, {
+        debounceMs: parseInt(options.debounce, 10),
+      });
+    } catch (error) {
+      console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+program
   .command('status')
   .description('Show all synced projects')
   .action(async () => {

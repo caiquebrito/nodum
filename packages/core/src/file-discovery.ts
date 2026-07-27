@@ -5,7 +5,7 @@ import type { FileInfo, FileManifest } from './types.js';
 import { getAvailableParsers } from './parser/index.js';
 import { loadScanConfig, buildFileMatcher, type FileMatcher } from './scan-config.js';
 
-const IGNORED_DIRS = new Set([
+export const IGNORED_DIRS = new Set([
   'node_modules',
   '.git',
   '.github',
