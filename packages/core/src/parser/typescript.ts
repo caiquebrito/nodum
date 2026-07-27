@@ -2,6 +2,7 @@ import ts from 'typescript';
 import { Parser } from './base.js';
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
+import { hashTokens } from './duplicate-hash.js';
 
 export class TypeScriptParser extends Parser {
   language = 'TypeScript';
@@ -40,6 +41,7 @@ export class TypeScriptParser extends Parser {
         file: filePath,
         group: getNodeGroup(filePath),
         ...(node.body ? { complexity: this.computeComplexity(node.body) } : {}),
+        ...(node.body ? this.duplicateHashField(node.body) : {}),
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
     } else if (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) {
@@ -68,6 +70,7 @@ export class TypeScriptParser extends Parser {
               file: filePath,
               group: getNodeGroup(filePath),
               ...(member.body ? { complexity: this.computeComplexity(member.body) } : {}),
+              ...(member.body ? this.duplicateHashField(member.body) : {}),
             });
             edges.push({ source: classId, target: methodId, relation: 'defines' });
           }
@@ -131,6 +134,45 @@ export class TypeScriptParser extends Parser {
 
     ts.forEachChild(bodyNode, visit);
     return complexity;
+  }
+
+  private duplicateHashField(bodyNode: ts.Node): { duplicateHash: string } | Record<string, never> {
+    const hash = hashTokens(this.collectNormalizedTokens(bodyNode));
+    return hash !== null ? { duplicateHash: hash } : {};
+  }
+
+  /**
+   * Normalized structural token stream for duplication detection: `ID` for
+   * identifiers, `LIT` for string/numeric literals, the AST `SyntaxKind`
+   * name otherwise. Same nested-function traversal boundary as
+   * `computeComplexity` — doesn't descend into a nested
+   * FunctionDeclaration/MethodDeclaration, does descend into
+   * ArrowFunction/FunctionExpression.
+   */
+  private collectNormalizedTokens(bodyNode: ts.Node): string[] {
+    const tokens: string[] = [];
+
+    const visit = (node: ts.Node): void => {
+      if (ts.isIdentifier(node)) {
+        tokens.push('ID');
+        return;
+      }
+      if (ts.isStringLiteralLike(node) || ts.isNumericLiteral(node)) {
+        tokens.push('LIT');
+        return;
+      }
+
+      tokens.push(ts.SyntaxKind[node.kind]);
+
+      if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)) {
+        return; // separately-hashed node — don't descend
+      }
+
+      ts.forEachChild(node, visit);
+    };
+
+    ts.forEachChild(bodyNode, visit);
+    return tokens;
   }
 
   private extractModuleName(node: ts.ImportDeclaration | ts.ImportEqualsDeclaration): string | null {

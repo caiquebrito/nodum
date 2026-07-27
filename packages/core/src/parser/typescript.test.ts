@@ -87,3 +87,58 @@ describe("TypeScriptParser complexity", () => {
     expect(nodes.find(n => n.label === "bar")?.complexity).toBe(2);
   });
 });
+
+describe("TypeScriptParser duplicateHash", () => {
+  const bodyOf = (varName: string, target: string) => `
+    if (${varName} > 0) {
+      for (let i = 0; i < ${varName}; i++) {
+        if (i % 2 === 0) {
+          ${target} += i;
+        }
+      }
+    }
+    return ${target};
+  `;
+
+  it("gives the same hash to renamed-but-structurally-identical functions", () => {
+    const srcA = `function foo(x: number) { let acc = 0; ${bodyOf("x", "acc")} }`;
+    const srcB = `function bar(y: number) { let total = 0; ${bodyOf("y", "total")} }`;
+    const a = parser.parse(fileInfo("a.ts", srcA)).nodes.find(n => n.label === "foo");
+    const b = parser.parse(fileInfo("b.ts", srcB)).nodes.find(n => n.label === "bar");
+    expect(a?.duplicateHash).toBeDefined();
+    expect(a?.duplicateHash).toBe(b?.duplicateHash);
+  });
+
+  it("gives a small function no duplicateHash", () => {
+    const { nodes } = parser.parse(fileInfo("a.ts", `function foo() { return 1; }`));
+    expect(nodes.find(n => n.label === "foo")?.duplicateHash).toBeUndefined();
+  });
+
+  it("does not merge a nested named function's own tokens into the parent's hash", () => {
+    // Both outers have a nested `inner` declaration (so the boundary token
+    // itself is present in both streams equally) — only inner's internal
+    // content differs. If inner's tokens leaked into outer's stream, these
+    // two outer hashes would differ; they must not.
+    const srcA = `
+      function outer(x: number) {
+        let acc = 0;
+        ${bodyOf("x", "acc")}
+        function inner() { return 1; }
+      }
+    `;
+    const srcB = `
+      function outer(x: number) {
+        let acc = 0;
+        ${bodyOf("x", "acc")}
+        function inner() {
+          if (x) { for (let i = 0; i < 10; i++) { acc += i; } }
+          return acc;
+        }
+      }
+    `;
+    const a = parser.parse(fileInfo("a.ts", srcA)).nodes.find(n => n.label === "outer");
+    const b = parser.parse(fileInfo("b.ts", srcB)).nodes.find(n => n.label === "outer");
+    expect(a?.duplicateHash).toBeDefined();
+    expect(a?.duplicateHash).toBe(b?.duplicateHash);
+  });
+});

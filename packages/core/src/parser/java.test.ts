@@ -72,3 +72,32 @@ describe("JavaParser complexity", () => {
     expect(nodes.find(n => n.label === "foo")?.complexity).toBe(5);
   });
 });
+
+describe("JavaParser duplicateHash", () => {
+  const bodyOf = (varName: string, target: string) =>
+    [
+      `    if (${varName} > 0) {`,
+      `      for (int i = 0; i < ${varName}; i++) {`,
+      `        if (i % 2 == 0) {`,
+      `          ${target} += i;`,
+      `        }`,
+      `      }`,
+      `    }`,
+      `    return ${target};`,
+    ].join("\n");
+
+  it("gives the same hash to renamed-but-structurally-identical methods", () => {
+    const srcA = `public class A {\n  public int foo(int x) {\n    int acc = 0;\n${bodyOf("x", "acc")}\n  }\n}`;
+    const srcB = `public class B {\n  public int bar(int y) {\n    int total = 0;\n${bodyOf("y", "total")}\n  }\n}`;
+    const a = parser.parse(fileInfo("A.java", srcA)).nodes.find(n => n.label === "foo");
+    const b = parser.parse(fileInfo("B.java", srcB)).nodes.find(n => n.label === "bar");
+    expect(a?.duplicateHash).toBeDefined();
+    expect(a?.duplicateHash).toBe(b?.duplicateHash);
+  });
+
+  it("gives a small method no duplicateHash", () => {
+    const src = "public class A {\n  public int foo() {\n    return 1;\n  }\n}\n";
+    const { nodes } = parser.parse(fileInfo("A.java", src));
+    expect(nodes.find(n => n.label === "foo")?.duplicateHash).toBeUndefined();
+  });
+});

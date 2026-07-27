@@ -64,6 +64,9 @@ export type { ArchitectureRule, ArchitectureConfig } from './analyzer/architectu
 export { rankByComplexity } from './analyzer/complexity.js';
 export type { ComplexityRanking, RankByComplexityOptions } from './analyzer/complexity.js';
 
+export { detectDuplicates } from './analyzer/duplication.js';
+export type { DuplicateGroup } from './analyzer/duplication.js';
+
 export {
   injectCLAUDEContext,
   appendActivityLog,

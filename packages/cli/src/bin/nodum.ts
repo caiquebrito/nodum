@@ -184,6 +184,21 @@ program
   });
 
 program
+  .command('duplicates [projectPath]')
+  .description('Find structurally near-identical functions/methods')
+  .option('--json', 'Output machine-readable JSON instead of a formatted summary')
+  .action(async (projectPath: string | undefined, options: { json?: boolean }) => {
+    try {
+      const nodumDataDir = getNodeumDataDir();
+      const { duplicatesCommand } = await import('../commands/duplicates.js');
+      await duplicatesCommand(projectPath || process.cwd(), nodumDataDir, options);
+    } catch (error) {
+      console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+program
   .command('status')
   .description('Show all synced projects')
   .action(async () => {

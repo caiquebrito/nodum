@@ -3,6 +3,8 @@ import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
 import { extractBraceBody } from './brace-body.js';
 import { countCyclomaticComplexity } from './complexity-text.js';
+import { normalizeBodyTokens } from './normalize-body-text.js';
+import { hashTokens } from './duplicate-hash.js';
 
 export class JavaScriptParser extends Parser {
   language = 'JavaScript';
@@ -34,6 +36,7 @@ export class JavaScriptParser extends Parser {
         const funcId = normalizeNodeId(file.path, name, 'function');
         const lineIdx = file.content.slice(0, match.index).split('\n').length - 1;
         const body = extractBraceBody(lines, lineIdx);
+        const duplicateHash = body !== null ? hashTokens(normalizeBodyTokens(body)) : null;
         nodes.push({
           id: funcId,
           label: name,
@@ -41,6 +44,7 @@ export class JavaScriptParser extends Parser {
           file: file.path,
           group: getNodeGroup(file.path),
           ...(body !== null ? { complexity: countCyclomaticComplexity(body) } : {}),
+          ...(duplicateHash !== null ? { duplicateHash } : {}),
         });
         edges.push({ source: fileId, target: funcId, relation: 'defines' });
         seenNames.add(name);

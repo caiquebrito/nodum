@@ -15,6 +15,10 @@ export interface Node {
   /** Cyclomatic complexity (McCabe). Only set for function/method nodes whose
    * parser could determine a body; omitted (not zero) when unknown. */
   complexity?: number;
+  /** sha256 of the normalized (identifiers/literals replaced with
+   * placeholders) body token stream. Only set for function/method nodes
+   * whose body met the minimum-size threshold; omitted otherwise. */
+  duplicateHash?: string;
 }
 
 export interface Edge {

@@ -63,3 +63,30 @@ describe("JavaScriptParser complexity", () => {
     expect(nodes.find(n => n.label === "foo")?.complexity).toBeUndefined();
   });
 });
+
+describe("JavaScriptParser duplicateHash", () => {
+  const bodyOf = (varName: string, target: string) => `
+    if (${varName} > 0) {
+      for (let i = 0; i < ${varName}; i++) {
+        if (i % 2 === 0) {
+          ${target} += i;
+        }
+      }
+    }
+    return ${target};
+  `;
+
+  it("gives the same hash to renamed-but-structurally-identical functions", () => {
+    const srcA = `function foo(x) { let acc = 0; ${bodyOf("x", "acc")} }`;
+    const srcB = `function bar(y) { let total = 0; ${bodyOf("y", "total")} }`;
+    const a = parser.parse(fileInfo("a.js", srcA)).nodes.find(n => n.label === "foo");
+    const b = parser.parse(fileInfo("b.js", srcB)).nodes.find(n => n.label === "bar");
+    expect(a?.duplicateHash).toBeDefined();
+    expect(a?.duplicateHash).toBe(b?.duplicateHash);
+  });
+
+  it("gives a small function no duplicateHash", () => {
+    const { nodes } = parser.parse(fileInfo("a.js", `function foo() { return 1; }`));
+    expect(nodes.find(n => n.label === "foo")?.duplicateHash).toBeUndefined();
+  });
+});
