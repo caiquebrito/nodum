@@ -2,7 +2,13 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 import { TextContent } from "@modelcontextprotocol/sdk/types.js";
-import { syncProject, writeGraphFile, type ProjectIndexEntry } from "@caiquebrito/nodum-core";
+import {
+  syncProject,
+  writeGraphFile,
+  traceImpact,
+  type ProjectIndexEntry,
+  type Graph as CoreGraph,
+} from "@caiquebrito/nodum-core";
 import { buildSmartContext, buildNodeContext } from "./smart-context.js";
 import { globalConversationCache } from "./conversation-cache.js";
 import { generateGraphEmbeddings } from "./embeddings.js";
@@ -394,5 +400,56 @@ export async function handleExpandCluster(
     };
   } catch (error) {
     return { error: `Failed to expand cluster: ${String(error)}` };
+  }
+}
+
+export async function handleTraceImpact(
+  projectName: string,
+  nodeId: string,
+  maxDepth?: number
+) {
+  try {
+    const graph = await loadGraph(projectName);
+    const node = graph.nodes.find((n) => n.id === nodeId);
+
+    if (!node) {
+      return { error: `Node not found: ${nodeId}` };
+    }
+
+    // The local `Graph` type above predates nodum-core's more strictly
+    // typed `Graph` — both describe the same graph.json shape written by
+    // core's writeGraphFile, so this cast is safe, not a fabricated shape.
+    const impacted = traceImpact(graph as unknown as CoreGraph, nodeId, { maxDepth });
+
+    if (impacted.length === 0) {
+      return {
+        content: [text(`✅ No files depend on ${node.label} (${node.file || node.id})`)],
+      };
+    }
+
+    const byDistance = new Map<number, typeof impacted>();
+    for (const item of impacted) {
+      if (!byDistance.has(item.distance)) byDistance.set(item.distance, []);
+      byDistance.get(item.distance)!.push(item);
+    }
+
+    const lines: string[] = [
+      `📡 Impact of changing ${node.label} (${node.file || node.id}): ${impacted.length} files`,
+      "",
+    ];
+    for (const [distance, items] of [...byDistance.entries()].sort((a, b) => a[0] - b[0])) {
+      lines.push(`${distance} hop${distance === 1 ? "" : "s"}:`);
+      items.slice(0, 10).forEach((item) => lines.push(`  • ${item.file}`));
+      if (items.length > 10) {
+        lines.push(`  ... and ${items.length - 10} more`);
+      }
+      lines.push("");
+    }
+
+    return {
+      content: [text(lines.join("\n"))],
+    };
+  } catch (error) {
+    return { error: `Failed to trace impact: ${String(error)}` };
   }
 }

@@ -67,6 +67,9 @@ export type { ComplexityRanking, RankByComplexityOptions } from './analyzer/comp
 export { detectDuplicates } from './analyzer/duplication.js';
 export type { DuplicateGroup } from './analyzer/duplication.js';
 
+export { traceImpact } from './analyzer/impact.js';
+export type { ImpactedFile, TraceImpactOptions } from './analyzer/impact.js';
+
 export {
   injectCLAUDEContext,
   appendActivityLog,
