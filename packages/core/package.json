@@ -9,6 +9,9 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": ["dist"],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
