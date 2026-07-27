@@ -61,19 +61,24 @@ export class JavaScriptParser extends Parser {
       }
     }
 
-    // Extract imports
-    const importRegex = /^(?:import|require)\s+(?:[\w{},\s*]+\s+from\s+)?['"]([^'"]+)['"]/gm;
+    // Extract imports. Not line-anchored (unlike the old version) so
+    // indented/mid-expression imports are caught, and it actually matches
+    // real CommonJS require('x') calls — the previous regex required
+    // `require` to be followed directly by a string, which real
+    // `require('x')` (a call expression) never is.
+    const importRegex = /import\s+(?:[\w*{}\s,]+\s+from\s+)?['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]\s*\)/g;
+    const imports: string[] = [];
     const seenImports = new Set<string>();
 
     while ((match = importRegex.exec(file.content)) !== null) {
-      const moduleName = match[1];
+      const moduleName = match[1] ?? match[2];
       if (moduleName && !seenImports.has(moduleName)) {
-        // Could add edge to module - for now just track
+        imports.push(moduleName);
         seenImports.add(moduleName);
       }
     }
 
-    return { nodes, edges };
+    return { nodes, edges, imports };
   }
 }
 

@@ -82,14 +82,18 @@ export class JavaParser extends Parser {
       }
     });
 
-    // Extract imports: import com.example.ClassName;
-    const importRegex = /^import\s+([\w.]+)(?:\.\*)?;/gm;
+    // Extract imports: import com.example.ClassName; or import com.example.*;
+    // Optionally skips a leading `static` (import static com.example.Foo.bar;)
+    // — the old regex had no such handling, so `static` itself was captured
+    // as if it were the start of the fully-qualified name.
+    const importRegex = /^import\s+(?:static\s+)?([\w.]+\*?)\s*;/gm;
+    const imports: string[] = [];
     let match;
     while ((match = importRegex.exec(file.content)) !== null) {
-      // Track imports (simplified)
+      imports.push(match[1]);
     }
 
-    return { nodes, edges };
+    return { nodes, edges, imports };
   }
 }
 
