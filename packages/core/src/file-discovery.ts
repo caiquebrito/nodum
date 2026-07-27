@@ -2,6 +2,8 @@ import { readdir, readFile, stat } from 'fs/promises';
 import { join, extname } from 'path';
 import { createHash } from 'crypto';
 import type { FileInfo, FileManifest } from './types.js';
+import { getAvailableParsers } from './parser/index.js';
+import { loadScanConfig, buildFileMatcher, type FileMatcher } from './scan-config.js';
 
 const IGNORED_DIRS = new Set([
   'node_modules',
@@ -25,24 +27,19 @@ const IGNORED_DIRS = new Set([
   'tmp',
 ]);
 
-const SUPPORTED_EXTENSIONS = new Set([
-  '.ts',
-  '.tsx',
-  '.js',
-  '.jsx',
-  '.mjs',
-  '.cjs',
-  '.py',
-  '.kt',
-  '.java',
-  '.go',
-  '.rs',
-  '.rb',
-]);
+function supportedExtensions(): Set<string> {
+  return new Set(getAvailableParsers().flatMap(p => p.extensions.map(e => e.toLowerCase())));
+}
 
 type FileVisitor = (fullPath: string, relativePath: string, ext: string) => Promise<void>;
 
-async function walkFiles(currentPath: string, rootPath: string, visit: FileVisitor): Promise<void> {
+async function walkFiles(
+  currentPath: string,
+  rootPath: string,
+  matcher: FileMatcher,
+  extensions: Set<string>,
+  visit: FileVisitor,
+): Promise<void> {
   try {
     const entries = await readdir(currentPath, { withFileTypes: true });
 
@@ -57,13 +54,22 @@ async function walkFiles(currentPath: string, rootPath: string, visit: FileVisit
       }
 
       const fullPath = join(currentPath, entry.name);
+      const relativePath = fullPath.substring(rootPath.length + 1);
 
       if (entry.isDirectory()) {
-        await walkFiles(fullPath, rootPath, visit);
+        // Skip recursing into excluded directories entirely — but only on
+        // exclude rules, never include rules: a directory like `src/`
+        // legitimately doesn't match a glob like `src/**` even though files
+        // inside it do, so include-filtering only applies at the file level.
+        // Gitignore directory-only patterns (e.g. `dist/`) only match a
+        // trailing-slash path, per the `ignore` package's own semantics.
+        if (matcher.isExcluded(`${relativePath}/`)) {
+          continue;
+        }
+        await walkFiles(fullPath, rootPath, matcher, extensions, visit);
       } else if (entry.isFile()) {
         const ext = extname(entry.name);
-        if (SUPPORTED_EXTENSIONS.has(ext.toLowerCase())) {
-          const relativePath = fullPath.substring(rootPath.length + 1);
+        if (extensions.has(ext.toLowerCase()) && !matcher.isExcluded(relativePath) && matcher.isIncluded(relativePath)) {
           try {
             await visit(fullPath, relativePath, ext);
           } catch {
@@ -79,8 +85,11 @@ async function walkFiles(currentPath: string, rootPath: string, visit: FileVisit
 
 export async function discoverFiles(rootPath: string): Promise<FileInfo[]> {
   const files: FileInfo[] = [];
+  const config = await loadScanConfig(rootPath);
+  const matcher = await buildFileMatcher(rootPath, config);
+  const extensions = supportedExtensions();
 
-  await walkFiles(rootPath, rootPath, async (fullPath, relativePath, ext) => {
+  await walkFiles(rootPath, rootPath, matcher, extensions, async (fullPath, relativePath, ext) => {
     const content = await readFile(fullPath, 'utf-8');
     const stats = await stat(fullPath);
     const hash = createHash('sha256').update(content).digest('hex');
@@ -118,8 +127,11 @@ export async function discoverChangedFiles(
   const changed: FileInfo[] = [];
   const unchanged: FileManifest = {};
   const seenPaths = new Set<string>();
+  const config = await loadScanConfig(rootPath);
+  const matcher = await buildFileMatcher(rootPath, config);
+  const extensions = supportedExtensions();
 
-  await walkFiles(rootPath, rootPath, async (fullPath, relativePath, ext) => {
+  await walkFiles(rootPath, rootPath, matcher, extensions, async (fullPath, relativePath, ext) => {
     seenPaths.add(relativePath);
     const stats = await stat(fullPath);
     const prev = previousManifest[relativePath];
@@ -146,6 +158,10 @@ export async function discoverChangedFiles(
     changed.push({ path: relativePath, ext, content, hash, mtimeMs: stats.mtimeMs, size: stats.size });
   });
 
+  // Anything previously known but not seen this walk is treated as deleted —
+  // whether it was actually removed from disk, or newly excluded via
+  // .gitignore/.nodumrc.json. Both cases should evict its nodes/edges from
+  // the graph the same way.
   const deletedPaths = Object.keys(previousManifest).filter(p => !seenPaths.has(p));
 
   return { changed, unchanged, deletedPaths };
