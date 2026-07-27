@@ -21,11 +21,12 @@ program
 program
   .command('sync [projectPath]')
   .description('Scan and index a project, generate knowledge graph (defaults to current directory)')
-  .action(async (projectPath?: string) => {
+  .option('--incremental', 'Only re-parse files changed since the last sync (falls back to a full sync if none exists)')
+  .action(async (projectPath: string | undefined, options: { incremental?: boolean }) => {
     try {
       const nodumDataDir = getNodeumDataDir();
       const pathToSync = projectPath || process.cwd();
-      await syncProject(pathToSync, nodumDataDir);
+      await syncProject(pathToSync, nodumDataDir, { incremental: options.incremental });
     } catch (error) {
       console.error('❌ Error:', error instanceof Error ? error.message : String(error));
       process.exit(1);
