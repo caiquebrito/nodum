@@ -1,6 +1,8 @@
 import { Parser } from './base.js';
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
+import { extractBraceBody } from './brace-body.js';
+import { countCyclomaticComplexity } from './complexity-text.js';
 
 export class JavaParser extends Parser {
   language = 'Java';
@@ -22,14 +24,22 @@ export class JavaParser extends Parser {
 
     const lines = file.content.split('\n');
     const seenNames = new Set<string>();
+    // Words that can precede a parenthesized expression in ways that look
+    // like "returnType methodName(" to the regex below but aren't a method
+    // declaration — most commonly "} else if (...)". Not an exhaustive fix
+    // for this regex's fragility (e.g. "return foo(" has the same shape),
+    // just a narrow guard against the specific false positive this was
+    // caught producing.
+    const CONTROL_FLOW_WORDS = new Set(['if', 'else', 'for', 'while', 'switch', 'catch', 'try', 'do']);
 
     lines.forEach((line, idx) => {
       // Extract methods: public void methodName(
       const methodMatch = line.match(/(?:public|private|protected)?\s*(?:static)?\s*(?:synchronized)?\s*(?:final)?\s*\w+(?:<[^>]+>)?\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/);
-      if (methodMatch && !line.includes('class ') && !line.includes('interface ')) {
+      if (methodMatch && !line.includes('class ') && !line.includes('interface ') && !CONTROL_FLOW_WORDS.has(methodMatch[1])) {
         const name = methodMatch[1];
         if (!seenNames.has(name)) {
           const methodId = normalizeNodeId(file.path, name, 'function');
+          const body = extractBraceBody(lines, idx);
           nodes.push({
             id: methodId,
             label: name,
@@ -37,6 +47,7 @@ export class JavaParser extends Parser {
             file: file.path,
             group: getNodeGroup(file.path),
             line: idx + 1,
+            ...(body !== null ? { complexity: countCyclomaticComplexity(body) } : {}),
           });
           edges.push({ source: fileId, target: methodId, relation: 'defines' });
           seenNames.add(name);

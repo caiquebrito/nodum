@@ -165,6 +165,25 @@ program
   });
 
 program
+  .command('complexity [projectPath]')
+  .description('Rank functions/methods by cyclomatic complexity')
+  .option('--json', 'Output machine-readable JSON instead of a formatted summary')
+  .option('--threshold <n>', 'Only show functions with complexity >= n')
+  .action(async (projectPath: string | undefined, options: { json?: boolean; threshold?: string }) => {
+    try {
+      const nodumDataDir = getNodeumDataDir();
+      const { complexityCommand } = await import('../commands/complexity.js');
+      await complexityCommand(projectPath || process.cwd(), nodumDataDir, {
+        json: options.json,
+        threshold: options.threshold ? parseInt(options.threshold, 10) : undefined,
+      });
+    } catch (error) {
+      console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+program
   .command('status')
   .description('Show all synced projects')
   .action(async () => {

@@ -27,3 +27,63 @@ describe("TypeScriptParser imports", () => {
     expect(imports).toEqual([]);
   });
 });
+
+describe("TypeScriptParser complexity", () => {
+  it("scores a function with no decision points as 1", () => {
+    const { nodes } = parser.parse(fileInfo("a.ts", `function foo() { return 1; }`));
+    expect(nodes.find(n => n.label === "foo")?.complexity).toBe(1);
+  });
+
+  it("counts if/for/ternary/&& as decision points", () => {
+    const src = `
+      function foo(x: number) {
+        if (x > 0) {
+          for (let i = 0; i < x; i++) {}
+        }
+        return x > 0 && x < 10 ? 1 : 2;
+      }
+    `;
+    const { nodes } = parser.parse(fileInfo("a.ts", src));
+    // base 1 + if + for + && + ternary = 5
+    expect(nodes.find(n => n.label === "foo")?.complexity).toBe(5);
+  });
+
+  it("does not double-count a nested named function's branches into the parent", () => {
+    const src = `
+      function outer() {
+        if (true) {}
+        function inner() {
+          if (true) {}
+          if (true) {}
+        }
+        return inner;
+      }
+    `;
+    const { nodes } = parser.parse(fileInfo("a.ts", src));
+    expect(nodes.find(n => n.label === "outer")?.complexity).toBe(2); // base 1 + its own if
+    expect(nodes.find(n => n.label === "inner")?.complexity).toBe(3); // base 1 + its own 2 ifs
+  });
+
+  it("does count a nested arrow-function callback's branches into the enclosing scored function", () => {
+    const src = `
+      function outer(items: number[]) {
+        return items.map(x => x > 0 ? x : -x);
+      }
+    `;
+    const { nodes } = parser.parse(fileInfo("a.ts", src));
+    expect(nodes.find(n => n.label === "outer")?.complexity).toBe(2); // base 1 + arrow's ternary
+  });
+
+  it("scores a class method", () => {
+    const src = `
+      class Foo {
+        bar(x: number) {
+          if (x > 0) { return 1; }
+          return 0;
+        }
+      }
+    `;
+    const { nodes } = parser.parse(fileInfo("a.ts", src));
+    expect(nodes.find(n => n.label === "bar")?.complexity).toBe(2);
+  });
+});

@@ -36,3 +36,30 @@ describe("JavaScriptParser imports", () => {
     expect(imports).toEqual([]);
   });
 });
+
+describe("JavaScriptParser complexity", () => {
+  it("scores a function with no decision points as 1", () => {
+    const { nodes } = parser.parse(fileInfo("a.js", `function foo() { return 1; }`));
+    expect(nodes.find(n => n.label === "foo")?.complexity).toBe(1);
+  });
+
+  it("counts if/for/&&/|| as decision points via brace-body extraction", () => {
+    const src = `
+      function foo(x) {
+        if (x > 0 && x < 10) {
+          for (let i = 0; i < x; i++) {}
+        }
+        return x || 0;
+      }
+    `;
+    const { nodes } = parser.parse(fileInfo("a.js", src));
+    // base 1 + if + && + for + || = 5
+    expect(nodes.find(n => n.label === "foo")?.complexity).toBe(5);
+  });
+
+  it("leaves a brace-less single-expression arrow function unscored", () => {
+    const src = `const foo = x => x + 1;\nconst y = 2;\nconst z = 3;\n`;
+    const { nodes } = parser.parse(fileInfo("a.js", src));
+    expect(nodes.find(n => n.label === "foo")?.complexity).toBeUndefined();
+  });
+});

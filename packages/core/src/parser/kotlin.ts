@@ -1,6 +1,8 @@
 import { Parser } from './base.js';
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
+import { extractBraceBody } from './brace-body.js';
+import { countCyclomaticComplexity } from './complexity-text.js';
 
 export class KotlinParser extends Parser {
   language = 'Kotlin';
@@ -30,6 +32,7 @@ export class KotlinParser extends Parser {
         const name = funcMatch[1];
         if (!seenNames.has(name)) {
           const funcId = normalizeNodeId(file.path, name, 'function');
+          const body = extractBraceBody(lines, idx);
           nodes.push({
             id: funcId,
             label: name,
@@ -37,6 +40,7 @@ export class KotlinParser extends Parser {
             file: file.path,
             group: getNodeGroup(file.path),
             line: idx + 1,
+            ...(body !== null ? { complexity: countCyclomaticComplexity(body) } : {}),
           });
           edges.push({ source: fileId, target: funcId, relation: 'defines' });
           seenNames.add(name);

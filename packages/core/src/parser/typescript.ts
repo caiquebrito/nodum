@@ -39,6 +39,7 @@ export class TypeScriptParser extends Parser {
         type: 'function',
         file: filePath,
         group: getNodeGroup(filePath),
+        ...(node.body ? { complexity: this.computeComplexity(node.body) } : {}),
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
     } else if (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) {
@@ -66,6 +67,7 @@ export class TypeScriptParser extends Parser {
               type: 'method',
               file: filePath,
               group: getNodeGroup(filePath),
+              ...(member.body ? { complexity: this.computeComplexity(member.body) } : {}),
             });
             edges.push({ source: classId, target: methodId, relation: 'defines' });
           }
@@ -85,6 +87,50 @@ export class TypeScriptParser extends Parser {
     }
 
     ts.forEachChild(node, child => this.visitNode(child, nodes, edges, imports, filePath, fileId));
+  }
+
+  /**
+   * McCabe cyclomatic complexity, walking `bodyNode`'s subtree. Does not
+   * descend into a nested FunctionDeclaration/MethodDeclaration — those are
+   * separately-extracted nodes that get their own score, so counting their
+   * branches here would double-count. Does descend into ArrowFunction/
+   * FunctionExpression bodies, since those aren't extracted as separate
+   * nodes today — their branching rolls up into the enclosing scored unit.
+   */
+  private computeComplexity(bodyNode: ts.Node): number {
+    let complexity = 1;
+
+    const visit = (node: ts.Node): void => {
+      switch (node.kind) {
+        case ts.SyntaxKind.IfStatement:
+        case ts.SyntaxKind.ForStatement:
+        case ts.SyntaxKind.ForInStatement:
+        case ts.SyntaxKind.ForOfStatement:
+        case ts.SyntaxKind.WhileStatement:
+        case ts.SyntaxKind.DoStatement:
+        case ts.SyntaxKind.CaseClause:
+        case ts.SyntaxKind.CatchClause:
+        case ts.SyntaxKind.ConditionalExpression:
+          complexity++;
+          break;
+        case ts.SyntaxKind.BinaryExpression: {
+          const op = (node as ts.BinaryExpression).operatorToken.kind;
+          if (op === ts.SyntaxKind.AmpersandAmpersandToken || op === ts.SyntaxKind.BarBarToken) {
+            complexity++;
+          }
+          break;
+        }
+      }
+
+      if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)) {
+        return; // separately-scored node — don't descend
+      }
+
+      ts.forEachChild(node, visit);
+    };
+
+    ts.forEachChild(bodyNode, visit);
+    return complexity;
   }
 
   private extractModuleName(node: ts.ImportDeclaration | ts.ImportEqualsDeclaration): string | null {

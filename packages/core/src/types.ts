@@ -12,6 +12,9 @@ export interface Node {
   line?: number;
   embedding?: number[];  // v2.0: Semantic search embeddings (1536-dim)
   clusterId?: string;     // v2.0: Cluster assignment for hierarchical compression
+  /** Cyclomatic complexity (McCabe). Only set for function/method nodes whose
+   * parser could determine a body; omitted (not zero) when unknown. */
+  complexity?: number;
 }
 
 export interface Edge {

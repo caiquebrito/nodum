@@ -1,6 +1,8 @@
 import { Parser } from './base.js';
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
+import { extractBraceBody } from './brace-body.js';
+import { countCyclomaticComplexity } from './complexity-text.js';
 
 export class JavaScriptParser extends Parser {
   language = 'JavaScript';
@@ -21,6 +23,7 @@ export class JavaScriptParser extends Parser {
     });
 
     // Extract functions
+    const lines = file.content.split('\n');
     const funcRegex = /(?:^|\s)(?:export\s+)?(?:async\s+)?(?:function|const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?:\(|=\s*(?:async\s*)?(?:\(|\w))/gm;
     let match;
     const seenNames = new Set<string>();
@@ -29,12 +32,15 @@ export class JavaScriptParser extends Parser {
       const name = match[1];
       if (!seenNames.has(name)) {
         const funcId = normalizeNodeId(file.path, name, 'function');
+        const lineIdx = file.content.slice(0, match.index).split('\n').length - 1;
+        const body = extractBraceBody(lines, lineIdx);
         nodes.push({
           id: funcId,
           label: name,
           type: 'function',
           file: file.path,
           group: getNodeGroup(file.path),
+          ...(body !== null ? { complexity: countCyclomaticComplexity(body) } : {}),
         });
         edges.push({ source: fileId, target: funcId, relation: 'defines' });
         seenNames.add(name);

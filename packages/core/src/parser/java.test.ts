@@ -27,3 +27,48 @@ describe("JavaParser imports", () => {
     expect(imports).toEqual([]);
   });
 });
+
+describe("JavaParser method extraction", () => {
+  it("does not mis-parse 'else if (...)' as a method named 'if'", () => {
+    const src = [
+      "public class A {",
+      "  public int foo(int x) {",
+      "    if (x > 0) {",
+      "      return 1;",
+      "    } else if (x < 0) {",
+      "      return -1;",
+      "    }",
+      "    return 0;",
+      "  }",
+      "}",
+    ].join("\n");
+    const { nodes } = parser.parse(fileInfo("A.java", src));
+    expect(nodes.map(n => n.label)).not.toContain("if");
+  });
+});
+
+describe("JavaParser complexity", () => {
+  it("scores a method with no decision points as 1", () => {
+    const src = "public class A {\n  public int foo() {\n    return 1;\n  }\n}\n";
+    const { nodes } = parser.parse(fileInfo("A.java", src));
+    expect(nodes.find(n => n.label === "foo")?.complexity).toBe(1);
+  });
+
+  it("counts if/for/catch/&& via brace-body extraction", () => {
+    const src = [
+      "public class A {",
+      "  public int foo(int x) {",
+      "    try {",
+      "      if (x > 0 && x < 10) {",
+      "        for (int i = 0; i < x; i++) {}",
+      "      }",
+      "    } catch (Exception e) {}",
+      "    return x;",
+      "  }",
+      "}",
+    ].join("\n");
+    const { nodes } = parser.parse(fileInfo("A.java", src));
+    // base 1 + if + && + for + catch = 5
+    expect(nodes.find(n => n.label === "foo")?.complexity).toBe(5);
+  });
+});
