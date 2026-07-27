@@ -50,3 +50,31 @@ describe("KotlinParser complexity", () => {
     expect(nodes.find(n => n.label === "foo")?.complexity).toBe(4);
   });
 });
+
+describe("KotlinParser duplicateHash", () => {
+  const bodyOf = (varName: string, target: string) =>
+    [
+      `  if (${varName} > 0) {`,
+      `    for (i in 0..${varName}) {`,
+      `      if (i % 2 == 0) {`,
+      `        ${target} += i`,
+      `      }`,
+      `    }`,
+      `  }`,
+      `  return ${target}`,
+    ].join("\n");
+
+  it("gives the same hash to renamed-but-structurally-identical functions", () => {
+    const srcA = `fun foo(x: Int): Int {\n  var acc = 0\n${bodyOf("x", "acc")}\n}`;
+    const srcB = `fun bar(y: Int): Int {\n  var total = 0\n${bodyOf("y", "total")}\n}`;
+    const a = parser.parse(fileInfo("a.kt", srcA)).nodes.find(n => n.label === "foo");
+    const b = parser.parse(fileInfo("b.kt", srcB)).nodes.find(n => n.label === "bar");
+    expect(a?.duplicateHash).toBeDefined();
+    expect(a?.duplicateHash).toBe(b?.duplicateHash);
+  });
+
+  it("gives a small function no duplicateHash", () => {
+    const { nodes } = parser.parse(fileInfo("a.kt", `fun foo(): Int {\n  return 1\n}\n`));
+    expect(nodes.find(n => n.label === "foo")?.duplicateHash).toBeUndefined();
+  });
+});
