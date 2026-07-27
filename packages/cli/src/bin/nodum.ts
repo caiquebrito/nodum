@@ -80,6 +80,25 @@ program
   });
 
 program
+  .command('export [projectPath]')
+  .description("Export a synced project's graph to JSON, GraphML, or CSV")
+  .option('--format <format>', 'json | graphml | csv', 'json')
+  .option('--output <path>', 'Output path (base path for csv, which writes two files)')
+  .action(async (projectPath: string | undefined, options: { format: string; output?: string }) => {
+    try {
+      const nodumDataDir = getNodeumDataDir();
+      const { exportGraph } = await import('../commands/export.js');
+      await exportGraph(projectPath || process.cwd(), nodumDataDir, {
+        format: options.format as 'json' | 'graphml' | 'csv',
+        output: options.output,
+      });
+    } catch (error) {
+      console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+program
   .command('status')
   .description('Show all synced projects')
   .action(async () => {
