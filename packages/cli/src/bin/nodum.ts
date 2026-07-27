@@ -129,6 +129,22 @@ program
   });
 
 program
+  .command('dead-code [projectPath]')
+  .description('Find files no other file imports — candidates for dead code')
+  .option('--json', 'Output machine-readable JSON instead of a formatted summary')
+  .option('--entry <patterns>', 'Comma-separated globs treated as entry points in addition to the built-in defaults')
+  .action(async (projectPath: string | undefined, options: { json?: boolean; entry?: string }) => {
+    try {
+      const nodumDataDir = getNodeumDataDir();
+      const { deadCodeCommand } = await import('../commands/dead-code.js');
+      await deadCodeCommand(projectPath || process.cwd(), nodumDataDir, options);
+    } catch (error) {
+      console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+program
   .command('status')
   .description('Show all synced projects')
   .action(async () => {
