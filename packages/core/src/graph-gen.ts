@@ -1,12 +1,12 @@
 import { basename } from 'path';
 import { discoverFiles } from './file-discovery.js';
 import { selectParser } from './parser/index.js';
-import type { Graph, Node, Edge } from './types.js';
+import type { Graph, Node, Edge, FileManifest } from './types.js';
 
 export async function generateGraph(
   projectPath: string,
   onProgress?: (processed: number, total: number) => void,
-): Promise<Graph> {
+): Promise<{ graph: Graph; files: FileManifest }> {
   const files = await discoverFiles(projectPath);
   const nodeMap = new Map<string, Node>();
   const edgesSet = new Set<string>();
@@ -77,7 +77,12 @@ export async function generateGraph(
     edges,
   };
 
-  return graph;
+  const fileManifest: FileManifest = {};
+  for (const file of files) {
+    fileManifest[file.path] = { hash: file.hash, mtimeMs: file.mtimeMs, size: file.size };
+  }
+
+  return { graph, files: fileManifest };
 }
 
 export function calculateNodeDegree(nodeId: string, edges: Edge[]): number {
