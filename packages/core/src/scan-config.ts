@@ -24,13 +24,22 @@ export async function loadScanConfig(rootPath: string): Promise<ScanConfig> {
   }
 }
 
+/**
+ * Merges into the raw JSON object rather than round-tripping through the
+ * typed `ScanConfig` shape, so unrelated top-level keys already in the file
+ * (e.g. `architecture`, from `architecture-config.ts`) survive untouched.
+ */
 export async function saveScanConfig(rootPath: string, update: ScanConfig): Promise<void> {
-  const existing = await loadScanConfig(rootPath);
-  const merged: ScanConfig = {
-    include: update.include ?? existing.include,
-    exclude: update.exclude ?? existing.exclude,
-  };
-  await writeFile(join(rootPath, CONFIG_FILENAME), JSON.stringify(merged, null, 2), 'utf-8');
+  const path = join(rootPath, CONFIG_FILENAME);
+  let raw: Record<string, unknown> = {};
+  try {
+    raw = JSON.parse(await readFile(path, 'utf-8'));
+  } catch {
+    // No existing file — start fresh.
+  }
+  if (update.include !== undefined) raw.include = update.include;
+  if (update.exclude !== undefined) raw.exclude = update.exclude;
+  await writeFile(path, JSON.stringify(raw, null, 2), 'utf-8');
 }
 
 export interface FileMatcher {
