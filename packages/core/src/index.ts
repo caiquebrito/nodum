@@ -53,6 +53,9 @@ export type { NodeCluster } from './analyzer/clustering.js';
 export { detectCycles } from './analyzer/cycles.js';
 export type { Cycle } from './analyzer/cycles.js';
 
+export { detectUnreachableFiles } from './analyzer/dead-code.js';
+export type { UnreachableFile, DetectUnreachableFilesOptions } from './analyzer/dead-code.js';
+
 export {
   injectCLAUDEContext,
   appendActivityLog,
