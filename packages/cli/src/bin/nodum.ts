@@ -99,6 +99,21 @@ program
   });
 
 program
+  .command('diff <a> <b>')
+  .description('Compare two graph snapshots (file paths or synced project names)')
+  .option('--json', 'Output machine-readable JSON instead of a formatted summary')
+  .action(async (a: string, b: string, options: { json?: boolean }) => {
+    try {
+      const nodumDataDir = getNodeumDataDir();
+      const { diffCommand } = await import('../commands/diff.js');
+      await diffCommand(a, b, nodumDataDir, options);
+    } catch (error) {
+      console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+program
   .command('status')
   .description('Show all synced projects')
   .action(async () => {
