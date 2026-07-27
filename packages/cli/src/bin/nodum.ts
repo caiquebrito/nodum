@@ -52,10 +52,30 @@ program
   .description('Show or update scan configuration (include/exclude patterns)')
   .option('--set-include <patterns>', 'Comma-separated patterns — only matching files are scanned')
   .option('--set-exclude <patterns>', 'Comma-separated patterns to exclude, in addition to .gitignore')
-  .action(async (projectPath: string | undefined, options: { setInclude?: string; setExclude?: string }) => {
+  .option('--set-architecture-rules <rules>', 'Comma-separated from:to group pairs to disallow importing (e.g. "ui:repo,model:service")')
+  .action(async (
+    projectPath: string | undefined,
+    options: { setInclude?: string; setExclude?: string; setArchitectureRules?: string },
+  ) => {
     try {
       const { showOrUpdateConfig } = await import('../commands/config.js');
       await showOrUpdateConfig(projectPath || process.cwd(), options);
+    } catch (error) {
+      console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+program
+  .command('architecture [projectPath]')
+  .description('Detect imports that violate declared architecture rules')
+  .option('--json', 'Output machine-readable JSON instead of a formatted summary')
+  .option('--rule <rules>', 'Comma-separated from:to group pairs to disallow, in addition to any persisted in .nodumrc.json')
+  .action(async (projectPath: string | undefined, options: { json?: boolean; rule?: string }) => {
+    try {
+      const nodumDataDir = getNodeumDataDir();
+      const { architectureCommand } = await import('../commands/architecture.js');
+      await architectureCommand(projectPath || process.cwd(), nodumDataDir, options);
     } catch (error) {
       console.error('❌ Error:', error instanceof Error ? error.message : String(error));
       process.exit(1);
