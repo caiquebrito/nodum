@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc && rm -rf viewer && cp -R ../viewer viewer",
     "dev": "tsc --watch",
-    "test": "vitest",
+    "test": "vitest run",
     "clean": "rm -rf dist viewer"
   },
   "dependencies": {

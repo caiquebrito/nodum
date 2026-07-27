@@ -1,13 +1,19 @@
 /**
  * Generate embeddings for graph nodes
- * Uses Anthropic's text-embedding-3-small model
- * Cost: ~$0.001 per 1000 nodes (one-time per sync)
+ * Uses a local sentence-embedding model (Xenova/all-MiniLM-L6-v2, 384-dim) via
+ * @xenova/transformers — runs in-process (WASM/JS), no API key, no cloud calls.
+ * The model is downloaded once on first use and cached locally; every call
+ * after that is fully offline.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { pipeline } from "@xenova/transformers";
 
-const client = new Anthropic();
-const BATCH_SIZE = 100; // Process embeddings in batches
+type FeatureExtractor = (
+  text: string,
+  options: { pooling: "mean"; normalize: boolean }
+) => Promise<{ data: Float32Array }>;
+
+const MODEL_ID = "Xenova/all-MiniLM-L6-v2";
 
 interface Node {
   id: string;
@@ -19,6 +25,24 @@ interface Node {
   clusterId?: string;
 }
 
+let extractorPromise: Promise<FeatureExtractor> | null = null;
+
+function getExtractor(): Promise<FeatureExtractor> {
+  if (!extractorPromise) {
+    extractorPromise = pipeline("feature-extraction", MODEL_ID) as Promise<FeatureExtractor>;
+  }
+  return extractorPromise;
+}
+
+/**
+ * Embed a single string using the local model
+ */
+async function embed(text: string): Promise<number[]> {
+  const extractor = await getExtractor();
+  const output = await extractor(text, { pooling: "mean", normalize: true });
+  return Array.from(output.data);
+}
+
 /**
  * Generate embedding for a node's text
  */
@@ -27,13 +51,7 @@ async function generateNodeEmbedding(node: Node): Promise<number[]> {
   const text = `${node.label} ${node.type}`;
 
   try {
-    const response = await (client as any).embeddings.create({
-      model: "text-embedding-3-small",
-      input: text,
-      dimensions: 256, // Use 256 dims instead of 1536 for smaller storage
-    });
-
-    return response.data[0].embedding;
+    return await embed(text);
   } catch (error) {
     console.warn(`Failed to embed node ${node.id}:`, error);
     return [];
@@ -42,8 +60,10 @@ async function generateNodeEmbedding(node: Node): Promise<number[]> {
 
 /**
  * Generate embeddings for all nodes in a graph
- * Batches requests to manage API rate limits
+ * Batches requests to manage memory usage
  */
+const BATCH_SIZE = 100; // Process embeddings in batches
+
 export async function generateGraphEmbeddings(nodes: Node[]): Promise<void> {
   const nodesToEmbed = nodes.filter(n => !n.embedding && n.type !== "file");
 
@@ -96,12 +116,7 @@ export async function generateQueryEmbeddings(
 
   for (const query of queries) {
     try {
-      const response = await (client as any).embeddings.create({
-        model: "text-embedding-3-small",
-        input: query,
-        dimensions: 256,
-      });
-      embeddings.push(response.data[0].embedding);
+      embeddings.push(await embed(query));
     } catch (error) {
       console.warn(`Failed to embed query "${query}":`, error);
       embeddings.push([]);
@@ -116,12 +131,7 @@ export async function generateQueryEmbeddings(
  */
 export async function generateQueryEmbedding(query: string): Promise<number[]> {
   try {
-    const response = await (client as any).embeddings.create({
-      model: "text-embedding-3-small",
-      input: query,
-      dimensions: 256,
-    });
-    return response.data[0].embedding;
+    return await embed(query);
   } catch (error) {
     console.warn(`Failed to embed query "${query}":`, error);
     return [];
