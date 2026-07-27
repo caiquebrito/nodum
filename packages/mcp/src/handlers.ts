@@ -1,8 +1,8 @@
-import { readFile, writeFile } from "fs/promises";
+import { readFile } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 import { TextContent } from "@modelcontextprotocol/sdk/types.js";
-import { syncProject, buildClusters } from "@caiquebrito/nodum-core";
+import { syncProject, writeGraphFile, type ProjectIndexEntry } from "@caiquebrito/nodum-core";
 import { buildSmartContext, buildNodeContext } from "./smart-context.js";
 import { globalConversationCache } from "./conversation-cache.js";
 import { generateGraphEmbeddings } from "./embeddings.js";
@@ -41,24 +41,7 @@ interface Graph {
   nodeToCluster?: { [nodeId: string]: string };
 }
 
-interface ProjectIndex {
-  [projectName: string]: {
-    name: string;
-    path: string;
-    lastSync: string;
-    stats: {
-      files: number;
-      functions: number;
-      classes: number;
-      interfaces: number;
-      edges: number;
-    };
-    stack: {
-      languages: string[];
-      frameworks: string[];
-    };
-  };
-}
+type ProjectIndex = Record<string, ProjectIndexEntry>;
 
 async function loadProjectIndex(): Promise<ProjectIndex> {
   try {
@@ -89,44 +72,29 @@ function text(content: string): TextContent {
 
 export async function handleSync(projectPath: string) {
   try {
-    await syncProject(projectPath, NODUM_DATA_DIR);
-
-    // Load the synced project to get stats
-    const projects = await loadProjectIndex();
-    const projectName = Object.keys(projects).pop();
-
-    if (!projectName) {
-      return { error: "Failed to find synced project" };
-    }
+    // core.syncProject already discovers, parses, analyzes, clusters, and
+    // persists the graph — this handler only needs to add embeddings.
+    const graph = await syncProject(projectPath, NODUM_DATA_DIR);
 
     // v2.0: Generate embeddings for semantic search
-    const graphPath = join(NODUM_DATA_DIR, projectName, "graph", "graph.json");
-    const graphContent = await readFile(graphPath, "utf-8");
-    const graph = JSON.parse(graphContent);
-
     await generateGraphEmbeddings(graph.nodes);
-
-    // v2.0: Generate clusters for hierarchical compression
-    const { clusters, nodeToCluster } = buildClusters(graph.nodes, graph.edges);
-    (graph as any).clusters = clusters;
-    (graph as any).nodeToCluster = Object.fromEntries(nodeToCluster); // Convert Map to object for JSON
-
-    // Save updated graph with embeddings and clusters
-    await writeFile(graphPath, JSON.stringify(graph, null, 2), "utf-8");
+    await writeGraphFile(NODUM_DATA_DIR, graph.project, graph);
 
     // Clear conversation cache for this project (graph changed)
-    globalConversationCache.clearProject(projectName);
+    globalConversationCache.clearProject(graph.project);
 
-    const project = projects[projectName];
+    const projects = await loadProjectIndex();
+    const project = projects[graph.project];
+
     return {
       content: [
         text(
           `✅ Project synced successfully!\n\n` +
-            `📦 Project: ${projectName}\n` +
-            `📁 Files: ${project.stats.files}\n` +
-            `⚙️  Functions: ${project.stats.functions}\n` +
-            `📦 Classes: ${project.stats.classes}\n` +
-            `🔗 Dependencies: ${project.stats.edges}\n` +
+            `📦 Project: ${graph.project}\n` +
+            `📁 Files: ${graph.stats.files}\n` +
+            `⚙️  Functions: ${graph.stats.functions}\n` +
+            `📦 Classes: ${graph.stats.classes}\n` +
+            `🔗 Dependencies: ${graph.stats.edges}\n` +
             `🧠 Embeddings: Generated for semantic search (v2.0)\n\n` +
             `Data saved to: ${project.path}`
         ),

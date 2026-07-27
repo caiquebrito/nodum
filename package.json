@@ -12,7 +12,7 @@
     "build:cli": "cd packages/cli && npm run build",
     "build:server": "cd packages/server && npm run build",
     "build:mcp": "cd packages/mcp && npm run build",
-    "build": "npm run build:core && npm run build:cli && npm run build:server && npm run build:mcp",
+    "build": "npm run build:core && npm run build:server && npm run build:cli && npm run build:mcp",
     "dev": "npm run dev --workspaces",
     "test": "npm run test --workspaces",
     "lint": "eslint packages --ext .ts",

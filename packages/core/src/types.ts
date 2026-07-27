@@ -1,3 +1,5 @@
+import type { NodeCluster } from './analyzer/clustering.js';
+
 export type NodeType = 'file' | 'function' | 'class' | 'interface' | 'method';
 export type RelationType = 'imports' | 'defines' | 'extends' | 'implements';
 
@@ -34,6 +36,19 @@ export interface Graph {
   };
   nodes: Node[];
   edges: Edge[];
+  clusters?: NodeCluster[];
+  nodeToCluster?: Record<string, string>;
+}
+
+export interface ProjectIndexEntry {
+  name: string;
+  path: string;
+  lastSync: string; // ISO timestamp
+  stats: Graph['stats'];
+  stack: {
+    languages: string[];
+    frameworks: string[];
+  };
 }
 
 export interface FileInfo {

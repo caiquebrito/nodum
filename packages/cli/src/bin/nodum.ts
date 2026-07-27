@@ -2,6 +2,7 @@
 
 import { Command } from 'commander';
 import { homedir } from 'os';
+import type { ProjectIndexEntry } from '@caiquebrito/nodum-core';
 import { syncProject } from '../commands/sync.js';
 
 const program = new Command();
@@ -41,7 +42,7 @@ program
 
       try {
         const content = await fs.readFile(`${nodumDataDir}/projects.json`, 'utf-8');
-        const projects = JSON.parse(content);
+        const projects: Record<string, ProjectIndexEntry> = JSON.parse(content);
         const projectList = Object.values(projects);
 
         if (projectList.length === 0) {
@@ -50,7 +51,7 @@ program
         }
 
         console.log('\n📊 Synced Projects:\n');
-        for (const project of projectList as any[]) {
+        for (const project of projectList) {
           console.log(`  📦 ${project.name}`);
           console.log(`     Files: ${project.stats.files} | Functions: ${project.stats.functions} | Classes: ${project.stats.classes}`);
           console.log(`     Stack: ${project.stack.languages.join(', ') || 'unknown'}\n`);

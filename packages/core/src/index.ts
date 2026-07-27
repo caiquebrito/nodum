@@ -1,6 +1,6 @@
 // Sync orchestrator
-import { syncProject as sync } from './sync.js';
-export const syncProject = sync;
+export { syncProject, writeGraphFile } from './sync.js';
+export type { SyncHooks } from './sync.js';
 
 export type {
   Node,
@@ -9,6 +9,7 @@ export type {
   Graph,
   FileInfo,
   ProjectAnalysis,
+  ProjectIndexEntry,
   NodeType,
   RelationType,
 } from './types.js';
