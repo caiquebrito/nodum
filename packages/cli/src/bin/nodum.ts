@@ -19,6 +19,20 @@ program
   .version('1.0.0');
 
 program
+  .command('init [projectPath]')
+  .description('Interactive setup: sync + Claude Code integration')
+  .action(async (projectPath: string | undefined) => {
+    try {
+      const nodumDataDir = getNodeumDataDir();
+      const { initProject } = await import('../commands/init.js');
+      await initProject(projectPath || process.cwd(), nodumDataDir);
+    } catch (error) {
+      console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+program
   .command('sync [projectPath]')
   .description('Scan and index a project, generate knowledge graph (defaults to current directory)')
   .option('--incremental', 'Only re-parse files changed since the last sync (falls back to a full sync if none exists)')
