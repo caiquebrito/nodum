@@ -29,7 +29,7 @@ export {
 } from './graph-gen.js';
 export type { GenerateGraphOptions } from './graph-gen.js';
 
-export { discoverFiles, discoverChangedFiles } from './file-discovery.js';
+export { discoverFiles, discoverChangedFiles, IGNORED_DIRS } from './file-discovery.js';
 export type { DiscoveryDiff } from './file-discovery.js';
 
 export { loadScanConfig, saveScanConfig, buildFileMatcher } from './scan-config.js';
