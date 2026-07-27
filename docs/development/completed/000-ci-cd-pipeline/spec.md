@@ -144,13 +144,13 @@ Replaces the entire manual/stale content with: how to add a changeset (`npx chan
 ## Acceptance criteria
 
 - [x] `develop` branch exists on origin, branched from current `main`.
-- [ ] This spec's own implementation PR targets `develop`, not `main` — dogfooding the new model from the first PR onward.
+- [x] This spec's own implementation PR targets `develop`, not `main` — dogfooding the new model from the first PR onward. (PR #2)
 - [x] `npm run build && npm test --workspaces` passes with the `engines` bump and new devDependency.
 - [x] `npx changeset --help` runs successfully (package installed and wired).
-- [ ] `ci.yml` triggers on a test PR into `develop` and reports a status check.
+- [x] `ci.yml` triggers on a test PR into `develop` and reports a status check. (verified: build-and-test passed in 1m23s on PR #2)
 - [x] Root `package.json` is `"private": true`.
 - [x] `PUBLISH.md` no longer references `npm publish --access public` from repo root or manual `npm version` + tag pushing.
-- [ ] Clear written handoff (this document's "What needs you" section) covering the 4 manual GitHub-settings steps, since none of them are things I should do unprompted.
+- [x] Clear written handoff (this document's "What needs you" section) covering the 4 manual GitHub-settings steps, since none of them are things I should do unprompted.
 
 ## Success Metrics
 
