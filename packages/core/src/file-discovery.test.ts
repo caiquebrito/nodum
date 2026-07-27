@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { createHash } from "crypto";
-import { mkdtemp, writeFile, rm, stat, utimes, readFile } from "fs/promises";
+import { mkdtemp, writeFile, rm, stat, utimes, readFile, mkdir } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { discoverFiles, discoverChangedFiles } from "./file-discovery.js";
@@ -82,7 +82,14 @@ describe("discoverChangedFiles", () => {
 
     expect(diff.changed).toHaveLength(0);
     expect(Object.keys(diff.unchanged).sort()).toEqual(["modified.ts", "toDelete.ts", "touched.ts", "unchanged.ts"]);
-    expect(readFile).not.toHaveBeenCalled();
+
+    // readFile is still called once for .nodumrc.json and once for .gitignore
+    // (fixed per-scan config-loading overhead, neither present in this
+    // fixture) — but never for any of the fixture's own source files.
+    const readFixtureFiles = (readFile as any).mock.calls.filter(
+      ([path]: [string]) => !path.endsWith(".nodumrc.json") && !path.endsWith(".gitignore"),
+    );
+    expect(readFixtureFiles).toHaveLength(0);
   });
 
   it("classifies a touched-but-identical-content file as unchanged with a refreshed mtime", async () => {
@@ -133,5 +140,51 @@ describe("discoverChangedFiles", () => {
 
     // restore for subsequent tests
     await writeFile(join(dir, "toDelete.ts"), "export const d = 1;\n", "utf-8");
+  });
+});
+
+describe("discoverFiles — scan config integration", () => {
+  let dir: string;
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("does not discover files matched by .gitignore", async () => {
+    dir = await mkdtemp(join(tmpdir(), "nodum-file-discovery-gitignore-"));
+    await writeFile(join(dir, "kept.ts"), "export const k = 1;\n", "utf-8");
+    await writeFile(join(dir, "secret.ts"), "export const s = 1;\n", "utf-8");
+    await mkdir(join(dir, "ignored-dir"), { recursive: true });
+    await writeFile(join(dir, "ignored-dir", "inner.ts"), "export const i = 1;\n", "utf-8");
+    await writeFile(join(dir, ".gitignore"), "secret.ts\nignored-dir/\n", "utf-8");
+
+    const files = await discoverFiles(dir);
+    const paths = files.map(f => f.path).sort();
+
+    expect(paths).toEqual(["kept.ts"]);
+  });
+
+  it("does not discover .go/.rs/.rb files — no parser supports them", async () => {
+    dir = await mkdtemp(join(tmpdir(), "nodum-file-discovery-phantom-ext-"));
+    await writeFile(join(dir, "main.go"), "package main\n", "utf-8");
+    await writeFile(join(dir, "lib.rs"), "fn main() {}\n", "utf-8");
+    await writeFile(join(dir, "app.rb"), "puts 'hi'\n", "utf-8");
+    await writeFile(join(dir, "kept.ts"), "export const k = 1;\n", "utf-8");
+
+    const files = await discoverFiles(dir);
+
+    expect(files.map(f => f.path)).toEqual(["kept.ts"]);
+  });
+
+  it("with .nodumrc.json include patterns, only matching files are discovered even without .gitignore", async () => {
+    dir = await mkdtemp(join(tmpdir(), "nodum-file-discovery-include-"));
+    await mkdir(join(dir, "src"), { recursive: true });
+    await writeFile(join(dir, "src", "index.ts"), "export const x = 1;\n", "utf-8");
+    await writeFile(join(dir, "outside.ts"), "export const y = 1;\n", "utf-8");
+    await writeFile(join(dir, ".nodumrc.json"), JSON.stringify({ include: ["src/**"] }), "utf-8");
+
+    const files = await discoverFiles(dir);
+
+    expect(files.map(f => f.path)).toEqual(["src/index.ts"]);
   });
 });
