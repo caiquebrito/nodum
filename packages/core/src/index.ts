@@ -35,6 +35,9 @@ export type { DiscoveryDiff } from './file-discovery.js';
 export { loadScanConfig, saveScanConfig, buildFileMatcher } from './scan-config.js';
 export type { ScanConfig, FileMatcher } from './scan-config.js';
 
+export { diffGraphs } from './graph-diff.js';
+export type { GraphDiff, NodeChange } from './graph-diff.js';
+
 export type { Parser } from './parser/base.js';
 export {
   selectParser,
