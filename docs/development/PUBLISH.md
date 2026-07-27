@@ -1,119 +1,66 @@
-# Publishing Nodum to npm
+# Releasing Nodum
 
-## Prerequisites
+Releases are automated via [Changesets](https://github.com/changesets/changesets) and GitHub Actions. There is no manual `npm publish` step — publishing happens by merging PRs.
 
-1. **npm Account**: Create one at https://www.npmjs.com if you don't have it
-2. **GitHub Repository**: Already configured in package.json
-3. **Node 16+**: You have this
+## Branching model
 
-## Step-by-Step Publishing
+- `develop` is the integration branch and the GitHub default branch. All feature work branches off `develop` and PRs back into `develop`.
+- `main` is protected (PR-only, no direct pushes) and only ever receives `develop → main` PRs, opened when it's time to cut a release.
+- Pushing to `main` is what the release automation watches — see below.
 
-### Option A: Manual Publishing (Quick)
+## Adding a changeset
+
+Every PR that changes a publishable package (`packages/core`, `packages/cli`, `packages/mcp`, `packages/server`) should include a changeset describing the bump:
 
 ```bash
-# 1. Login to npm
-npm login
-# Enter your npm username, password, and OTP (if 2FA enabled)
+npx changeset
+```
 
-# 2. Build the project
+This walks you through: which package(s) changed, whether it's a `patch`/`minor`/`major` bump, and a one-line summary for the changelog. It writes a small markdown file under `.changeset/` — commit it as part of your PR into `develop`.
+
+If a PR doesn't touch anything user-facing (docs, internal refactor with no published-package behavior change), it's fine to skip adding a changeset — nothing forces one.
+
+## Cutting a release
+
+1. When you're ready to release what's accumulated on `develop`, open a PR: `develop → main`.
+2. Merging that PR pushes to `main`, which triggers `.github/workflows/release.yml`.
+3. That workflow finds the changesets merged in and opens (or updates) a bot-authored **"Version Packages" PR** directly against `main` — it bumps each changed package's `version` in `package.json`, updates its `CHANGELOG.md`, and consumes the changeset files.
+4. Review that PR (it's just a diff of version numbers + changelog entries), then **merge it**. That merge is the actual publish trigger:
+   - Each changed package is built and published to npm (`access: public`, scoped under `@caiquebrito/`).
+   - A git tag is created per published package (`<package-name>@<version>`, Changesets' standard format).
+   - A GitHub Release is created.
+5. Watch progress under the repo's **Actions** tab, and under **Deployments** for the `npm-production` environment (release history at a glance).
+
+## What gets published
+
+The four workspace packages, each independently versioned:
+
+| Package | What it is |
+|---|---|
+| `@caiquebrito/nodum-core` | Graph generation / analysis engine |
+| `@caiquebrito/nodum-cli` | `nodum` CLI |
+| `@caiquebrito/nodum-mcp` | MCP server for Claude integration |
+| `@caiquebrito/nodum-server` | 3D visualizer HTTP server |
+
+The root `@caiquebrito/nodum` package is `"private": true` and is never published — it's just the monorepo workspace root.
+
+## One-time setup (already done, documented for reference)
+
+- `NPM_TOKEN` repository secret — an npm auth token with publish rights to the `@caiquebrito` scope (`npm token create --read-and-publish`), added under Settings → Secrets and variables → Actions.
+- `npm-production` GitHub Environment — Settings → Environments — used purely for release visibility (Deployments tab); no required reviewers by default.
+- Branch protection on `main` — PR required, status checks required, no direct pushes.
+
+## Testing a package locally before it's released
+
+```bash
+cd packages/cli   # or whichever package
 npm run build
-
-# 3. Publish
-npm publish --access public
-```
-
-This publishes `@caiquebrito/nodum` to npm registry.
-
-### Option B: Automated Publishing via GitHub Actions (Recommended)
-
-#### 1. Create .npmrc in root
-```bash
-echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > .npmrc
-```
-
-#### 2. Create GitHub Actions workflow
-Create `.github/workflows/publish.yml`:
-
-```yaml
-name: Publish to npm
-
-on:
-  push:
-    tags:
-      - 'v*'
-
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v3
-      
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          registry-url: 'https://registry.npmjs.org'
-      
-      - run: npm ci
-      - run: npm run build
-      - run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-```
-
-#### 3. Add NPM_TOKEN to GitHub Secrets
-1. Go to your repo settings
-2. Secrets → New repository secret
-3. Name: `NPM_TOKEN`
-4. Value: Your npm auth token from `npm token create --read-and-publish`
-
-#### 4. Release & Publish
-```bash
-# Bump version in package.json
-npm version minor
-
-# Tag and push
-git push origin main
-git push origin --tags
-
-# GitHub Actions will auto-publish!
-```
-
-## What Gets Published
-
-The package includes:
-- ✅ CLI executable: `@caiquebrito/nodum/bin/nodum.js`
-- ✅ Core library: `@caiquebrito/nodum/dist/index.js`
-- ✅ Server package: `@caiquebrito/nodum/packages/server`
-- ✅ All dependencies and source maps
-
-## Installation (After Publishing)
-
-Users can then install:
-```bash
-npm install -g @caiquebrito/nodum
-# or
-npm install --save-dev @caiquebrito/nodum
-```
-
-## Testing Before Publishing
-
-```bash
-# Pack locally to test
 npm pack
+# inspect the tarball
+tar -tzf caiquebrito-nodum-cli-*.tgz
 
-# Verify the tarball
-tar -tzf caiquebrito-nodum-1.0.0.tgz | head -20
-
-# Test in temp directory
-mkdir /tmp/test-nodum
-cd /tmp/test-nodum
-npm install /path/to/caiquebrito-nodum-1.0.0.tgz
+# install it somewhere else to smoke-test
+mkdir /tmp/test-nodum && cd /tmp/test-nodum
+npm install /path/to/caiquebrito-nodum-cli-*.tgz
 npx nodum status
 ```
-
-## Next Steps
-
-1. Choose Option A or B above
-2. Verify the published package on https://www.npmjs.com/package/@caiquebrito/nodum
-3. Proceed to MCP integration (see MCP.md)

@@ -42,7 +42,7 @@ export async function syncProject(
   }
 
   // 1. Generate graph
-  const graph = await generateGraph(absolutePath, hooks.onParseProgress);
+  const { graph, files: fileManifest } = await generateGraph(absolutePath, hooks.onParseProgress);
 
   // 2. Analyze project
   hooks.onStep?.('Detecting stack');
@@ -67,11 +67,16 @@ export async function syncProject(
   await mkdir(memoryDir, { recursive: true });
   await mkdir(logsDir, { recursive: true });
 
-  // 5. Write graph.json (once — already includes clusters)
+  // 5. Write graph.json (once — already includes clusters) and the file manifest
   hooks.onStep?.('Writing graph.json');
   await writeFile(
     `${graphDir}/graph.json`,
     JSON.stringify(graph, null, 2),
+    'utf-8',
+  );
+  await writeFile(
+    `${graphDir}/files.json`,
+    JSON.stringify(fileManifest, null, 2),
     'utf-8',
   );
 

@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: npm-production
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: npm ci
+
+      # If this push includes pending changesets, opens/updates the
+      # "Version Packages" PR against main. If not (i.e. that PR was just
+      # merged), builds and publishes every changed package to npm and
+      # creates matching git tags + GitHub Releases.
+      - name: Create/update release PR or publish
+        uses: changesets/action@v1
+        with:
+          version: npm run version
+          publish: npm run release
+          commit: "chore: version packages"
+          title: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # actions/setup-node's generated .npmrc substitutes NODE_AUTH_TOKEN
+          # specifically (not NPM_TOKEN) — the secret is still named NPM_TOKEN
+          # for clarity when you create it, just exposed under this env name.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
