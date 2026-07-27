@@ -1,6 +1,6 @@
 {
   "name": "@caiquebrito/nodum-core",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "Code analysis and graph generation engine for nodum",
   "type": "module",
   "exports": {
@@ -8,7 +8,9 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": ">=18.0.0"
   },
