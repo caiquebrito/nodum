@@ -50,6 +50,9 @@ export type { EnvVariable } from './analyzer/index.js';
 export { buildClusters, expandCluster, getClusterIdForNode, isClusteredNode, findIncomingDeps } from './analyzer/clustering.js';
 export type { NodeCluster } from './analyzer/clustering.js';
 
+export { detectCycles } from './analyzer/cycles.js';
+export type { Cycle } from './analyzer/cycles.js';
+
 export {
   injectCLAUDEContext,
   appendActivityLog,
