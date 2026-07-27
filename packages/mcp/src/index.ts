@@ -16,6 +16,7 @@ import {
   handleStatus,
   handleGetNode,
   handleExpandCluster,
+  handleTraceImpact,
 } from "./handlers.js";
 
 const server = new Server(
@@ -187,6 +188,29 @@ const tools: Tool[] = [
       required: ["project_name", "cluster_id"],
     },
   },
+  {
+    name: "trace_impact",
+    description:
+      "Show every file transitively affected by changing a given file/function/class — the cascade of changes if you modify X.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_name: {
+          type: "string",
+          description: "Project name",
+        },
+        node_id: {
+          type: "string",
+          description: "Node ID to trace impact from",
+        },
+        max_depth: {
+          type: "number",
+          description: "Optional: cap how many hops to report",
+        },
+      },
+      required: ["project_name", "node_id"],
+    },
+  },
 ];
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -246,6 +270,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         result = await handleExpandCluster(
           (args as any).project_name as string,
           (args as any).cluster_id as string
+        );
+        break;
+      case "trace_impact":
+        result = await handleTraceImpact(
+          (args as any).project_name as string,
+          (args as any).node_id as string,
+          (args as any).max_depth as number | undefined
         );
         break;
       default:

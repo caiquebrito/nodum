@@ -199,6 +199,25 @@ program
   });
 
 program
+  .command('trace-impact <projectPath> <nodeId>')
+  .description('Show every file transitively affected by changing a given node')
+  .option('--json', 'Output machine-readable JSON instead of a formatted summary')
+  .option('--max-depth <n>', 'Cap how many hops to report')
+  .action(async (projectPath: string, nodeId: string, options: { json?: boolean; maxDepth?: string }) => {
+    try {
+      const nodumDataDir = getNodeumDataDir();
+      const { traceImpactCommand } = await import('../commands/trace-impact.js');
+      await traceImpactCommand(projectPath, nodeId, nodumDataDir, {
+        json: options.json,
+        maxDepth: options.maxDepth ? parseInt(options.maxDepth, 10) : undefined,
+      });
+    } catch (error) {
+      console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+program
   .command('status')
   .description('Show all synced projects')
   .action(async () => {
