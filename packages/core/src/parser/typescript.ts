@@ -10,6 +10,7 @@ export class TypeScriptParser extends Parser {
   parse(file: FileInfo): ParseResult {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
+    const imports: string[] = [];
     const sourceFile = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
 
     // File node
@@ -23,12 +24,12 @@ export class TypeScriptParser extends Parser {
     });
 
     // Visit all declarations
-    this.visitNode(sourceFile, nodes, edges, file.path, fileId);
+    this.visitNode(sourceFile, nodes, edges, imports, file.path, fileId);
 
-    return { nodes, edges };
+    return { nodes, edges, imports };
   }
 
-  private visitNode(node: ts.Node, nodes: Node[], edges: Edge[], filePath: string, fileId: string): void {
+  private visitNode(node: ts.Node, nodes: Node[], edges: Edge[], imports: string[], filePath: string, fileId: string): void {
     if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node)) {
       const name = (node.name?.getText() || 'anonymous').replace(/\s+/g, '');
       const funcId = normalizeNodeId(filePath, name, 'function');
@@ -72,18 +73,18 @@ export class TypeScriptParser extends Parser {
       }
     }
 
-    // Extract imports
+    // Extract imports — resolution (relative vs bare, and actually locating
+    // the target file) happens later in graph-gen.ts, once every file in the
+    // project is known. A single-file parse() call has no visibility into
+    // the rest of the project.
     if (ts.isImportDeclaration(node) || ts.isImportEqualsDeclaration(node)) {
       const moduleName = this.extractModuleName(node);
-      if (moduleName && !moduleName.startsWith('.')) {
-        // External import - could track but we skip for now
-      } else if (moduleName) {
-        // Internal import - would resolve and create edge
-        // Simplified: just collect import statements
+      if (moduleName) {
+        imports.push(moduleName);
       }
     }
 
-    ts.forEachChild(node, child => this.visitNode(child, nodes, edges, filePath, fileId));
+    ts.forEachChild(node, child => this.visitNode(child, nodes, edges, imports, filePath, fileId));
   }
 
   private extractModuleName(node: ts.ImportDeclaration | ts.ImportEqualsDeclaration): string | null {

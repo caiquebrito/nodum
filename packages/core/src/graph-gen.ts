@@ -1,6 +1,7 @@
 import { basename } from 'path';
 import { discoverFiles, discoverChangedFiles } from './file-discovery.js';
 import { selectParser } from './parser/index.js';
+import { resolveRelativeImport, resolveJvmImport } from './parser/import-resolver.js';
 import type { Graph, Node, Edge, FileInfo, FileManifest } from './types.js';
 
 export interface GenerateGraphOptions {
@@ -32,7 +33,9 @@ async function generateGraphFull(
 
   const nodeMap = new Map<string, Node>();
   const edgesSet = new Set<string>();
-  parseFilesInto(files, nodeMap, edgesSet, onProgress);
+  const rawImports: RawFileImports[] = [];
+  parseFilesInto(files, nodeMap, edgesSet, rawImports, onProgress);
+  resolveImportsInto(rawImports, nodeMap, edgesSet);
 
   const edges = edgesFromSet(edgesSet);
   const nodes = Array.from(nodeMap.values());
@@ -58,9 +61,19 @@ async function generateGraphFull(
  * `previousGraph`; nodes/edges belonging to changed or deleted files are
  * evicted and, for changed files, replaced with a fresh parse.
  *
- * Correct today because edges never cross file boundaries (import
- * resolution doesn't exist yet — see spec 010) — eviction-by-file-membership
- * cannot orphan a cross-file edge, since no such edge exists.
+ * Cross-file `imports` edges (spec 010) need more care than intra-file
+ * edges: an edge A→B must survive when only B changes, since file-node IDs
+ * are stable across re-parses (derived from path, not content) — A's import
+ * statement didn't change, so the edge shouldn't be dropped just because B
+ * was temporarily evicted pending re-parse. Eviction is therefore split
+ * into phases, keyed off each edge's SOURCE file rather than requiring both
+ * endpoints to have survived the initial cut:
+ *
+ *   1. Keep nodes belonging to genuinely untouched files only.
+ *   2. Re-parse changed files — fresh nodes, their own edges, raw imports.
+ *   3. Carry over any previous edge whose source file is untouched, as long
+ *      as its target still exists in the now-current node set.
+ *   4. Resolve imports for changed files against that current node set.
  */
 async function generateGraphIncremental(
   projectPath: string,
@@ -69,17 +82,34 @@ async function generateGraphIncremental(
   onProgress?: (processed: number, total: number) => void,
 ): Promise<{ graph: Graph; files: FileManifest }> {
   const diff = await discoverChangedFiles(projectPath, previousFiles);
-  const removedPaths = new Set<string>([...diff.deletedPaths, ...diff.changed.map(f => f.path)]);
+  const touchedPaths = new Set<string>([...diff.deletedPaths, ...diff.changed.map(f => f.path)]);
 
-  const survivingNodes = previousGraph.nodes.filter(n => !removedPaths.has(n.file));
-  const survivingNodeIds = new Set(survivingNodes.map(n => n.id));
-  const survivingEdges = previousGraph.edges.filter(
-    e => survivingNodeIds.has(e.source) && survivingNodeIds.has(e.target),
+  // Phase 1: keep only nodes belonging to untouched files.
+  const previousNodesById = new Map(previousGraph.nodes.map(n => [n.id, n]));
+  const nodeMap = new Map<string, Node>(
+    previousGraph.nodes.filter(n => !touchedPaths.has(n.file)).map(n => [n.id, n]),
   );
 
-  const nodeMap = new Map<string, Node>(survivingNodes.map(n => [n.id, n]));
-  const edgesSet = new Set<string>(survivingEdges.map(e => `${e.source}|${e.target}|${e.relation}`));
-  parseFilesInto(diff.changed, nodeMap, edgesSet, onProgress);
+  // Phase 2: re-parse changed files — fresh nodes, their own edges, and
+  // their raw (unresolved) import specifiers.
+  const edgesSet = new Set<string>();
+  const rawImports: RawFileImports[] = [];
+  parseFilesInto(diff.changed, nodeMap, edgesSet, rawImports, onProgress);
+
+  // Phase 3: carry over edges whose source belonged to an untouched file, as
+  // long as their target still exists in the current (post-reparse) node
+  // set. This is what lets an A→B import edge survive when only B changed.
+  for (const edge of previousGraph.edges) {
+    const sourceFile = previousNodesById.get(edge.source)?.file;
+    if (sourceFile === undefined || touchedPaths.has(sourceFile)) continue;
+    if (!nodeMap.has(edge.target)) continue;
+    edgesSet.add(edgeKey(edge));
+  }
+
+  // Phase 4: resolve imports for changed files against the final node set
+  // (untouched survivors + freshly re-added), so a changed file's imports
+  // can correctly target both pre-existing and newly-added files.
+  resolveImportsInto(rawImports, nodeMap, edgesSet);
 
   const edges = edgesFromSet(edgesSet);
   const nodes = Array.from(nodeMap.values());
@@ -100,10 +130,17 @@ async function generateGraphIncremental(
   return { graph, files: fileManifest };
 }
 
+interface RawFileImports {
+  filePath: string;
+  ext: string;
+  imports: string[];
+}
+
 function parseFilesInto(
   files: FileInfo[],
   nodeMap: Map<string, Node>,
   edgesSet: Set<string>,
+  rawImports: RawFileImports[],
   onProgress?: (processed: number, total: number) => void,
 ): void {
   const total = files.length;
@@ -119,7 +156,7 @@ function parseFilesInto(
     }
 
     try {
-      const { nodes, edges: fileEdges } = parser.parse(file);
+      const { nodes, edges: fileEdges, imports } = parser.parse(file);
 
       for (const node of nodes) {
         if (!nodeMap.has(node.id)) {
@@ -128,7 +165,11 @@ function parseFilesInto(
       }
 
       for (const edge of fileEdges) {
-        edgesSet.add(`${edge.source}|${edge.target}|${edge.relation}`);
+        edgesSet.add(edgeKey(edge));
+      }
+
+      if (imports?.length) {
+        rawImports.push({ filePath: file.path, ext: file.ext, imports });
       }
     } catch {
       // Skip files with parse errors
@@ -139,11 +180,53 @@ function parseFilesInto(
   }
 }
 
+const TS_JS_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
+const JVM_EXTENSIONS = new Set(['.kt', '.java']);
+
+/**
+ * Resolves every collected file's raw import specifiers against the given
+ * node map (which must already contain every file the imports could
+ * possibly target) and adds the resulting `imports` edges into edgesSet.
+ */
+function resolveImportsInto(rawImports: RawFileImports[], nodeMap: Map<string, Node>, edgesSet: Set<string>): void {
+  if (rawImports.length === 0) return;
+
+  const knownFileIds = new Set<string>();
+  const knownFilesByPath = new Map<string, string>();
+  for (const node of nodeMap.values()) {
+    if (node.type !== 'file') continue;
+    knownFileIds.add(node.id);
+    knownFilesByPath.set(node.file, node.id);
+  }
+
+  for (const { filePath, ext, imports } of rawImports) {
+    const sourceId = knownFilesByPath.get(filePath);
+    if (!sourceId) continue; // shouldn't happen — the file that emitted these imports is always its own node
+
+    if (TS_JS_EXTENSIONS.has(ext.toLowerCase())) {
+      for (const specifier of imports) {
+        const targetId = resolveRelativeImport(filePath, specifier, knownFileIds);
+        if (targetId) edgesSet.add(edgeKey({ source: sourceId, target: targetId, relation: 'imports' }));
+      }
+    } else if (JVM_EXTENSIONS.has(ext.toLowerCase())) {
+      for (const specifier of imports) {
+        for (const targetId of resolveJvmImport(specifier, knownFilesByPath)) {
+          edgesSet.add(edgeKey({ source: sourceId, target: targetId, relation: 'imports' }));
+        }
+      }
+    }
+  }
+}
+
+function edgeKey(edge: Edge): string {
+  return `${edge.source}|${edge.target}|${edge.relation}`;
+}
+
 function edgesFromSet(edgesSet: Set<string>): Edge[] {
   const edgesMap = new Map<string, Edge>();
-  for (const edgeKey of edgesSet) {
-    const [source, target, relation] = edgeKey.split('|');
-    edgesMap.set(edgeKey, {
+  for (const key of edgesSet) {
+    const [source, target, relation] = key.split('|');
+    edgesMap.set(key, {
       source,
       target,
       relation: relation as Edge['relation'],
@@ -177,7 +260,7 @@ export function deduplicateEdges(edges: Edge[]): Edge[] {
   const unique: Edge[] = [];
 
   for (const edge of edges) {
-    const key = `${edge.source}|${edge.target}|${edge.relation}`;
+    const key = edgeKey(edge);
     if (!seen.has(key)) {
       seen.add(key);
       unique.push(edge);

@@ -82,14 +82,18 @@ export class KotlinParser extends Parser {
       }
     });
 
-    // Extract imports: import fully.qualified.ClassName
-    const importRegex = /^import\s+([\w.]+)/gm;
+    // Extract imports: import fully.qualified.ClassName, or a wildcard
+    // import fully.qualified.* — the wildcard suffix is captured intact so
+    // the resolver (graph-gen.ts, once every file in the project is known)
+    // can detect and expand it to every file in that package.
+    const importRegex = /^import\s+([\w.]+\*?)/gm;
+    const imports: string[] = [];
     let match;
     while ((match = importRegex.exec(file.content)) !== null) {
-      // Track imports (simplified)
+      imports.push(match[1]);
     }
 
-    return { nodes, edges };
+    return { nodes, edges, imports };
   }
 }
 

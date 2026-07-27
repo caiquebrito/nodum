@@ -23,6 +23,11 @@ export interface Edge {
 export interface ParseResult {
   nodes: Node[];
   edges: Edge[];
+  /** Raw, unresolved import specifiers extracted from this file. Resolution
+   * happens later (graph-gen.ts), once every file in the project is known —
+   * a single-file parse() call has no visibility into the rest of the
+   * project. Parsers that don't extract imports omit this entirely. */
+  imports?: string[];
 }
 
 export interface Graph {
