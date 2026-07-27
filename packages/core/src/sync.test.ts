@@ -21,6 +21,10 @@ const baseGraph = {
   edges: [],
 };
 
+const baseFileManifest = {
+  "a.ts": { hash: "deadbeef", mtimeMs: 1700000000000, size: 42 },
+};
+
 const generateGraphMock = vi.fn();
 vi.mock("./graph-gen.js", () => ({
   generateGraph: (...args: unknown[]) => generateGraphMock(...args),
@@ -59,7 +63,10 @@ describe("core syncProject", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     readFileMock.mockRejectedValue(new Error("ENOENT"));
-    generateGraphMock.mockResolvedValue({ ...baseGraph, nodes: [...baseGraph.nodes], edges: [...baseGraph.edges] });
+    generateGraphMock.mockResolvedValue({
+      graph: { ...baseGraph, nodes: [...baseGraph.nodes], edges: [...baseGraph.edges] },
+      files: { ...baseFileManifest },
+    });
   });
 
   it("clusters exactly once and returns a graph with clusters populated", async () => {
@@ -112,6 +119,16 @@ describe("core syncProject", () => {
     const written = JSON.parse(projectsWrite![1] as string);
     expect(written["other-project"]).toEqual(existing["other-project"]);
     expect(written["sample-project"]).toBeDefined();
+  });
+
+  it("writes graph/files.json as a sibling of graph/graph.json", async () => {
+    const { syncProject } = await import("./sync.js");
+    await syncProject("/tmp/project", "/tmp/.nodum");
+
+    const filesWrite = writeFileMock.mock.calls.find(([path]) => String(path).endsWith("files.json"));
+    expect(filesWrite).toBeDefined();
+    const written = JSON.parse(filesWrite![1] as string);
+    expect(written).toEqual(baseFileManifest);
   });
 
   it("propagates errors from generateGraph with the project path preserved", async () => {

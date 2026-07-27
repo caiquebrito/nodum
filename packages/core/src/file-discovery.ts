@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from 'fs/promises';
 import { join, extname } from 'path';
+import { createHash } from 'crypto';
 import type { FileInfo } from './types.js';
 
 const IGNORED_DIRS = new Set([
@@ -69,10 +70,15 @@ async function walkDirectory(currentPath: string, rootPath: string, files: FileI
           const relativePath = fullPath.substring(rootPath.length + 1);
           try {
             const content = await readFile(fullPath, 'utf-8');
+            const stats = await stat(fullPath);
+            const hash = createHash('sha256').update(content).digest('hex');
             files.push({
               path: relativePath,
               ext,
               content,
+              hash,
+              mtimeMs: stats.mtimeMs,
+              size: stats.size,
             });
           } catch {
             // Skip files that can't be read

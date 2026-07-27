@@ -55,7 +55,18 @@ export interface FileInfo {
   path: string;
   ext: string;
   content: string;
+  hash: string;     // sha256 of `content`, hex-encoded
+  mtimeMs: number;
+  size: number;
 }
+
+export interface FileManifestEntry {
+  hash: string;
+  mtimeMs: number;
+  size: number;
+}
+
+export type FileManifest = Record<string, FileManifestEntry>; // keyed by relative path
 
 export interface ProjectAnalysis {
   languages: string[];

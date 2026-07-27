@@ -8,6 +8,8 @@ export type {
   ParseResult,
   Graph,
   FileInfo,
+  FileManifest,
+  FileManifestEntry,
   ProjectAnalysis,
   ProjectIndexEntry,
   NodeType,
