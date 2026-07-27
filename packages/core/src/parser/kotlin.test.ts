@@ -29,3 +29,24 @@ describe("KotlinParser imports", () => {
     expect(imports).toEqual([]);
   });
 });
+
+describe("KotlinParser complexity", () => {
+  it("scores a function with no decision points as 1", () => {
+    const { nodes } = parser.parse(fileInfo("a.kt", `fun foo(): Int {\n  return 1\n}\n`));
+    expect(nodes.find(n => n.label === "foo")?.complexity).toBe(1);
+  });
+
+  it("counts if/for/&&/|| via brace-body extraction, excluding ternary-like '?'", () => {
+    const src = [
+      "fun foo(x: Int?): Int {",
+      "  if (x != null && x > 0) {",
+      "    for (i in 0..x) {}",
+      "  }",
+      "  return x ?: 0",
+      "}",
+    ].join("\n");
+    const { nodes } = parser.parse(fileInfo("a.kt", src));
+    // base 1 + if + && + for = 4 (the elvis '?:' is NOT counted, by design)
+    expect(nodes.find(n => n.label === "foo")?.complexity).toBe(4);
+  });
+});

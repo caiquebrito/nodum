@@ -61,6 +61,9 @@ export type { ArchitectureViolation } from './analyzer/architecture.js';
 export { loadArchitectureConfig, saveArchitectureConfig } from './analyzer/architecture-config.js';
 export type { ArchitectureRule, ArchitectureConfig } from './analyzer/architecture-config.js';
 
+export { rankByComplexity } from './analyzer/complexity.js';
+export type { ComplexityRanking, RankByComplexityOptions } from './analyzer/complexity.js';
+
 export {
   injectCLAUDEContext,
   appendActivityLog,
