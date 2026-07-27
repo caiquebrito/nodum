@@ -2,7 +2,11 @@ import { resolve } from 'path';
 import { syncProject as coreSyncProject } from '@caiquebrito/nodum-core';
 import { makeProgressBar, type ProgressBar } from '../utils/progress.js';
 
-export async function syncProject(projectPath: string, nodumDataDir: string): Promise<void> {
+export async function syncProject(
+  projectPath: string,
+  nodumDataDir: string,
+  options: { incremental?: boolean } = {},
+): Promise<void> {
   const absolutePath = resolve(projectPath);
   console.log(`📊 Scanning: ${absolutePath}`);
 
@@ -20,6 +24,7 @@ export async function syncProject(projectPath: string, nodumDataDir: string): Pr
         stepBarRef.current?.done();
         stepBarRef.current = makeProgressBar(label);
       },
+      incremental: options.incremental,
     });
 
     parseBar.done();

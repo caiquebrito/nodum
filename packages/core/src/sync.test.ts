@@ -88,7 +88,11 @@ describe("core syncProject", () => {
 
     await syncProject("/tmp/project", "/tmp/.nodum", { onParseProgress, onClusterProgress, onStep });
 
-    expect(generateGraphMock).toHaveBeenCalledWith("/tmp/project", onParseProgress);
+    expect(generateGraphMock).toHaveBeenCalledWith("/tmp/project", {
+      onProgress: onParseProgress,
+      previousGraph: undefined,
+      previousFiles: undefined,
+    });
     expect(buildClustersMock).toHaveBeenCalledWith(expect.any(Array), expect.any(Array), onClusterProgress);
     expect(onStep).toHaveBeenCalledWith("Detecting stack");
 
@@ -129,6 +133,37 @@ describe("core syncProject", () => {
     expect(filesWrite).toBeDefined();
     const written = JSON.parse(filesWrite![1] as string);
     expect(written).toEqual(baseFileManifest);
+  });
+
+  it("incremental: true loads the previous graph/files and passes them through", async () => {
+    const previousGraph = { ...baseGraph, project: "sample-project" };
+    readFileMock.mockImplementation((path: string) => {
+      if (path.endsWith("graph/graph.json")) return Promise.resolve(JSON.stringify(previousGraph));
+      if (path.endsWith("graph/files.json")) return Promise.resolve(JSON.stringify(baseFileManifest));
+      return Promise.reject(new Error("ENOENT"));
+    });
+
+    const { syncProject } = await import("./sync.js");
+    await syncProject("/tmp/project", "/tmp/.nodum", { incremental: true });
+
+    expect(generateGraphMock).toHaveBeenCalledWith("/tmp/project", {
+      onProgress: undefined,
+      previousGraph,
+      previousFiles: baseFileManifest,
+    });
+  });
+
+  it("incremental: true with no previous sync on disk falls back to a full sync", async () => {
+    readFileMock.mockRejectedValue(new Error("ENOENT"));
+
+    const { syncProject } = await import("./sync.js");
+    await expect(syncProject("/tmp/project", "/tmp/.nodum", { incremental: true })).resolves.toBeDefined();
+
+    expect(generateGraphMock).toHaveBeenCalledWith("/tmp/project", {
+      onProgress: undefined,
+      previousGraph: undefined,
+      previousFiles: undefined,
+    });
   });
 
   it("propagates errors from generateGraph with the project path preserved", async () => {

@@ -27,8 +27,10 @@ export {
   calculateNodeDegree,
   deduplicateEdges,
 } from './graph-gen.js';
+export type { GenerateGraphOptions } from './graph-gen.js';
 
-export { discoverFiles } from './file-discovery.js';
+export { discoverFiles, discoverChangedFiles } from './file-discovery.js';
+export type { DiscoveryDiff } from './file-discovery.js';
 
 export type { Parser } from './parser/base.js';
 export {
