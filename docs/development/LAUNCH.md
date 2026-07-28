@@ -1,5 +1,9 @@
 # 🚀 Nodum Launch Guide
 
+> **Archived.** Written pre-launch at v1.1.1; the launch it describes already happened and
+> Nodum has since shipped through v2.4.0. Retained for historical reference only — not an
+> active plan.
+
 ## Status: READY TO LAUNCH ✅
 
 All systems go. Here's your launch plan.
