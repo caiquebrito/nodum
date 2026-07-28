@@ -105,4 +105,28 @@ describe("diffGraphs", () => {
 
     expect(diff.statsDelta).toEqual({ files: -1, functions: 2, classes: 0, interfaces: -1, edges: 0 });
   });
+
+  it("covers the spec-036 optional stats keys (struct/enum/protocol/extension) when both graphs have them", () => {
+    const a = baseGraph({ stats: { files: 1, functions: 0, classes: 0, interfaces: 0, edges: 0, structs: 1, enums: 0, protocols: 0, extensions: 0 } });
+    const b = baseGraph({ stats: { files: 1, functions: 0, classes: 0, interfaces: 0, edges: 0, structs: 2, enums: 1, protocols: 0, extensions: 0 } });
+
+    const diff = diffGraphs(a, b);
+
+    expect(diff.statsDelta.structs).toBe(1);
+    expect(diff.statsDelta.enums).toBe(1);
+    expect(diff.statsDelta.protocols).toBe(0);
+    expect(diff.statsDelta.extensions).toBe(0);
+  });
+
+  it("treats a missing optional stats key (a pre-036 graph.json) as 0, not NaN", () => {
+    // `a` here is shaped like a graph.json written before spec 036 — no
+    // structs/enums/protocols/extensions keys at all.
+    const a = baseGraph();
+    const b = baseGraph({ stats: { files: 2, functions: 2, classes: 0, interfaces: 0, edges: 1, structs: 3 } });
+
+    const diff = diffGraphs(a, b);
+
+    expect(diff.statsDelta.structs).toBe(3);
+    expect(Number.isNaN(diff.statsDelta.structs)).toBe(false);
+  });
 });

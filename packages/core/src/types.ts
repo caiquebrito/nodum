@@ -1,6 +1,25 @@
 import type { NodeCluster } from './analyzer/clustering.js';
 
-export type NodeType = 'file' | 'function' | 'class' | 'interface' | 'method';
+/**
+ * `'struct'` / `'enum'` / `'protocol'` / `'extension'` (spec 036) were added
+ * for Swift/Objective-C (specs 037-038) — a Swift `class_declaration` folds
+ * `class`/`struct`/`enum`/`actor`/`extension` into one grammar node, and
+ * `protocol` doesn't map cleanly onto `'interface'` (TS/Java interfaces and
+ * Swift/ObjC protocols are similar but not identical concepts, and keeping
+ * them distinct avoids conflating a Java `interface` node with a Swift
+ * `protocol` node when a project mixes languages). `'extension'` has no
+ * pre-036 equivalent at all.
+ */
+export type NodeType =
+  | 'file'
+  | 'function'
+  | 'class'
+  | 'interface'
+  | 'method'
+  | 'struct'
+  | 'enum'
+  | 'protocol'
+  | 'extension';
 /**
  * `'calls'` (spec 034) is same-file only: emitted when a function/method
  * calls another function/method defined in the same file, resolved by a
@@ -51,6 +70,17 @@ export interface Graph {
     classes: number;
     interfaces: number;
     edges: number;
+    /** Optional (spec 036): a pre-036 graph.json / ProjectIndexEntry on disk
+     * won't have these. buildStats() always populates all four on any graph
+     * generated after this spec — optionality exists purely so old on-disk
+     * data stays a valid Graph['stats'], not because a fresh sync ever omits
+     * them. Kept as their own counters rather than folded into `classes`/
+     * `interfaces` so a Swift/ObjC-heavy project's composition is visible
+     * rather than silently absorbed into an unrelated language's numbers. */
+    structs?: number;
+    enums?: number;
+    protocols?: number;
+    extensions?: number;
   };
   nodes: Node[];
   edges: Edge[];

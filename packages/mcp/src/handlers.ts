@@ -138,6 +138,31 @@ export async function handleGetGraph(projectName: string) {
   try {
     const graph = await loadGraph(projectName);
 
+    // Optional per-language counters (spec 036, Swift/Objective-C) — only
+    // shown when non-zero, so a non-iOS project's output stays identical to
+    // pre-036 output rather than growing four permanent zero lines.
+    const optionalStatLines = (
+      [
+        ["Structs", graph.stats.structs],
+        ["Enums", graph.stats.enums],
+        ["Protocols", graph.stats.protocols],
+        ["Extensions", graph.stats.extensions],
+      ] as const
+    )
+      .filter(([, count]) => (count ?? 0) > 0)
+      .map(([label, count]) => `• ${label}: ${count}\n`)
+      .join("");
+    const optionalNodeTypeLines = [
+      ["Structs", "struct"],
+      ["Enums", "enum"],
+      ["Protocols", "protocol"],
+      ["Extensions", "extension"],
+    ]
+      .map(([label, type]) => [label, graph.nodes.filter((n) => n.type === type).length] as const)
+      .filter(([, count]) => count > 0)
+      .map(([label, count]) => `• ${label}: ${count}\n`)
+      .join("");
+
     // Use smart context: return helpful summary, not raw dump
     const summary =
       `📊 Knowledge Graph: ${graph.project}\n\n` +
@@ -146,14 +171,16 @@ export async function handleGetGraph(projectName: string) {
       `• Functions: ${graph.stats.functions}\n` +
       `• Classes: ${graph.stats.classes}\n` +
       `• Interfaces: ${graph.stats.interfaces}\n` +
+      optionalStatLines +
       `• Dependencies: ${graph.stats.edges}\n\n` +
       `Node Types:\n` +
       `• Files: ${graph.nodes.filter((n) => n.type === "file").length}\n` +
       `• Functions: ${graph.nodes.filter((n) => n.type === "function").length}\n` +
       `• Classes: ${graph.nodes.filter((n) => n.type === "class").length}\n` +
       `• Methods: ${graph.nodes.filter((n) => n.type === "method").length}\n` +
-      `• Interfaces: ${graph.nodes.filter((n) => n.type === "interface").length}\n\n` +
-      `💡 Use search_graph to find specific nodes and get smart context.`;
+      `• Interfaces: ${graph.nodes.filter((n) => n.type === "interface").length}\n` +
+      optionalNodeTypeLines +
+      `\n💡 Use search_graph to find specific nodes and get smart context.`;
 
     return {
       content: [text(summary)],
