@@ -7,6 +7,7 @@
  */
 
 import { pipeline } from "@xenova/transformers";
+import type { Node } from "@caiquebrito/nodum-core";
 
 type FeatureExtractor = (
   text: string,
@@ -14,16 +15,6 @@ type FeatureExtractor = (
 ) => Promise<{ data: Float32Array }>;
 
 const MODEL_ID = "Xenova/all-MiniLM-L6-v2";
-
-interface Node {
-  id: string;
-  label: string;
-  type: string;
-  file: string;
-  group: string;
-  embedding?: number[];
-  clusterId?: string;
-}
 
 let extractorPromise: Promise<FeatureExtractor> | null = null;
 

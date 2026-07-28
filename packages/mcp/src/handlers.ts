@@ -12,7 +12,7 @@ import {
   findSimilarCode,
   suggestRefactoring,
   type ProjectIndexEntry,
-  type Graph as CoreGraph,
+  type Graph,
 } from "@caiquebrito/nodum-core";
 import { buildSmartContext, buildNodeContext } from "./smart-context.js";
 import { globalConversationCache } from "./conversation-cache.js";
@@ -24,38 +24,6 @@ export const NODUM_DATA_DIR = join(homedir(), ".nodum");
 // smart-context.ts's expansion caps, which bound a 1-hop graph traversal
 // rather than a flat listing. See spec 027.
 const MAX_LISTED_MEMBERS = 20;
-
-interface Graph {
-  project: string;
-  stats: {
-    files: number;
-    functions: number;
-    classes: number;
-    interfaces: number;
-    edges: number;
-  };
-  nodes: Array<{
-    id: string;
-    label: string;
-    type: string;
-    group?: string;
-    file?: string;
-  }>;
-  edges: Array<{
-    source: string;
-    target: string;
-    relation: string;
-  }>;
-  clusters?: Array<{
-    id: string;
-    label: string;
-    summary: string;
-    types: string[];
-    externalDeps: string[];
-    nodeIds: string[];
-  }>;
-  nodeToCluster?: { [nodeId: string]: string };
-}
 
 type ProjectIndex = Record<string, ProjectIndexEntry>;
 
@@ -439,10 +407,7 @@ export async function handleTraceImpact(
       return { error: `Node not found: ${nodeId}` };
     }
 
-    // The local `Graph` type above predates nodum-core's more strictly
-    // typed `Graph` — both describe the same graph.json shape written by
-    // core's writeGraphFile, so this cast is safe, not a fabricated shape.
-    const impacted = traceImpact(graph as unknown as CoreGraph, nodeId, { maxDepth });
+    const impacted = traceImpact(graph, nodeId, { maxDepth });
 
     if (impacted.length === 0) {
       return {
@@ -481,9 +446,7 @@ export async function handleFindBottlenecks(projectName: string, limit?: number)
   try {
     const graph = await loadGraph(projectName);
 
-    // Same cast rationale as handleTraceImpact — the local `Graph` type
-    // above and nodum-core's `Graph` describe the same graph.json shape.
-    const bottlenecks = findBottlenecks(graph as unknown as CoreGraph, { limit });
+    const bottlenecks = findBottlenecks(graph, { limit });
 
     if (bottlenecks.length === 0) {
       return {
@@ -513,8 +476,7 @@ export async function handleExplainArchitecture(projectName: string) {
     const projectPath = index[projectName]?.path;
     const rules = projectPath ? (await loadArchitectureConfig(projectPath)).rules : undefined;
 
-    // Same cast rationale as handleTraceImpact/handleFindBottlenecks.
-    const summary = explainArchitecture(graph as unknown as CoreGraph, rules);
+    const summary = explainArchitecture(graph, rules);
 
     const lines: string[] = ["🏛️  Architecture overview", "", "Layers:"];
     for (const layer of summary.layers) {
@@ -556,8 +518,7 @@ export async function handleFindSimilarCode(projectName: string, nodeId: string)
     const graph = await loadGraph(projectName);
     const node = graph.nodes.find((n) => n.id === nodeId);
 
-    // Same cast rationale as handleTraceImpact/handleFindBottlenecks.
-    const result = findSimilarCode(graph as unknown as CoreGraph, nodeId);
+    const result = findSimilarCode(graph, nodeId);
 
     if (result.matches.length === 0) {
       return {
@@ -591,8 +552,7 @@ export async function handleSuggestRefactoring(
       ? (await loadArchitectureConfig(projectPath)).rules
       : undefined;
 
-    // Same cast rationale as handleExplainArchitecture.
-    const suggestions = suggestRefactoring(graph as unknown as CoreGraph, {
+    const suggestions = suggestRefactoring(graph, {
       architectureRules,
       complexityThreshold,
     });

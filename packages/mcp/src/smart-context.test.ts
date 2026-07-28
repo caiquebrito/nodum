@@ -7,6 +7,7 @@ import {
   scoreNode,
   findRelevantNodes,
 } from "./smart-context.js";
+import type { Node } from "@caiquebrito/nodum-core";
 
 const graph = {
   project: "proj",
@@ -53,7 +54,7 @@ describe("extractKeywords", () => {
 });
 
 describe("scoreNode", () => {
-  const node = { id: "auth.ts__login", label: "login", type: "function", file: "src/auth.ts" };
+  const node: Node = { id: "auth.ts__login", label: "login", type: "function", file: "src/auth.ts", group: "service" };
 
   it("scores an exact label match higher than a substring match", () => {
     const exact = scoreNode(node, ["login"]);
@@ -75,10 +76,10 @@ describe("scoreNode", () => {
 });
 
 describe("findRelevantNodes", () => {
-  const nodes = [
-    { id: "a", label: "login", type: "function", file: "auth.ts" },
-    { id: "b", label: "logout", type: "function", file: "auth.ts" },
-    { id: "c", label: "database", type: "function", file: "db.ts" },
+  const nodes: Node[] = [
+    { id: "a", label: "login", type: "function", file: "auth.ts", group: "service" },
+    { id: "b", label: "logout", type: "function", file: "auth.ts", group: "service" },
+    { id: "c", label: "database", type: "function", file: "db.ts", group: "service" },
   ];
 
   it("excludes zero-score nodes and sorts the rest by score descending", () => {
@@ -88,11 +89,12 @@ describe("findRelevantNodes", () => {
   });
 
   it("respects the limit parameter", () => {
-    const manyNodes = Array.from({ length: 30 }, (_, i) => ({
+    const manyNodes: Node[] = Array.from({ length: 30 }, (_, i) => ({
       id: `n${i}`,
       label: "login",
       type: "function",
       file: "auth.ts",
+      group: "service",
     }));
     expect(findRelevantNodes(["login"], manyNodes, 5)).toHaveLength(5);
   });
