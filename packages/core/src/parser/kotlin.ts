@@ -1,6 +1,10 @@
 import { Parser } from './base.js';
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
+import { extractBraceBody } from './brace-body.js';
+import { countCyclomaticComplexity } from './complexity-text.js';
+import { normalizeBodyTokens } from './normalize-body-text.js';
+import { hashTokens } from './duplicate-hash.js';
 
 export class KotlinParser extends Parser {
   language = 'Kotlin';
@@ -30,6 +34,8 @@ export class KotlinParser extends Parser {
         const name = funcMatch[1];
         if (!seenNames.has(name)) {
           const funcId = normalizeNodeId(file.path, name, 'function');
+          const body = extractBraceBody(lines, idx);
+          const duplicateHash = body !== null ? hashTokens(normalizeBodyTokens(body)) : null;
           nodes.push({
             id: funcId,
             label: name,
@@ -37,6 +43,8 @@ export class KotlinParser extends Parser {
             file: file.path,
             group: getNodeGroup(file.path),
             line: idx + 1,
+            ...(body !== null ? { complexity: countCyclomaticComplexity(body) } : {}),
+            ...(duplicateHash !== null ? { duplicateHash } : {}),
           });
           edges.push({ source: fileId, target: funcId, relation: 'defines' });
           seenNames.add(name);
@@ -82,14 +90,18 @@ export class KotlinParser extends Parser {
       }
     });
 
-    // Extract imports: import fully.qualified.ClassName
-    const importRegex = /^import\s+([\w.]+)/gm;
+    // Extract imports: import fully.qualified.ClassName, or a wildcard
+    // import fully.qualified.* — the wildcard suffix is captured intact so
+    // the resolver (graph-gen.ts, once every file in the project is known)
+    // can detect and expand it to every file in that package.
+    const importRegex = /^import\s+([\w.]+\*?)/gm;
+    const imports: string[] = [];
     let match;
     while ((match = importRegex.exec(file.content)) !== null) {
-      // Track imports (simplified)
+      imports.push(match[1]);
     }
 
-    return { nodes, edges };
+    return { nodes, edges, imports };
   }
 }
 

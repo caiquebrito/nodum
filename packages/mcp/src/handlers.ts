@@ -2,7 +2,18 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 import { TextContent } from "@modelcontextprotocol/sdk/types.js";
-import { syncProject, writeGraphFile, type ProjectIndexEntry } from "@caiquebrito/nodum-core";
+import {
+  syncProject,
+  writeGraphFile,
+  traceImpact,
+  findBottlenecks,
+  explainArchitecture,
+  loadArchitectureConfig,
+  findSimilarCode,
+  suggestRefactoring,
+  type ProjectIndexEntry,
+  type Graph as CoreGraph,
+} from "@caiquebrito/nodum-core";
 import { buildSmartContext, buildNodeContext } from "./smart-context.js";
 import { globalConversationCache } from "./conversation-cache.js";
 import { generateGraphEmbeddings } from "./embeddings.js";
@@ -394,5 +405,203 @@ export async function handleExpandCluster(
     };
   } catch (error) {
     return { error: `Failed to expand cluster: ${String(error)}` };
+  }
+}
+
+export async function handleTraceImpact(
+  projectName: string,
+  nodeId: string,
+  maxDepth?: number
+) {
+  try {
+    const graph = await loadGraph(projectName);
+    const node = graph.nodes.find((n) => n.id === nodeId);
+
+    if (!node) {
+      return { error: `Node not found: ${nodeId}` };
+    }
+
+    // The local `Graph` type above predates nodum-core's more strictly
+    // typed `Graph` — both describe the same graph.json shape written by
+    // core's writeGraphFile, so this cast is safe, not a fabricated shape.
+    const impacted = traceImpact(graph as unknown as CoreGraph, nodeId, { maxDepth });
+
+    if (impacted.length === 0) {
+      return {
+        content: [text(`✅ No files depend on ${node.label} (${node.file || node.id})`)],
+      };
+    }
+
+    const byDistance = new Map<number, typeof impacted>();
+    for (const item of impacted) {
+      if (!byDistance.has(item.distance)) byDistance.set(item.distance, []);
+      byDistance.get(item.distance)!.push(item);
+    }
+
+    const lines: string[] = [
+      `📡 Impact of changing ${node.label} (${node.file || node.id}): ${impacted.length} files`,
+      "",
+    ];
+    for (const [distance, items] of [...byDistance.entries()].sort((a, b) => a[0] - b[0])) {
+      lines.push(`${distance} hop${distance === 1 ? "" : "s"}:`);
+      items.slice(0, 10).forEach((item) => lines.push(`  • ${item.file}`));
+      if (items.length > 10) {
+        lines.push(`  ... and ${items.length - 10} more`);
+      }
+      lines.push("");
+    }
+
+    return {
+      content: [text(lines.join("\n"))],
+    };
+  } catch (error) {
+    return { error: `Failed to trace impact: ${String(error)}` };
+  }
+}
+
+export async function handleFindBottlenecks(projectName: string, limit?: number) {
+  try {
+    const graph = await loadGraph(projectName);
+
+    // Same cast rationale as handleTraceImpact — the local `Graph` type
+    // above and nodum-core's `Graph` describe the same graph.json shape.
+    const bottlenecks = findBottlenecks(graph as unknown as CoreGraph, { limit });
+
+    if (bottlenecks.length === 0) {
+      return {
+        content: [text("✅ No scored functions found")],
+      };
+    }
+
+    const lines: string[] = [`🔥 Bottlenecks (${bottlenecks.length})`, ""];
+    bottlenecks.forEach((b, i) => {
+      lines.push(
+        `  ${i + 1}. ${b.file}  score=${b.score}  complexity=${b.maxComplexity}  dependents=${b.dependentCount}`
+      );
+    });
+
+    return {
+      content: [text(lines.join("\n"))],
+    };
+  } catch (error) {
+    return { error: `Failed to find bottlenecks: ${String(error)}` };
+  }
+}
+
+export async function handleExplainArchitecture(projectName: string) {
+  try {
+    const graph = await loadGraph(projectName);
+    const index = await loadProjectIndex();
+    const projectPath = index[projectName]?.path;
+    const rules = projectPath ? (await loadArchitectureConfig(projectPath)).rules : undefined;
+
+    // Same cast rationale as handleTraceImpact/handleFindBottlenecks.
+    const summary = explainArchitecture(graph as unknown as CoreGraph, rules);
+
+    const lines: string[] = ["🏛️  Architecture overview", "", "Layers:"];
+    for (const layer of summary.layers) {
+      lines.push(`  ${layer.group}  ${layer.fileCount} files, ${layer.nodeCount} nodes`);
+    }
+
+    lines.push("", "Dependencies between layers:");
+    if (summary.layerDependencies.length === 0) {
+      lines.push("  (none)");
+    } else {
+      for (const dep of summary.layerDependencies) {
+        lines.push(`  ${dep.sourceGroup} → ${dep.targetGroup}  ${dep.importCount} imports`);
+      }
+    }
+
+    lines.push("");
+    if (summary.violations === undefined) {
+      lines.push(
+        "Architecture rules: (none configured — run `nodum config --set-architecture-rules` to add some)"
+      );
+    } else {
+      lines.push(`Architecture rules: ${rules!.length} configured`);
+      lines.push(`Violations: ${summary.violations.length} found`);
+      summary.violations.forEach((v) => {
+        lines.push(`  [${v.rule.from} → ${v.rule.to}] ${v.sourceFile} → ${v.targetFile}`);
+      });
+    }
+
+    return {
+      content: [text(lines.join("\n"))],
+    };
+  } catch (error) {
+    return { error: `Failed to explain architecture: ${String(error)}` };
+  }
+}
+
+export async function handleFindSimilarCode(projectName: string, nodeId: string) {
+  try {
+    const graph = await loadGraph(projectName);
+    const node = graph.nodes.find((n) => n.id === nodeId);
+
+    // Same cast rationale as handleTraceImpact/handleFindBottlenecks.
+    const result = findSimilarCode(graph as unknown as CoreGraph, nodeId);
+
+    if (result.matches.length === 0) {
+      return {
+        content: [text(`✅ No similar code found for ${node?.label ?? nodeId}`)],
+      };
+    }
+
+    const lines: string[] = [
+      `🧬 Code similar to ${node?.label ?? nodeId}: ${result.matches.length} match${result.matches.length === 1 ? "" : "es"}`,
+      "",
+    ];
+    result.matches.forEach((m) => lines.push(`  • ${m.label} (${m.file})`));
+
+    return {
+      content: [text(lines.join("\n"))],
+    };
+  } catch (error) {
+    return { error: `Failed to find similar code: ${String(error)}` };
+  }
+}
+
+export async function handleSuggestRefactoring(
+  projectName: string,
+  complexityThreshold?: number
+) {
+  try {
+    const graph = await loadGraph(projectName);
+    const index = await loadProjectIndex();
+    const projectPath = index[projectName]?.path;
+    const architectureRules = projectPath
+      ? (await loadArchitectureConfig(projectPath)).rules
+      : undefined;
+
+    // Same cast rationale as handleExplainArchitecture.
+    const suggestions = suggestRefactoring(graph as unknown as CoreGraph, {
+      architectureRules,
+      complexityThreshold,
+    });
+
+    if (suggestions.length === 0) {
+      return {
+        content: [text("✅ No refactoring suggestions")],
+      };
+    }
+
+    const byKind = new Map<string, typeof suggestions>();
+    for (const s of suggestions) {
+      if (!byKind.has(s.kind)) byKind.set(s.kind, []);
+      byKind.get(s.kind)!.push(s);
+    }
+
+    const lines: string[] = [`🛠️  Refactoring suggestions (${suggestions.length})`, ""];
+    for (const [kind, items] of byKind) {
+      lines.push(`${kind.toUpperCase()} (${items.length}):`);
+      items.forEach((s) => lines.push(`  - ${s.description} (${s.files.join(", ")})`));
+      lines.push("");
+    }
+
+    return {
+      content: [text(lines.join("\n"))],
+    };
+  } catch (error) {
+    return { error: `Failed to suggest refactoring: ${String(error)}` };
   }
 }

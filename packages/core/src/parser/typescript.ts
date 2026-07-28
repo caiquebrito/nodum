@@ -2,6 +2,7 @@ import ts from 'typescript';
 import { Parser } from './base.js';
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
+import { hashTokens } from './duplicate-hash.js';
 
 export class TypeScriptParser extends Parser {
   language = 'TypeScript';
@@ -10,6 +11,7 @@ export class TypeScriptParser extends Parser {
   parse(file: FileInfo): ParseResult {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
+    const imports: string[] = [];
     const sourceFile = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
 
     // File node
@@ -23,12 +25,12 @@ export class TypeScriptParser extends Parser {
     });
 
     // Visit all declarations
-    this.visitNode(sourceFile, nodes, edges, file.path, fileId);
+    this.visitNode(sourceFile, nodes, edges, imports, file.path, fileId);
 
-    return { nodes, edges };
+    return { nodes, edges, imports };
   }
 
-  private visitNode(node: ts.Node, nodes: Node[], edges: Edge[], filePath: string, fileId: string): void {
+  private visitNode(node: ts.Node, nodes: Node[], edges: Edge[], imports: string[], filePath: string, fileId: string): void {
     if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node)) {
       const name = (node.name?.getText() || 'anonymous').replace(/\s+/g, '');
       const funcId = normalizeNodeId(filePath, name, 'function');
@@ -38,6 +40,8 @@ export class TypeScriptParser extends Parser {
         type: 'function',
         file: filePath,
         group: getNodeGroup(filePath),
+        ...(node.body ? { complexity: this.computeComplexity(node.body) } : {}),
+        ...(node.body ? this.duplicateHashField(node.body) : {}),
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
     } else if (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) {
@@ -65,6 +69,8 @@ export class TypeScriptParser extends Parser {
               type: 'method',
               file: filePath,
               group: getNodeGroup(filePath),
+              ...(member.body ? { complexity: this.computeComplexity(member.body) } : {}),
+              ...(member.body ? this.duplicateHashField(member.body) : {}),
             });
             edges.push({ source: classId, target: methodId, relation: 'defines' });
           }
@@ -72,18 +78,101 @@ export class TypeScriptParser extends Parser {
       }
     }
 
-    // Extract imports
+    // Extract imports — resolution (relative vs bare, and actually locating
+    // the target file) happens later in graph-gen.ts, once every file in the
+    // project is known. A single-file parse() call has no visibility into
+    // the rest of the project.
     if (ts.isImportDeclaration(node) || ts.isImportEqualsDeclaration(node)) {
       const moduleName = this.extractModuleName(node);
-      if (moduleName && !moduleName.startsWith('.')) {
-        // External import - could track but we skip for now
-      } else if (moduleName) {
-        // Internal import - would resolve and create edge
-        // Simplified: just collect import statements
+      if (moduleName) {
+        imports.push(moduleName);
       }
     }
 
-    ts.forEachChild(node, child => this.visitNode(child, nodes, edges, filePath, fileId));
+    ts.forEachChild(node, child => this.visitNode(child, nodes, edges, imports, filePath, fileId));
+  }
+
+  /**
+   * McCabe cyclomatic complexity, walking `bodyNode`'s subtree. Does not
+   * descend into a nested FunctionDeclaration/MethodDeclaration — those are
+   * separately-extracted nodes that get their own score, so counting their
+   * branches here would double-count. Does descend into ArrowFunction/
+   * FunctionExpression bodies, since those aren't extracted as separate
+   * nodes today — their branching rolls up into the enclosing scored unit.
+   */
+  private computeComplexity(bodyNode: ts.Node): number {
+    let complexity = 1;
+
+    const visit = (node: ts.Node): void => {
+      switch (node.kind) {
+        case ts.SyntaxKind.IfStatement:
+        case ts.SyntaxKind.ForStatement:
+        case ts.SyntaxKind.ForInStatement:
+        case ts.SyntaxKind.ForOfStatement:
+        case ts.SyntaxKind.WhileStatement:
+        case ts.SyntaxKind.DoStatement:
+        case ts.SyntaxKind.CaseClause:
+        case ts.SyntaxKind.CatchClause:
+        case ts.SyntaxKind.ConditionalExpression:
+          complexity++;
+          break;
+        case ts.SyntaxKind.BinaryExpression: {
+          const op = (node as ts.BinaryExpression).operatorToken.kind;
+          if (op === ts.SyntaxKind.AmpersandAmpersandToken || op === ts.SyntaxKind.BarBarToken) {
+            complexity++;
+          }
+          break;
+        }
+      }
+
+      if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)) {
+        return; // separately-scored node — don't descend
+      }
+
+      ts.forEachChild(node, visit);
+    };
+
+    ts.forEachChild(bodyNode, visit);
+    return complexity;
+  }
+
+  private duplicateHashField(bodyNode: ts.Node): { duplicateHash: string } | Record<string, never> {
+    const hash = hashTokens(this.collectNormalizedTokens(bodyNode));
+    return hash !== null ? { duplicateHash: hash } : {};
+  }
+
+  /**
+   * Normalized structural token stream for duplication detection: `ID` for
+   * identifiers, `LIT` for string/numeric literals, the AST `SyntaxKind`
+   * name otherwise. Same nested-function traversal boundary as
+   * `computeComplexity` — doesn't descend into a nested
+   * FunctionDeclaration/MethodDeclaration, does descend into
+   * ArrowFunction/FunctionExpression.
+   */
+  private collectNormalizedTokens(bodyNode: ts.Node): string[] {
+    const tokens: string[] = [];
+
+    const visit = (node: ts.Node): void => {
+      if (ts.isIdentifier(node)) {
+        tokens.push('ID');
+        return;
+      }
+      if (ts.isStringLiteralLike(node) || ts.isNumericLiteral(node)) {
+        tokens.push('LIT');
+        return;
+      }
+
+      tokens.push(ts.SyntaxKind[node.kind]);
+
+      if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)) {
+        return; // separately-hashed node — don't descend
+      }
+
+      ts.forEachChild(node, visit);
+    };
+
+    ts.forEachChild(bodyNode, visit);
+    return tokens;
   }
 
   private extractModuleName(node: ts.ImportDeclaration | ts.ImportEqualsDeclaration): string | null {

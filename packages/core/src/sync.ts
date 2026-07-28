@@ -1,11 +1,11 @@
-import { resolve } from 'path';
+import { resolve, basename } from 'path';
 import { mkdir, writeFile, readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { generateGraph } from './graph-gen.js';
 import { analyzeProject } from './analyzer/index.js';
 import { buildClusters } from './analyzer/clustering.js';
 import { injectCLAUDEContext, appendActivityLog, buildAndWriteSummary } from './memory/index.js';
-import type { Graph, ProjectAnalysis, ProjectIndexEntry } from './types.js';
+import type { Graph, ProjectAnalysis, ProjectIndexEntry, FileManifest } from './types.js';
 
 export interface SyncHooks {
   /** Fired repeatedly while parsing files. */
@@ -14,6 +14,11 @@ export interface SyncHooks {
   onClusterProgress?: (processed: number, total: number) => void;
   /** Fired once before each atomic step (analyze, write summary, etc). */
   onStep?: (label: string) => void;
+  /**
+   * Only re-parse files changed since the last sync. Falls back to a full
+   * sync silently if no previous graph/manifest exists yet for this project.
+   */
+  incremental?: boolean;
 }
 
 function graphDataDir(nodumDataDir: string, projectName: string): string {
@@ -41,14 +46,32 @@ export async function syncProject(
     throw new Error(`Project path does not exist: ${absolutePath}`);
   }
 
-  // 1. Generate graph
-  const { graph, files: fileManifest } = await generateGraph(absolutePath, hooks.onParseProgress);
+  // 1. Load the previous sync's graph/manifest for incremental generation,
+  // if requested. Silently falls back to a full sync when there isn't one.
+  let previousGraph: Graph | undefined;
+  let previousFiles: FileManifest | undefined;
+  if (hooks.incremental) {
+    try {
+      const dir = graphDataDir(nodumDataDir, basename(absolutePath));
+      previousGraph = JSON.parse(await readFile(`${dir}/graph/graph.json`, 'utf-8'));
+      previousFiles = JSON.parse(await readFile(`${dir}/graph/files.json`, 'utf-8'));
+    } catch {
+      // No previous sync found — full sync it is.
+    }
+  }
 
-  // 2. Analyze project
+  // 2. Generate graph
+  const { graph, files: fileManifest } = await generateGraph(absolutePath, {
+    onProgress: hooks.onParseProgress,
+    previousGraph,
+    previousFiles,
+  });
+
+  // 3. Analyze project
   hooks.onStep?.('Detecting stack');
   const analysis = await analyzeProject(absolutePath);
 
-  // 3. Cluster nodes for hierarchical compression
+  // 4. Cluster nodes for hierarchical compression
   const { clusters, nodeToCluster } = buildClusters(
     graph.nodes,
     graph.edges,
@@ -57,7 +80,7 @@ export async function syncProject(
   graph.clusters = clusters;
   graph.nodeToCluster = Object.fromEntries(nodeToCluster);
 
-  // 4. Create project data directory
+  // 5. Create project data directory
   const projectDataDir = graphDataDir(nodumDataDir, graph.project);
   const graphDir = `${projectDataDir}/graph`;
   const memoryDir = `${projectDataDir}/memory`;
@@ -67,7 +90,7 @@ export async function syncProject(
   await mkdir(memoryDir, { recursive: true });
   await mkdir(logsDir, { recursive: true });
 
-  // 5. Write graph.json (once — already includes clusters) and the file manifest
+  // 6. Write graph.json (once — already includes clusters) and the file manifest
   hooks.onStep?.('Writing graph.json');
   await writeFile(
     `${graphDir}/graph.json`,
@@ -80,19 +103,19 @@ export async function syncProject(
     'utf-8',
   );
 
-  // 6. Build and write SUMMARY.md
+  // 7. Build and write SUMMARY.md
   hooks.onStep?.('Generating SUMMARY.md');
   await buildAndWriteSummary(memoryDir, graph, analysis);
 
-  // 7. Log activity
+  // 8. Log activity
   hooks.onStep?.('Logging activity');
   await appendActivityLog(logsDir, graph);
 
-  // 8. Inject CLAUDE.md
+  // 9. Inject CLAUDE.md
   hooks.onStep?.('Injecting CLAUDE.md context');
   await injectCLAUDEContext(absolutePath, graph, analysis);
 
-  // 9. Update projects.json index
+  // 10. Update projects.json index
   hooks.onStep?.('Updating projects index');
   await updateProjectIndex(nodumDataDir, graph, analysis);
 

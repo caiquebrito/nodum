@@ -16,6 +16,11 @@ import {
   handleStatus,
   handleGetNode,
   handleExpandCluster,
+  handleTraceImpact,
+  handleFindBottlenecks,
+  handleExplainArchitecture,
+  handleFindSimilarCode,
+  handleSuggestRefactoring,
 } from "./handlers.js";
 
 const server = new Server(
@@ -187,6 +192,101 @@ const tools: Tool[] = [
       required: ["project_name", "cluster_id"],
     },
   },
+  {
+    name: "trace_impact",
+    description:
+      "Show every file transitively affected by changing a given file/function/class — the cascade of changes if you modify X.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_name: {
+          type: "string",
+          description: "Project name",
+        },
+        node_id: {
+          type: "string",
+          description: "Node ID to trace impact from",
+        },
+        max_depth: {
+          type: "number",
+          description: "Optional: cap how many hops to report",
+        },
+      },
+      required: ["project_name", "node_id"],
+    },
+  },
+  {
+    name: "find_bottlenecks",
+    description:
+      "Rank files by a composite bottleneck score — code complexity combined with how many other files transitively depend on them.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_name: {
+          type: "string",
+          description: "Project name",
+        },
+        limit: {
+          type: "number",
+          description: "Optional: cap the number of results",
+        },
+      },
+      required: ["project_name"],
+    },
+  },
+  {
+    name: "explain_architecture",
+    description:
+      "Auto-generate an architecture overview: layers present, how they depend on each other, and any violations of the project's declared architecture rules.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_name: {
+          type: "string",
+          description: "Project name",
+        },
+      },
+      required: ["project_name"],
+    },
+  },
+  {
+    name: "find_similar_code",
+    description:
+      "Find other functions/methods structurally near-identical to a given node (same control-flow shape, robust to renaming).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_name: {
+          type: "string",
+          description: "Project name",
+        },
+        node_id: {
+          type: "string",
+          description: "Node ID to find similar code for",
+        },
+      },
+      required: ["project_name", "node_id"],
+    },
+  },
+  {
+    name: "suggest_refactoring",
+    description:
+      "Unified refactoring suggestions synthesized from every analysis capability: circular imports, dead files, architecture-rule violations, overly complex functions, and duplicated code.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_name: {
+          type: "string",
+          description: "Project name",
+        },
+        complexity_threshold: {
+          type: "number",
+          description: "Optional: override the default complexity threshold (10)",
+        },
+      },
+      required: ["project_name"],
+    },
+  },
 ];
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -246,6 +346,36 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         result = await handleExpandCluster(
           (args as any).project_name as string,
           (args as any).cluster_id as string
+        );
+        break;
+      case "trace_impact":
+        result = await handleTraceImpact(
+          (args as any).project_name as string,
+          (args as any).node_id as string,
+          (args as any).max_depth as number | undefined
+        );
+        break;
+      case "find_bottlenecks":
+        result = await handleFindBottlenecks(
+          (args as any).project_name as string,
+          (args as any).limit as number | undefined
+        );
+        break;
+      case "explain_architecture":
+        result = await handleExplainArchitecture(
+          (args as any).project_name as string
+        );
+        break;
+      case "find_similar_code":
+        result = await handleFindSimilarCode(
+          (args as any).project_name as string,
+          (args as any).node_id as string
+        );
+        break;
+      case "suggest_refactoring":
+        result = await handleSuggestRefactoring(
+          (args as any).project_name as string,
+          (args as any).complexity_threshold as number | undefined
         );
         break;
       default:

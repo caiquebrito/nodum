@@ -12,6 +12,13 @@ export interface Node {
   line?: number;
   embedding?: number[];  // v2.0: Semantic search embeddings (1536-dim)
   clusterId?: string;     // v2.0: Cluster assignment for hierarchical compression
+  /** Cyclomatic complexity (McCabe). Only set for function/method nodes whose
+   * parser could determine a body; omitted (not zero) when unknown. */
+  complexity?: number;
+  /** sha256 of the normalized (identifiers/literals replaced with
+   * placeholders) body token stream. Only set for function/method nodes
+   * whose body met the minimum-size threshold; omitted otherwise. */
+  duplicateHash?: string;
 }
 
 export interface Edge {
@@ -23,6 +30,11 @@ export interface Edge {
 export interface ParseResult {
   nodes: Node[];
   edges: Edge[];
+  /** Raw, unresolved import specifiers extracted from this file. Resolution
+   * happens later (graph-gen.ts), once every file in the project is known —
+   * a single-file parse() call has no visibility into the rest of the
+   * project. Parsers that don't extract imports omit this entirely. */
+  imports?: string[];
 }
 
 export interface Graph {

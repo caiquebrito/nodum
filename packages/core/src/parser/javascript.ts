@@ -1,6 +1,10 @@
 import { Parser } from './base.js';
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
+import { extractBraceBody } from './brace-body.js';
+import { countCyclomaticComplexity } from './complexity-text.js';
+import { normalizeBodyTokens } from './normalize-body-text.js';
+import { hashTokens } from './duplicate-hash.js';
 
 export class JavaScriptParser extends Parser {
   language = 'JavaScript';
@@ -21,6 +25,7 @@ export class JavaScriptParser extends Parser {
     });
 
     // Extract functions
+    const lines = file.content.split('\n');
     const funcRegex = /(?:^|\s)(?:export\s+)?(?:async\s+)?(?:function|const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?:\(|=\s*(?:async\s*)?(?:\(|\w))/gm;
     let match;
     const seenNames = new Set<string>();
@@ -29,12 +34,17 @@ export class JavaScriptParser extends Parser {
       const name = match[1];
       if (!seenNames.has(name)) {
         const funcId = normalizeNodeId(file.path, name, 'function');
+        const lineIdx = file.content.slice(0, match.index).split('\n').length - 1;
+        const body = extractBraceBody(lines, lineIdx);
+        const duplicateHash = body !== null ? hashTokens(normalizeBodyTokens(body)) : null;
         nodes.push({
           id: funcId,
           label: name,
           type: 'function',
           file: file.path,
           group: getNodeGroup(file.path),
+          ...(body !== null ? { complexity: countCyclomaticComplexity(body) } : {}),
+          ...(duplicateHash !== null ? { duplicateHash } : {}),
         });
         edges.push({ source: fileId, target: funcId, relation: 'defines' });
         seenNames.add(name);
@@ -61,19 +71,24 @@ export class JavaScriptParser extends Parser {
       }
     }
 
-    // Extract imports
-    const importRegex = /^(?:import|require)\s+(?:[\w{},\s*]+\s+from\s+)?['"]([^'"]+)['"]/gm;
+    // Extract imports. Not line-anchored (unlike the old version) so
+    // indented/mid-expression imports are caught, and it actually matches
+    // real CommonJS require('x') calls — the previous regex required
+    // `require` to be followed directly by a string, which real
+    // `require('x')` (a call expression) never is.
+    const importRegex = /import\s+(?:[\w*{}\s,]+\s+from\s+)?['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]\s*\)/g;
+    const imports: string[] = [];
     const seenImports = new Set<string>();
 
     while ((match = importRegex.exec(file.content)) !== null) {
-      const moduleName = match[1];
+      const moduleName = match[1] ?? match[2];
       if (moduleName && !seenImports.has(moduleName)) {
-        // Could add edge to module - for now just track
+        imports.push(moduleName);
         seenImports.add(moduleName);
       }
     }
 
-    return { nodes, edges };
+    return { nodes, edges, imports };
   }
 }
 
