@@ -189,3 +189,53 @@ describe("PythonParser duplicateHash", () => {
     expect(a?.duplicateHash).toBe(b?.duplicateHash);
   });
 });
+
+describe("PythonParser calls edges", () => {
+  it("emits a calls edge for a bare-identifier call to a same-file function", async () => {
+    const src = "def a():\n    return b()\n\n\ndef b():\n    return 1\n";
+    const { nodes, edges } = await parser.parse(fileInfo("a.py", src));
+    const a = nodes.find(n => n.label === "a")!;
+    const b = nodes.find(n => n.label === "b")!;
+    expect(edges).toContainEqual({ source: a.id, target: b.id, relation: "calls" });
+  });
+
+  it("does not emit a calls edge for a qualified self.x() call", async () => {
+    const src = "class Foo:\n    def bar(self):\n        return self.baz()\n\n    def baz(self):\n        return 1\n";
+    const { nodes, edges } = await parser.parse(fileInfo("a.py", src));
+    const bar = nodes.find(n => n.label === "bar")!;
+    const baz = nodes.find(n => n.label === "baz")!;
+    expect(edges).not.toContainEqual({ source: bar.id, target: baz.id, relation: "calls" });
+  });
+
+  it("does not emit a calls edge to an unresolvable name", async () => {
+    const { nodes, edges } = await parser.parse(fileInfo("a.py", "def a():\n    return unknown_fn()\n"));
+    const a = nodes.find(n => n.label === "a")!;
+    expect(edges.filter(e => e.relation === "calls" && e.source === a.id)).toHaveLength(0);
+  });
+
+  it("emits a self-recursive calls edge", async () => {
+    const src = "def fact(n):\n    return 1 if n <= 1 else n * fact(n - 1)\n";
+    const { nodes, edges } = await parser.parse(fileInfo("a.py", src));
+    const fact = nodes.find(n => n.label === "fact")!;
+    expect(edges).toContainEqual({ source: fact.id, target: fact.id, relation: "calls" });
+  });
+
+  it("does not attribute a nested function's call to the enclosing function", async () => {
+    const src = [
+      "def outer():",
+      "    def inner():",
+      "        return target()",
+      "    return inner",
+      "",
+      "",
+      "def target():",
+      "    return 1",
+    ].join("\n");
+    const { nodes, edges } = await parser.parse(fileInfo("a.py", src));
+    const outer = nodes.find(n => n.label === "outer")!;
+    const inner = nodes.find(n => n.label === "inner")!;
+    const target = nodes.find(n => n.label === "target")!;
+    expect(edges).toContainEqual({ source: inner.id, target: target.id, relation: "calls" });
+    expect(edges).not.toContainEqual({ source: outer.id, target: target.id, relation: "calls" });
+  });
+});

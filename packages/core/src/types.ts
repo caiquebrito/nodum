@@ -1,7 +1,13 @@
 import type { NodeCluster } from './analyzer/clustering.js';
 
 export type NodeType = 'file' | 'function' | 'class' | 'interface' | 'method';
-export type RelationType = 'imports' | 'defines' | 'extends' | 'implements';
+/**
+ * `'calls'` (spec 034) is same-file only: emitted when a function/method
+ * calls another function/method defined in the same file, resolved by a
+ * flat name lookup within that file (same simplification `defines` edges
+ * already use). Cross-file call resolution is a future spec's job.
+ */
+export type RelationType = 'imports' | 'defines' | 'extends' | 'implements' | 'calls';
 
 export interface Node {
   id: string;

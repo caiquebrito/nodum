@@ -43,6 +43,12 @@ const LITERAL_NODE_TYPES = new Set([
   'null_literal',
 ]);
 
+interface CallableUnit {
+  nodeId: string;
+  name: string;
+  body: TSNode;
+}
+
 export class JavaParser extends TreeSitterParser {
   language = 'Java';
   extensions = ['.java'];
@@ -63,6 +69,7 @@ export class JavaParser extends TreeSitterParser {
 
     const nodes: Node[] = [];
     const edges: Edge[] = [];
+    const callables: CallableUnit[] = [];
 
     const fileId = normalizeNodeId(file.path, file.path, 'file');
     nodes.push({
@@ -134,12 +141,53 @@ export class JavaParser extends TreeSitterParser {
           ...(duplicateHash ? { duplicateHash } : {}),
         });
         edges.push({ source: typeId, target: methodId, relation: 'defines' });
+        if (memberBody) callables.push({ nodeId: methodId, name: memberName, body: memberBody });
       }
     }
+
+    extractCalls(callables, edges);
 
     const imports = extractImports(root);
 
     return { nodes, edges, imports };
+  }
+}
+
+/**
+ * Same-file `calls` edges (spec 034). Only bare calls (`foo()`, no
+ * `object:` field) resolve — `this.foo()`/`obj.foo()` are deliberately
+ * left alone, since without real type information there's no reliable way
+ * to tell whether the receiver refers to something in this file.
+ * First-definition-wins on a name collision, matching every other
+ * extraction pass in this file.
+ */
+function extractCalls(callables: CallableUnit[], edges: Edge[]): void {
+  if (callables.length === 0) return;
+
+  const nameToNodeId = new Map<string, string>();
+  for (const { name, nodeId } of callables) {
+    if (!nameToNodeId.has(name)) nameToNodeId.set(name, nodeId);
+  }
+
+  for (const { nodeId, body } of callables) {
+    const calledIds = new Set<string>();
+
+    function visit(node: TSNode | null): void {
+      if (!node) return;
+      if (node.type === 'method_invocation' && !node.childForFieldName('object')) {
+        const nameNode = node.childForFieldName('name');
+        const targetId = nameNode ? nameToNodeId.get(nameNode.text) : undefined;
+        if (targetId) calledIds.add(targetId);
+      }
+      if (node.type === 'method_declaration' || node.type === 'constructor_declaration') return;
+      for (const child of node.namedChildren) visit(child);
+    }
+
+    for (const child of body.namedChildren) visit(child);
+
+    for (const targetId of calledIds) {
+      edges.push({ source: nodeId, target: targetId, relation: 'calls' });
+    }
   }
 }
 

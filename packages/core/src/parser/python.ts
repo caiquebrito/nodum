@@ -26,6 +26,12 @@ const COMPLEXITY_NODE_TYPES = new Set([
 
 const LITERAL_NODE_TYPES = new Set(['string', 'integer', 'float', 'true', 'false', 'none']);
 
+interface CallableUnit {
+  nodeId: string;
+  name: string;
+  body: TSNode;
+}
+
 export class PythonParser extends TreeSitterParser {
   language = 'Python';
   extensions = ['.py'];
@@ -48,6 +54,7 @@ export class PythonParser extends TreeSitterParser {
 
     const nodes: Node[] = [];
     const edges: Edge[] = [];
+    const callables: CallableUnit[] = [];
 
     const fileId = normalizeNodeId(file.path, file.path, 'file');
     nodes.push({
@@ -121,6 +128,7 @@ export class PythonParser extends TreeSitterParser {
           ...(duplicateHash ? { duplicateHash } : {}),
         });
         edges.push({ source: classId, target: methodId, relation: 'defines' });
+        if (methodBody) callables.push({ nodeId: methodId, name: methodName, body: methodBody });
       }
     }
 
@@ -153,7 +161,10 @@ export class PythonParser extends TreeSitterParser {
         ...(duplicateHash ? { duplicateHash } : {}),
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
+      if (body) callables.push({ nodeId: funcId, name, body });
     }
+
+    extractCalls(callables, edges);
 
     const imports = extractImports(root);
 
@@ -219,6 +230,46 @@ function extractImports(root: TSNode): string[] {
   }
 
   return imports;
+}
+
+/**
+ * Same-file `calls` edges (spec 034). Only bare-identifier calls
+ * (`foo()`) resolve — `self.foo()`/`obj.foo()` (an `attribute` function
+ * node, not a plain `identifier`) are deliberately left alone, since
+ * without real type information there's no reliable way to tell whether
+ * the receiver refers to something in this file. First-definition-wins on
+ * a name collision, matching every other extraction pass in this file.
+ */
+function extractCalls(callables: CallableUnit[], edges: Edge[]): void {
+  if (callables.length === 0) return;
+
+  const nameToNodeId = new Map<string, string>();
+  for (const { name, nodeId } of callables) {
+    if (!nameToNodeId.has(name)) nameToNodeId.set(name, nodeId);
+  }
+
+  for (const { nodeId, body } of callables) {
+    const calledIds = new Set<string>();
+
+    function visit(node: TSNode | null): void {
+      if (!node) return;
+      if (node.type === 'call') {
+        const fn = node.childForFieldName('function');
+        if (fn?.type === 'identifier') {
+          const targetId = nameToNodeId.get(fn.text);
+          if (targetId) calledIds.add(targetId);
+        }
+      }
+      if (node.type === 'function_definition') return;
+      for (const child of node.namedChildren) visit(child);
+    }
+
+    for (const child of body.namedChildren) visit(child);
+
+    for (const targetId of calledIds) {
+      edges.push({ source: nodeId, target: targetId, relation: 'calls' });
+    }
+  }
 }
 
 function dottedNameText(dottedName: TSNode): string {
