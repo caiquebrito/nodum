@@ -16,6 +16,7 @@ import {
 } from "@caiquebrito/nodum-core";
 import { buildSmartContext, buildNodeContext } from "./smart-context.js";
 import { globalConversationCache } from "./conversation-cache.js";
+import { globalGraphCache } from "./graph-cache.js";
 import { generateGraphEmbeddings } from "./embeddings.js";
 
 export const NODUM_DATA_DIR = join(homedir(), ".nodum");
@@ -40,6 +41,10 @@ async function loadProjectIndex(): Promise<ProjectIndex> {
 }
 
 async function loadGraph(projectName: string): Promise<Graph> {
+  return globalGraphCache.get(projectName, () => readGraphFromDisk(projectName));
+}
+
+async function readGraphFromDisk(projectName: string): Promise<Graph> {
   const content = await readFile(
     join(NODUM_DATA_DIR, projectName, "graph", "graph.json"),
     "utf-8"
@@ -64,8 +69,9 @@ export async function handleSync(projectPath: string) {
     await generateGraphEmbeddings(graph.nodes);
     await writeGraphFile(NODUM_DATA_DIR, graph.project, graph);
 
-    // Clear conversation cache for this project (graph changed)
+    // Clear conversation cache and graph cache for this project (graph changed)
     globalConversationCache.clearProject(graph.project);
+    globalGraphCache.clearProject(graph.project);
 
     const projects = await loadProjectIndex();
     const project = projects[graph.project];
