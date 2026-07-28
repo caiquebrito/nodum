@@ -14,6 +14,21 @@ import {
   findSemanticNeighbors,
 } from "./semantic-search.js";
 import { generateQueryEmbedding, hasEmbeddings } from "./embeddings.js";
+import { countTokens } from "@caiquebrito/nodum-core";
+
+/**
+ * `buildSmartContext()`'s result: the formatted text plus its approximate
+ * token count (see `countTokens` — this is a stand-in tokenizer, not
+ * Claude's real one, hence `approxTokens` rather than `tokens`).
+ */
+export interface SmartContextResult {
+  text: string;
+  approxTokens: number;
+}
+
+function withTokenCount(text: string): SmartContextResult {
+  return { text, approxTokens: countTokens(text) };
+}
 
 interface Graph {
   project: string;
@@ -248,13 +263,15 @@ export async function buildSmartContext(
   graph: Graph,
   maxNodes: number = 25,
   cache?: ConversationCache
-): Promise<string> {
+): Promise<SmartContextResult> {
   // 1. Extract keywords from query
   const keywords = extractKeywords(query);
 
   if (keywords.length === 0) {
     // Fallback: return summary if no keywords found
-    return `Project: ${graph.project}\nFiles: ${graph.stats.files} | Functions: ${graph.stats.functions} | Classes: ${graph.stats.classes}\n\n(Query didn't match specific nodes. Use search_graph tool for better results.)`;
+    return withTokenCount(
+      `Project: ${graph.project}\nFiles: ${graph.stats.files} | Functions: ${graph.stats.functions} | Classes: ${graph.stats.classes}\n\n(Query didn't match specific nodes. Use search_graph tool for better results.)`
+    );
   }
 
   // 2. Check cache for related context (if cache enabled)
@@ -312,7 +329,9 @@ export async function buildSmartContext(
     }
 
     if (relevant.length === 0) {
-      return `No nodes found for: ${keywords.join(", ")}\n\nTry using search_graph tool with different keywords.`;
+      return withTokenCount(
+        `No nodes found for: ${keywords.join(", ")}\n\nTry using search_graph tool with different keywords.`
+      );
     }
 
     // Create node map for edge lookups
@@ -333,7 +352,7 @@ export async function buildSmartContext(
   // 5. Return with summary (include cache hit indicator)
   const cacheIndicator = cacheHit ? " (📦 from cache)" : "";
   const hasSemanticSearch = hasEmbeddings(graph.nodes as any) ? " (🧠 semantic)" : "";
-  return (
+  return withTokenCount(
     `Knowledge Graph Context (${graph.project})${cacheIndicator}${hasSemanticSearch}\n` +
     `Found ${expandedIds.size} relevant nodes for: "${query}"\n\n` +
     contextText +
