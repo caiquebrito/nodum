@@ -38,10 +38,11 @@ export type { ScanConfig, FileMatcher } from './scan-config.js';
 export { diffGraphs } from './graph-diff.js';
 export type { GraphDiff, NodeChange } from './graph-diff.js';
 
-export type { Parser } from './parser/base.js';
+export { Parser } from './parser/base.js';
 export {
   selectParser,
   getAvailableParsers,
+  registerParser,
 } from './parser/index.js';
 
 export { analyzeProject } from './analyzer/index.js';

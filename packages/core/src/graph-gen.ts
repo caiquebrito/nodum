@@ -1,7 +1,6 @@
 import { basename } from 'path';
 import { discoverFiles, discoverChangedFiles } from './file-discovery.js';
 import { selectParser } from './parser/index.js';
-import { resolveRelativeImport, resolveJvmImport } from './parser/import-resolver.js';
 import type { Graph, Node, Edge, FileInfo, FileManifest } from './types.js';
 
 export interface GenerateGraphOptions {
@@ -34,7 +33,7 @@ async function generateGraphFull(
   const nodeMap = new Map<string, Node>();
   const edgesSet = new Set<string>();
   const rawImports: RawFileImports[] = [];
-  parseFilesInto(files, nodeMap, edgesSet, rawImports, onProgress);
+  await parseFilesInto(files, nodeMap, edgesSet, rawImports, onProgress);
   resolveImportsInto(rawImports, nodeMap, edgesSet);
 
   const edges = edgesFromSet(edgesSet);
@@ -94,7 +93,7 @@ async function generateGraphIncremental(
   // their raw (unresolved) import specifiers.
   const edgesSet = new Set<string>();
   const rawImports: RawFileImports[] = [];
-  parseFilesInto(diff.changed, nodeMap, edgesSet, rawImports, onProgress);
+  await parseFilesInto(diff.changed, nodeMap, edgesSet, rawImports, onProgress);
 
   // Phase 3: carry over edges whose source belonged to an untouched file, as
   // long as their target still exists in the current (post-reparse) node
@@ -136,13 +135,13 @@ interface RawFileImports {
   imports: string[];
 }
 
-function parseFilesInto(
+async function parseFilesInto(
   files: FileInfo[],
   nodeMap: Map<string, Node>,
   edgesSet: Set<string>,
   rawImports: RawFileImports[],
   onProgress?: (processed: number, total: number) => void,
-): void {
+): Promise<void> {
   const total = files.length;
   let processed = 0;
   onProgress?.(0, total);
@@ -156,7 +155,7 @@ function parseFilesInto(
     }
 
     try {
-      const { nodes, edges: fileEdges, imports } = parser.parse(file);
+      const { nodes, edges: fileEdges, imports } = await parser.parse(file);
 
       for (const node of nodes) {
         if (!nodeMap.has(node.id)) {
@@ -180,13 +179,17 @@ function parseFilesInto(
   }
 }
 
-const TS_JS_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
-const JVM_EXTENSIONS = new Set(['.kt', '.java']);
-
 /**
  * Resolves every collected file's raw import specifiers against the given
  * node map (which must already contain every file the imports could
  * possibly target) and adds the resulting `imports` edges into edgesSet.
+ *
+ * Dispatch is delegated to each file's own parser via the optional
+ * `Parser.resolveImport()` method (spec 030) — a parser that doesn't
+ * implement it (its language has no imports, or none worth resolving) is
+ * silently skipped, same as before this refactor. This is what lets a new
+ * language's import resolution live entirely in its own parser file instead
+ * of a hardcoded extension-set branch here.
  */
 function resolveImportsInto(rawImports: RawFileImports[], nodeMap: Map<string, Node>, edgesSet: Set<string>): void {
   if (rawImports.length === 0) return;
@@ -203,16 +206,12 @@ function resolveImportsInto(rawImports: RawFileImports[], nodeMap: Map<string, N
     const sourceId = knownFilesByPath.get(filePath);
     if (!sourceId) continue; // shouldn't happen — the file that emitted these imports is always its own node
 
-    if (TS_JS_EXTENSIONS.has(ext.toLowerCase())) {
-      for (const specifier of imports) {
-        const targetId = resolveRelativeImport(filePath, specifier, knownFileIds);
-        if (targetId) edgesSet.add(edgeKey({ source: sourceId, target: targetId, relation: 'imports' }));
-      }
-    } else if (JVM_EXTENSIONS.has(ext.toLowerCase())) {
-      for (const specifier of imports) {
-        for (const targetId of resolveJvmImport(specifier, knownFilesByPath)) {
-          edgesSet.add(edgeKey({ source: sourceId, target: targetId, relation: 'imports' }));
-        }
+    const parser = selectParser(ext);
+    if (!parser?.resolveImport) continue;
+
+    for (const specifier of imports) {
+      for (const targetId of parser.resolveImport(specifier, filePath, knownFileIds, knownFilesByPath)) {
+        edgesSet.add(edgeKey({ source: sourceId, target: targetId, relation: 'imports' }));
       }
     }
   }

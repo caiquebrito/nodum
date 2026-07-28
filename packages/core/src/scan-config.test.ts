@@ -35,6 +35,14 @@ describe("scan-config", () => {
 
       await rm(join(dir, ".nodumrc.json"));
     });
+
+    it("loads ignoredDirs alongside include/exclude", async () => {
+      await writeFile(join(dir, ".nodumrc.json"), JSON.stringify({ ignoredDirs: [".terraform"] }));
+
+      await expect(loadScanConfig(dir)).resolves.toEqual({ ignoredDirs: [".terraform"] });
+
+      await rm(join(dir, ".nodumrc.json"));
+    });
   });
 
   describe("saveScanConfig", () => {
@@ -51,6 +59,15 @@ describe("scan-config", () => {
       await saveScanConfig(dir, { exclude: ["**/*.spec.ts"] });
 
       await expect(loadScanConfig(dir)).resolves.toEqual({ include: ["src/**"], exclude: ["**/*.spec.ts"] });
+
+      await rm(join(dir, ".nodumrc.json"));
+    });
+
+    it("saves ignoredDirs alongside other fields without clobbering them", async () => {
+      await saveScanConfig(dir, { include: ["src/**"] });
+      await saveScanConfig(dir, { ignoredDirs: [".terraform"] });
+
+      await expect(loadScanConfig(dir)).resolves.toEqual({ include: ["src/**"], ignoredDirs: [".terraform"] });
 
       await rm(join(dir, ".nodumrc.json"));
     });
