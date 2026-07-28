@@ -22,10 +22,39 @@ const GROUP_COLORS = {
   other:   '#6e7681',
 };
 
+// interface/method previously fell back to the generic grey (#6e7681) below —
+// fixed here alongside adding struct/enum/protocol/extension (spec 036,
+// Swift/Objective-C). Each type gets a distinct hue so a mixed-language
+// project's composition reads at a glance rather than collapsing into grey.
 const TYPE_COLORS = {
-  file:     '#58a6ff',
-  function: '#3fb950',
-  class:    '#bc8cff',
+  file:      '#58a6ff',
+  function:  '#3fb950',
+  class:     '#bc8cff',
+  interface: '#f78166',
+  method:    '#56d4dd',
+  struct:    '#e3b341',
+  enum:      '#ff9f1a',
+  protocol:  '#d2a8ff',
+  extension: '#79c0ff',
+};
+
+// Types that act as containers (hold members) get the larger class-like
+// size tier; everything else (functions/methods) gets the smaller tier.
+// `interface` deliberately stays out of this set — it kept its pre-036
+// sizing (the smaller tier) to avoid an unplanned visual change to every
+// existing TS/Java project; only the 4 new spec-036 types are added here.
+const CONTAINER_TYPES = new Set(['class', 'struct', 'enum', 'protocol', 'extension']);
+
+// Tree-view per-type glyph. `class` keeps its pre-036 '◆'; every other
+// type fell back to the function glyph 'ƒ' before this — struct/enum/
+// protocol/extension get their own so they're distinguishable in the list,
+// not just in the 3D view's color.
+const TREE_ICONS = {
+  class:     '◆',
+  struct:    '▣',
+  enum:      '☰',
+  protocol:  '◇',
+  extension: '+',
 };
 
 function nodeColor(node) {
@@ -35,8 +64,8 @@ function nodeColor(node) {
 
 function nodeSize3D(type, deg, maxDeg) {
   const t = Math.sqrt((deg || 0) / maxDeg);
-  if (type === 'file')     return 4  + t * 16;
-  if (type === 'class')    return 2.5 + t * 7;
+  if (type === 'file')            return 4  + t * 16;
+  if (CONTAINER_TYPES.has(type))  return 2.5 + t * 7;
   return 1.2 + t * 4;
 }
 
@@ -474,7 +503,7 @@ function renderFileRow(container, name, filePath, fileNodeMap, childrenMap, degr
     item.dataset.id = child.id;
     item.style.paddingLeft = (10 + (depth + 1) * 14 + 10) + 'px';
     const deg  = degree[child.id] || 0;
-    const icon = child.type === 'class' ? '◆' : 'ƒ';
+    const icon = TREE_ICONS[child.type] ?? 'ƒ';
     item.innerHTML = `
       <span class="tree-child-icon" style="color:${nodeColor(child)}">${icon}</span>
       <span class="node-label">${child.label}</span>

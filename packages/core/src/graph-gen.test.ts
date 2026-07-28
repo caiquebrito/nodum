@@ -247,3 +247,60 @@ describe("generateGraph — import edge resolution", () => {
     expect(graph.edges).toEqual([]);
   });
 });
+
+describe("generateGraph — stats (spec 036: struct/enum/protocol/extension)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("populates all four new optional counters as 0 for a project with none of the new types", async () => {
+    selectParserMock.mockImplementation((ext: string) => {
+      if (ext !== ".ts") return null;
+      return {
+        parse: (file: FileInfo) => ({
+          nodes: [{ id: file.path, label: file.path, type: "function" as const, file: file.path, group: "other" }],
+          edges: [],
+        }),
+      };
+    });
+    discoverFilesMock.mockResolvedValue([fileInfo("a.ts")]);
+
+    const { generateGraph } = await import("./graph-gen.js");
+    const { graph } = await generateGraph("/proj", {});
+
+    expect(graph.stats.structs).toBe(0);
+    expect(graph.stats.enums).toBe(0);
+    expect(graph.stats.protocols).toBe(0);
+    expect(graph.stats.extensions).toBe(0);
+    // The original 5 keys are unaffected by the new counters' presence.
+    expect(graph.stats.functions).toBe(1);
+  });
+
+  it("counts each new node type independently, not folded into classes/interfaces", async () => {
+    selectParserMock.mockImplementation((ext: string) => {
+      if (ext !== ".swift") return null;
+      return {
+        parse: (file: FileInfo) => ({
+          nodes: [
+            { id: "s1", label: "S", type: "struct" as const, file: file.path, group: "other" },
+            { id: "e1", label: "E", type: "enum" as const, file: file.path, group: "other" },
+            { id: "p1", label: "P", type: "protocol" as const, file: file.path, group: "other" },
+            { id: "x1", label: "X", type: "extension" as const, file: file.path, group: "other" },
+          ],
+          edges: [],
+        }),
+      };
+    });
+    discoverFilesMock.mockResolvedValue([{ ...fileInfo("a.swift"), ext: ".swift" }]);
+
+    const { generateGraph } = await import("./graph-gen.js");
+    const { graph } = await generateGraph("/proj", {});
+
+    expect(graph.stats.structs).toBe(1);
+    expect(graph.stats.enums).toBe(1);
+    expect(graph.stats.protocols).toBe(1);
+    expect(graph.stats.extensions).toBe(1);
+    expect(graph.stats.classes).toBe(0);
+    expect(graph.stats.interfaces).toBe(0);
+  });
+});
