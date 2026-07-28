@@ -20,6 +20,7 @@ import {
   handleFindBottlenecks,
   handleExplainArchitecture,
   handleFindSimilarCode,
+  handleSuggestRefactoring,
 } from "./handlers.js";
 
 const server = new Server(
@@ -267,6 +268,25 @@ const tools: Tool[] = [
       required: ["project_name", "node_id"],
     },
   },
+  {
+    name: "suggest_refactoring",
+    description:
+      "Unified refactoring suggestions synthesized from every analysis capability: circular imports, dead files, architecture-rule violations, overly complex functions, and duplicated code.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_name: {
+          type: "string",
+          description: "Project name",
+        },
+        complexity_threshold: {
+          type: "number",
+          description: "Optional: override the default complexity threshold (10)",
+        },
+      },
+      required: ["project_name"],
+    },
+  },
 ];
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -350,6 +370,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         result = await handleFindSimilarCode(
           (args as any).project_name as string,
           (args as any).node_id as string
+        );
+        break;
+      case "suggest_refactoring":
+        result = await handleSuggestRefactoring(
+          (args as any).project_name as string,
+          (args as any).complexity_threshold as number | undefined
         );
         break;
       default:

@@ -10,6 +10,7 @@ import {
   explainArchitecture,
   loadArchitectureConfig,
   findSimilarCode,
+  suggestRefactoring,
   type ProjectIndexEntry,
   type Graph as CoreGraph,
 } from "@caiquebrito/nodum-core";
@@ -557,5 +558,50 @@ export async function handleFindSimilarCode(projectName: string, nodeId: string)
     };
   } catch (error) {
     return { error: `Failed to find similar code: ${String(error)}` };
+  }
+}
+
+export async function handleSuggestRefactoring(
+  projectName: string,
+  complexityThreshold?: number
+) {
+  try {
+    const graph = await loadGraph(projectName);
+    const index = await loadProjectIndex();
+    const projectPath = index[projectName]?.path;
+    const architectureRules = projectPath
+      ? (await loadArchitectureConfig(projectPath)).rules
+      : undefined;
+
+    // Same cast rationale as handleExplainArchitecture.
+    const suggestions = suggestRefactoring(graph as unknown as CoreGraph, {
+      architectureRules,
+      complexityThreshold,
+    });
+
+    if (suggestions.length === 0) {
+      return {
+        content: [text("✅ No refactoring suggestions")],
+      };
+    }
+
+    const byKind = new Map<string, typeof suggestions>();
+    for (const s of suggestions) {
+      if (!byKind.has(s.kind)) byKind.set(s.kind, []);
+      byKind.get(s.kind)!.push(s);
+    }
+
+    const lines: string[] = [`🛠️  Refactoring suggestions (${suggestions.length})`, ""];
+    for (const [kind, items] of byKind) {
+      lines.push(`${kind.toUpperCase()} (${items.length}):`);
+      items.forEach((s) => lines.push(`  - ${s.description} (${s.files.join(", ")})`));
+      lines.push("");
+    }
+
+    return {
+      content: [text(lines.join("\n"))],
+    };
+  } catch (error) {
+    return { error: `Failed to suggest refactoring: ${String(error)}` };
   }
 }

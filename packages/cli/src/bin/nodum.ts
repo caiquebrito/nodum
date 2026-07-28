@@ -267,6 +267,25 @@ program
   });
 
 program
+  .command('suggest-refactoring [projectPath]')
+  .description('Unified refactoring suggestions: cycles, dead code, architecture violations, high complexity, duplication')
+  .option('--json', 'Output machine-readable JSON instead of a formatted summary')
+  .option('--complexity-threshold <n>', 'Override the default complexity threshold (10)')
+  .action(async (projectPath: string | undefined, options: { json?: boolean; complexityThreshold?: string }) => {
+    try {
+      const nodumDataDir = getNodeumDataDir();
+      const { suggestRefactoringCommand } = await import('../commands/suggest-refactoring.js');
+      await suggestRefactoringCommand(projectPath || process.cwd(), nodumDataDir, {
+        json: options.json,
+        complexityThreshold: options.complexityThreshold ? parseInt(options.complexityThreshold, 10) : undefined,
+      });
+    } catch (error) {
+      console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+program
   .command('status')
   .description('Show all synced projects')
   .action(async () => {
