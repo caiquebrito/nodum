@@ -1,5 +1,17 @@
 # @caiquebrito/nodum-server
 
+## 2.6.0
+
+### Patch Changes
+
+- Updated dependencies [fb2299d]
+- Updated dependencies [fb2299d]
+- Updated dependencies [fb2299d]
+- Updated dependencies [fb2299d]
+- Updated dependencies [fb2299d]
+- Updated dependencies [fb2299d]
+  - @caiquebrito/nodum-core@2.6.0
+
 ## 2.5.0
 
 ### Patch Changes
