@@ -278,28 +278,31 @@ Everything local, nothing uploaded:
 
 ---
 
-## v2.0 Optimizations
+## Token Efficiency
 
-Nodum v2.0 introduces **semantic search and hierarchical clustering** to maximize token efficiency:
+Nodum uses **semantic search and hierarchical clustering** to avoid dumping the entire graph into
+context on every query:
 
 ### 📊 Multi-Turn Caching (Phase 1)
 - Detects related queries within a conversation
-- Reuses context from previous searches
-- **Token savings: 83% on cache hits** (300 → 50 tokens)
+- Reuses context from previous searches (faster — a cache hit skips re-scoring, though it returns
+  the same context a fresh search would have found, so it isn't a separate token saving)
 
 ### 🧠 Semantic Search (Phase 2)
 - Uses embeddings for meaning-aware node discovery
 - Combines semantic + keyword scoring (60/40 blend)
-- **20% better node selection** than keyword-only search
 - Graceful fallback to keywords if embeddings unavailable
 
 ### 🔗 Hierarchical Clustering (Phase 3)
 - Groups related nodes by file/type/proximity
 - Shows cluster summaries instead of listing all nodes
 - Cluster expansion on demand via `expand_cluster` tool
-- **~68% token savings** vs full graph dump (341 nodes → 19 clusters)
 
-**Combined Impact:** Up to **83% token reduction** on repeated queries + **68% reduction** on context size = **Nodum is 5-6x more efficient than raw graph dumps.**
+**Where the real numbers live:** every `search_graph` response reports its own measured savings
+against a full-graph-dump baseline — computed per call, not a fixed marketing percentage (v2.2.0
+replaced the hardcoded figures this section used to quote with that real, per-response number).
+Every MCP tool call is also logged to `~/.nodum/<project>/logs/metrics.jsonl`, so real-session
+efficiency is inspectable directly rather than taken on faith.
 
 ---
 
@@ -345,20 +348,14 @@ More coming in v2!
 
 ## Benchmarks
 
-We measure RAG effectiveness with our benchmark suite:
+`benchmarks/` measures RAG effectiveness against a small fixture project. Its original v2.0
+figures (~83%/68%/20%/90%) were the initial design targets rather than numbers with confidence
+intervals behind them, and the suite isn't yet wired into CI — both being hardened in an
+upcoming release. Until then, the trustworthy, up-to-date signal is the real per-response
+percentage every `search_graph` call now reports (see Token Efficiency above) and the
+per-session log at `~/.nodum/<project>/logs/metrics.jsonl`.
 
-**v2.0 Token Efficiency:**
-- ✅ **83% token savings** on repeated queries (multi-turn caching)
-- ✅ **68% token savings** via hierarchical clustering vs raw dumps
-- ✅ **20% better semantic search** vs keyword-only lookup
-- ✅ **90%+ accuracy** on code reference identification
-
-**Answer Quality:**
-- ✅ 20% improvement in completeness with graph context
-- ✅ Better architecture understanding for refactoring questions
-- ✅ More accurate dependency tracking
-
-See [benchmarks/README.md](./benchmarks/README.md) for detailed methodology and results.
+See [benchmarks/README.md](./benchmarks/README.md) for the suite's methodology.
 
 ---
 
@@ -432,9 +429,9 @@ npm install -g .
 - 20 specs shipped, each with real end-to-end verification against synced projects — see [`docs/development/completed/`](./docs/development/completed/)
 
 ### ✅ v2.0.0
-- **Multi-Turn Caching** — 83% token savings on repeated queries
+- **Multi-Turn Caching** — reuses context across related queries in a conversation
 - **Semantic Search** — meaning-aware node discovery with embeddings
-- **Hierarchical Clustering** — 68% token reduction via smart grouping
+- **Hierarchical Clustering** — cluster summaries instead of a full node dump
 - **expand_cluster tool** — on-demand cluster expansion
 - TypeScript/Node.js monorepo
 - 5 language parsers
