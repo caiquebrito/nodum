@@ -17,6 +17,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Pushes made with the default GITHUB_TOKEN don't trigger other
+          # workflows (GitHub's anti-recursion guard), so the "Version
+          # Packages" PR this job opens/updates never got a CI run and sat
+          # permanently blocked by main's required build-and-test check.
+          # A PAT's pushes trigger workflows normally.
+          token: ${{ secrets.RELEASE_PAT }}
 
       - uses: actions/setup-node@v4
         with:
@@ -38,7 +44,7 @@ jobs:
           commit: "chore: version packages"
           title: "chore: version packages"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
           # actions/setup-node's generated .npmrc substitutes NODE_AUTH_TOKEN
           # specifically (not NPM_TOKEN) — the secret is still named NPM_TOKEN
           # for clarity when you create it, just exposed under this env name.

@@ -47,6 +47,7 @@ The root `@caiquebrito/nodum` package is `"private": true` and is never publishe
 ## One-time setup (already done, documented for reference)
 
 - `NPM_TOKEN` repository secret — an npm auth token with publish rights to the `@caiquebrito` scope (`npm token create --read-and-publish`), added under Settings → Secrets and variables → Actions.
+- `RELEASE_PAT` repository secret — a fine-grained PAT (repo-scoped to `caiquebrito/nodum`, `Contents: Read and write` + `Pull requests: Read and write`), used by `release.yml` instead of the default `GITHUB_TOKEN`. Needed because GitHub's anti-recursion guard means pushes made with the default token never trigger other workflows — without this, the bot-authored "Version Packages" PR never gets a CI run and sits permanently blocked by `main`'s required `build-and-test` check, forcing an admin bypass on every release. Rotate by generating a new token and re-running `gh secret set RELEASE_PAT`.
 - `npm-production` GitHub Environment — Settings → Environments — used purely for release visibility (Deployments tab); no required reviewers by default.
 - Branch protection on `main` — PR required, status checks required, no direct pushes.
 
