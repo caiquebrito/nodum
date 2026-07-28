@@ -102,6 +102,7 @@ export async function generateGraphEmbeddings(nodes: Node[]): Promise<void> {
 export function hasEmbeddings(nodes: Node[]): boolean {
   // Check if at least 50% of non-file nodes have embeddings
   const nonFileNodes = nodes.filter(n => n.type !== "file");
+  if (nonFileNodes.length === 0) return false; // vacuously true otherwise (0 >= 0)
   const withEmbeddings = nonFileNodes.filter(n => n.embedding && n.embedding.length > 0);
   return withEmbeddings.length >= nonFileNodes.length * 0.5;
 }

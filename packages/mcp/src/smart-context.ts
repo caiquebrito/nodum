@@ -129,6 +129,12 @@ function findRelevantNodes(
     .map(({ node }) => node);
 }
 
+// Per-seed neighbor cap and a hard ceiling on the total expanded set — see
+// spec 027. Before this, a query matching one heavily-imported hub node
+// could pull in every one of its dependents with no bound at all.
+const MAX_NEIGHBORS_PER_SEED = 10;
+const MAX_EXPANDED_NODES = 150;
+
 /**
  * Expand context to include connected nodes (depth 1)
  * If user asks about "auth", also include what auth calls and what calls auth
@@ -138,23 +144,37 @@ function expandContext(
   edges: Graph["edges"],
   nodeMap: Map<string, Graph["nodes"][0]>
 ): Set<string> {
+  // Adjacency built once (O(edges)) instead of re-scanning every edge per
+  // seed node (O(seeds × edges)).
+  const outgoing = new Map<string, string[]>();
+  const incoming = new Map<string, string[]>();
+  for (const edge of edges) {
+    if (nodeMap.has(edge.target)) {
+      if (!outgoing.has(edge.source)) outgoing.set(edge.source, []);
+      outgoing.get(edge.source)!.push(edge.target);
+    }
+    if (nodeMap.has(edge.source)) {
+      if (!incoming.has(edge.target)) incoming.set(edge.target, []);
+      incoming.get(edge.target)!.push(edge.source);
+    }
+  }
+
   const relevant = new Set<string>();
 
   for (const node of nodes) {
+    if (relevant.size >= MAX_EXPANDED_NODES) break;
     relevant.add(node.id);
 
-    // Add outgoing edges (what this node calls/imports)
-    for (const edge of edges) {
-      if (edge.source === node.id && nodeMap.has(edge.target)) {
-        relevant.add(edge.target);
-      }
+    // Add outgoing edges (what this node calls/imports), capped
+    for (const target of (outgoing.get(node.id) ?? []).slice(0, MAX_NEIGHBORS_PER_SEED)) {
+      if (relevant.size >= MAX_EXPANDED_NODES) break;
+      relevant.add(target);
     }
 
-    // Add incoming edges (what calls/imports this node)
-    for (const edge of edges) {
-      if (edge.target === node.id && nodeMap.has(edge.source)) {
-        relevant.add(edge.source);
-      }
+    // Add incoming edges (what calls/imports this node), capped
+    for (const source of (incoming.get(node.id) ?? []).slice(0, MAX_NEIGHBORS_PER_SEED)) {
+      if (relevant.size >= MAX_EXPANDED_NODES) break;
+      relevant.add(source);
     }
   }
 
