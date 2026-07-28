@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-07-28 · **Current release:** v2.6.0 (all four packages, lockstep) · **Specs shipped:** 36 (`docs/development/completed/`)
+**Last updated:** 2026-07-28 · **Current release:** v2.7.0 (all four packages, lockstep) · **Specs shipped:** 40 (`docs/development/completed/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -67,34 +67,39 @@ or removed.
   already drifted (`packages/mcp/src/handlers.ts` used `type: string` instead of the real
   `NodeType`, papered over with a cast). Now a single source of truth in `core/src/types.ts`.
 
+### iOS: Swift + Objective-C — shipped as real npm v2.7.0 (specs `036`–`039`)
+Proved the tree-sitter parser plugin architecture (v2.6.0) generalizes to a language family that
+shares nothing with the five parsers that existed before it. **Verified: zero changes to
+`graph-gen.ts` or `file-discovery.ts` across all four specs** — the release's own litmus test.
+- `NodeType` widened to 9 types (`struct`/`enum`/`protocol`/`extension` new, spec 036) — shipped
+  ahead of either parser so neither re-types a node on a follow-up release. Also fixed a
+  pre-existing gap where `interface`/`method` nodes silently rendered grey in the 3D viewer.
+- Full Swift parser (spec 037) — `class`/`struct`/`enum`/`actor`/`extension` all fold into one
+  grammar node in this tree-sitter grammar, disambiguated by keyword; `protocol` is a distinct
+  node. Real complexity, `duplicateHash`, same-file `calls` edges, module import resolution.
+  Along the way, found and fixed a real Vitest/V8 issue: the default `threads` pool reliably
+  OOM-crashed once enough tree-sitter grammars were JIT-compiled across a shared V8 instance —
+  fixed by switching the workspace to `pool: 'forks'`.
+- Full Objective-C parser (spec 038) — a type node comes only from `@implementation`/`@protocol`,
+  never a bare `@interface`, avoiding the split-node problem a header/implementation pair would
+  otherwise cause. `calls` edges resolve `self`/`super` message sends (a deliberate divergence
+  from every other parser's bare-call-only rule — Objective-C has no bare method-call syntax at
+  all). Two real bugs found and fixed during real-CLI verification, not caught by unit tests
+  alone: a call-selector heuristic that broke on identifier arguments, and a missed `static` C
+  helper nested inside `@implementation`.
+- Unified Swift/Objective-C import resolution (spec 039) — a Swift `import Foo` resolves to
+  `Foo`'s `.m`/`.h` files and vice versa; verified on a real mixed fixture that a bridging header,
+  an ObjC class, and an importing Swift file render as one connected graph component, not two
+  disconnected islands. **File-level `imports` edges only** — `@objc`-annotation symbol-level
+  `calls` edges would need changes to `graph-gen.ts` and are deferred to a future spec, same
+  posture as same-file `calls` deferring cross-file resolution.
+- Module resolution via directory-suffix matching (mirroring how JVM dotted-FQN imports already
+  resolve), **not** `Package.swift`/`.xcodeproj`/`Podfile` parsing — a deliberate reduction
+  matching the precedent `resolveJvmImport` already set for `pom.xml`/`build.gradle`.
+
 ---
 
 ## Next
-
-### v2.7.0 — iOS: Swift + Objective-C (specs 036–039, implemented — release pending)
-**Goal:** prove the plugin architecture with a language family that shares nothing with the
-existing ones. If `graph-gen.ts` or `file-discovery.ts` need to change to add Swift, the
-tree-sitter foundation (v2.6.0) was incomplete. **Verified: zero changes to either file across
-all four specs.**
-- Swift and Objective-C as grammar + query + registry entry (specs 037, 038) — `class`/`struct`/
-  `enum`/`actor`/`extension` all fold into one Swift grammar node, disambiguated by keyword; ObjC
-  type nodes come only from `@implementation`/`@protocol`, never a bare `@interface`, to avoid
-  splitting one class into two nodes across its header/implementation pair.
-- Extend `NodeType` with `struct`/`enum`/`protocol`/`extension` (spec 036) — batched as one
-  deliberate breaking change rather than trickled in, ahead of either parser so neither re-types
-  a node on a follow-up release.
-- **Interop shipped reduced in scope, deliberately (spec 039): file-level `imports` edges only**
-  — a Swift `import Foo` resolves to `Foo`'s `.m`/`.h` files and vice versa (verified on a real
-  mixed fixture: a bridging header, an ObjC class, and a Swift file importing it all render as one
-  connected graph component, not two disconnected islands). **`@objc` annotations and
-  Swift↔ObjC `calls` edges are NOT included** — the only cross-file edge mechanism in the system
-  is import resolution (`relation: 'imports'`, file-to-file); symbol-level cross-language calls
-  would need a new `resolveCall?()`-style mechanism touching `graph-gen.ts`, which is exactly what
-  this release's litmus test says not to do. Deferred to a future spec, same posture as spec 034
-  deferring cross-file `calls` within a single language.
-- Module resolution via directory-suffix matching (mirroring how JVM dotted-FQN imports already
-  resolve) — **not** `Package.swift`/`.xcodeproj`/`Podfile` parsing, a deliberate reduction
-  matching the precedent `resolveJvmImport` already set for `pom.xml`/`build.gradle`.
 
 ### v2.8.0 — Adaptive context budgeting
 **Goal:** stop guessing at output size; spend a token budget deliberately, provable against the
@@ -155,7 +160,7 @@ measurement harness.
 - **Delete `claude skills/sync-rag/`** — an abandoned v0 Python artifact with hardcoded personal
   paths, referenced by nothing in the current codebase.
 - **Reconcile the root `package.json` version** (currently `2.4.0`) against the real, lockstep
-  package version (`2.6.0` as of this writing) — it's a private/`workspaces`-only manifest, not
+  package version (`2.7.0` as of this writing) — it's a private/`workspaces`-only manifest, not
   published, but a stale number here is confusing for anyone reading it directly.
 - Reconcile `CHANGELOG.md` — verify it reflects the real per-package Changesets-generated
   changelogs (`packages/*/CHANGELOG.md`) rather than drifting as a separate hand-maintained file.
