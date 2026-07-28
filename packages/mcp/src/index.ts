@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import { readFileSync } from "fs";
+import { homedir } from "os";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -7,6 +11,7 @@ import {
   Tool,
   TextContent,
 } from "@modelcontextprotocol/sdk/types.js";
+import { checkLatestVersion, formatUpdateNotice } from "@caiquebrito/nodum-core";
 import {
   handleSync,
   handleGetGraph,
@@ -23,10 +28,16 @@ import {
   handleSuggestRefactoring,
 } from "./handlers.js";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PACKAGE_NAME = "@caiquebrito/nodum-mcp";
+const OWN_VERSION = (
+  JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8")) as { version: string }
+).version;
+
 const server = new Server(
   {
     name: "nodum",
-    version: "1.0.0",
+    version: OWN_VERSION,
   },
   {
     capabilities: {
@@ -391,6 +402,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  checkLatestVersion(PACKAGE_NAME, OWN_VERSION, join(homedir(), ".nodum", "update-check.json"))
+    .then((result) => {
+      if (result?.updateAvailable) console.error(formatUpdateNotice(result));
+    })
+    .catch(() => {
+      // Best-effort startup notice — must never affect the server itself.
+    });
 }
 
 main().catch(console.error);
