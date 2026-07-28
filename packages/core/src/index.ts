@@ -90,7 +90,9 @@ export {
   injectCLAUDEContext,
   appendActivityLog,
   buildAndWriteSummary,
+  appendMetricsLog,
 } from './memory/index.js';
+export type { ToolCallMetric } from './memory/index.js';
 
 export { checkLatestVersion, formatUpdateNotice } from './version-check.js';
 export type { VersionCheckResult } from './version-check.js';

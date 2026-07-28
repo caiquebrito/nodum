@@ -18,7 +18,7 @@ import { buildSmartContext, buildNodeContext } from "./smart-context.js";
 import { globalConversationCache } from "./conversation-cache.js";
 import { generateGraphEmbeddings } from "./embeddings.js";
 
-const NODUM_DATA_DIR = join(homedir(), ".nodum");
+export const NODUM_DATA_DIR = join(homedir(), ".nodum");
 
 interface Graph {
   project: string;
