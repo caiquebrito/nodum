@@ -71,17 +71,30 @@ or removed.
 
 ## Next
 
-### v2.7.0 — iOS: Swift + Objective-C
+### v2.7.0 — iOS: Swift + Objective-C (specs 036–039, implemented — release pending)
 **Goal:** prove the plugin architecture with a language family that shares nothing with the
 existing ones. If `graph-gen.ts` or `file-discovery.ts` need to change to add Swift, the
-tree-sitter foundation (v2.6.0) was incomplete.
-- Swift and Objective-C as grammar + query + registry entry.
-- Interop edges: bridging headers, `@objc` annotations, Swift↔ObjC calls — a mixed repo that
-  renders as two disconnected islands is worse than no graph at all.
-- Extend `NodeType` with `struct`/`enum`/`protocol`/`extension` — batched as one deliberate
-  breaking change rather than trickled in.
-- Module resolution via `Package.swift`/`.xcodeproj`/`Podfile` — Swift has no file-path imports,
-  unlike every language Nodum currently resolves.
+tree-sitter foundation (v2.6.0) was incomplete. **Verified: zero changes to either file across
+all four specs.**
+- Swift and Objective-C as grammar + query + registry entry (specs 037, 038) — `class`/`struct`/
+  `enum`/`actor`/`extension` all fold into one Swift grammar node, disambiguated by keyword; ObjC
+  type nodes come only from `@implementation`/`@protocol`, never a bare `@interface`, to avoid
+  splitting one class into two nodes across its header/implementation pair.
+- Extend `NodeType` with `struct`/`enum`/`protocol`/`extension` (spec 036) — batched as one
+  deliberate breaking change rather than trickled in, ahead of either parser so neither re-types
+  a node on a follow-up release.
+- **Interop shipped reduced in scope, deliberately (spec 039): file-level `imports` edges only**
+  — a Swift `import Foo` resolves to `Foo`'s `.m`/`.h` files and vice versa (verified on a real
+  mixed fixture: a bridging header, an ObjC class, and a Swift file importing it all render as one
+  connected graph component, not two disconnected islands). **`@objc` annotations and
+  Swift↔ObjC `calls` edges are NOT included** — the only cross-file edge mechanism in the system
+  is import resolution (`relation: 'imports'`, file-to-file); symbol-level cross-language calls
+  would need a new `resolveCall?()`-style mechanism touching `graph-gen.ts`, which is exactly what
+  this release's litmus test says not to do. Deferred to a future spec, same posture as spec 034
+  deferring cross-file `calls` within a single language.
+- Module resolution via directory-suffix matching (mirroring how JVM dotted-FQN imports already
+  resolve) — **not** `Package.swift`/`.xcodeproj`/`Podfile` parsing, a deliberate reduction
+  matching the precedent `resolveJvmImport` already set for `pom.xml`/`build.gradle`.
 
 ### v2.8.0 — Adaptive context budgeting
 **Goal:** stop guessing at output size; spend a token budget deliberately, provable against the
