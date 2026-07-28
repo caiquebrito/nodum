@@ -122,9 +122,9 @@ and can give accurate, context-aware answers. ✨
 
 ### 📊 Scans Your Code
 - **TypeScript** (.ts, .tsx) — via the TypeScript compiler API (real resolved-type data)
-- **Python, Java, JavaScript** (.py, .java, .js/.jsx) — via [tree-sitter](https://tree-sitter.github.io/tree-sitter/) (real AST, not regex)
+- **Python, Java, JavaScript, Swift, Objective-C** (.py, .java, .js/.jsx, .swift, .m/.h) — via [tree-sitter](https://tree-sitter.github.io/tree-sitter/) (real AST, not regex)
 - **Kotlin** (.kt) — line-regex for now, tree-sitter migration planned (see [ROADMAP.md](./docs/development/ROADMAP.md))
-- **More coming** (iOS: Swift/Objective-C next, then KMP/Flutter/Go)
+- **More coming** (KMP, Flutter, Go)
 
 Extracts: files, functions, classes, interfaces, methods, imports, and same-file `calls` edges
 
@@ -340,12 +340,16 @@ Saves to `~/.nodum/projectname/`:
 | Python | .py | tree-sitter | imports, functions, classes, methods, same-file `calls` |
 | Java | .java | tree-sitter | imports, methods, constructors, classes, interfaces, same-file `calls` |
 | JavaScript | .js, .jsx | tree-sitter | imports, functions, classes, methods, same-file `calls` |
+| Swift | .swift | tree-sitter | imports, classes, structs, enums, actors, extensions, protocols, methods, same-file `calls` |
+| Objective-C | .m, .h | tree-sitter | imports, classes, categories/extensions, protocols, methods, C functions, same-file `calls` (incl. `self`/`super` message sends) |
 | Kotlin | .kt | line-regex | imports, functions, classes, objects (no `calls` edges yet) |
 
-Python, Java, and JavaScript migrated from line-regex to tree-sitter in v2.6.0 — see
-[ROADMAP.md](./docs/development/ROADMAP.md) for what changed. Kotlin's tree-sitter grammar isn't
-accurate enough yet (~61% structural fidelity in its own upstream benchmark), so it stays on regex
-until a better one exists. iOS (Swift/Objective-C) is next.
+Python, Java, and JavaScript migrated from line-regex to tree-sitter in v2.6.0; Swift and
+Objective-C support shipped in v2.7.0, including cross-language import resolution — a Swift
+`import Foo` resolves to `Foo`'s Objective-C files and vice versa, so a mixed project renders as
+one connected graph. See [ROADMAP.md](./docs/development/ROADMAP.md) for details. Kotlin's
+tree-sitter grammar isn't accurate enough yet (~61% structural fidelity in its own upstream
+benchmark), so it stays on regex until a better one exists.
 
 ---
 
@@ -418,9 +422,19 @@ npm install -g .
 
 ## Roadmap
 
-36 specs shipped so far, each with real end-to-end verification against synced projects — see
+40 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.6.0** across all four packages (lockstep).
+**v2.7.0** across all four packages (lockstep).
+
+### ✅ iOS: Swift + Objective-C (shipped as v2.7.0)
+- Full Swift and Objective-C parsers via tree-sitter — classes, structs, enums, protocols,
+  extensions/categories, methods, real complexity, `duplicateHash`, same-file `calls` edges
+- Unified cross-language import resolution — a Swift `import Foo` resolves to `Foo`'s
+  Objective-C files and vice versa, so a mixed project renders as one connected graph instead of
+  two disconnected islands
+- Zero changes to core graph-generation code required — proves the tree-sitter parser plugin
+  architecture (v2.6.0) generalizes to a language family sharing nothing with the parsers that
+  existed before it
 
 ### ✅ Tree-sitter foundation + `calls` edges (shipped as v2.6.0)
 - Python, Java, and JavaScript migrated from line-regex to real tree-sitter ASTs; TypeScript stays
@@ -449,7 +463,7 @@ npm install -g .
 - **expand_cluster tool** — on-demand cluster expansion
 - TypeScript/Node.js monorepo, 5 language parsers, MCP integration, 3D graph viewer, benchmark suite
 
-### 🔜 Next: iOS (Swift/Objective-C), then adaptive context budgeting, then cross-platform mobile
+### 🔜 Next: adaptive context budgeting, then cross-platform mobile (KMP, Flutter, Go)
 ### 🔮 v3.0.0 — reframed as MCP-native, not a multi-AI adapter hub
 
 The original v3.0 vision was per-provider adapters (OpenAI, Gemini, Ollama). MCP already gives
@@ -497,12 +511,12 @@ A: ~5 MB per 1000 files. Completely depends on project size.
 A: Yes. It's safe to delete anytime. Just rescan with `nodum sync` to rebuild.
 
 **Q: What languages does it support?**
-A: TypeScript, Python, Java, JavaScript (all real AST-based parsing — TypeScript via the compiler
-API, the other three via tree-sitter), and Kotlin (still line-regex, pending its own tree-sitter
-migration). iOS (Swift/Objective-C) is next on the roadmap.
+A: TypeScript, Python, Java, JavaScript, Swift, and Objective-C (all real AST-based parsing —
+TypeScript via the compiler API, the rest via tree-sitter), and Kotlin (still line-regex, pending
+its own tree-sitter migration).
 
 **Q: Is this production-ready?**
-A: Yes — v2.6.0 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.7.0 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.
@@ -554,4 +568,4 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 **[Get Started Now →](./SETUP-GUIDE.md)**
 
-**Version 2.6.0** · MIT License · No cloud, no subscriptions, no BS.
+**Version 2.7.0** · MIT License · No cloud, no subscriptions, no BS.
