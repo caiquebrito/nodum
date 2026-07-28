@@ -1,0 +1,25 @@
+name: Benchmark Accuracy
+
+# Calls the real Anthropic API (harness.ts / v2-comparison.ts) — never runs
+# on pull_request. Manual dispatch for on-demand runs, plus a nightly
+# schedule so drift is caught without needing a human to remember to run it.
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 6 * * *' # 06:00 UTC daily
+
+jobs:
+  accuracy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Run accuracy benchmark against the sample fixture project
+        run: cd benchmarks && npm run run:sample
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

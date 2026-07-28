@@ -123,7 +123,7 @@ const client = new Anthropic({
 
 // Claude can now call nodum tools
 const response = await client.messages.create({
-  model: "claude-opus-4-7",
+  model: "claude-opus-5",
   max_tokens: 2048,
   tools: [], // Tools loaded from MCP server
   messages: [{
