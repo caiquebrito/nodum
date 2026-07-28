@@ -1,7 +1,7 @@
 import type { ParseResult, FileInfo, Node, Edge, NodeType } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
 import { hashTokens } from './duplicate-hash.js';
-import { resolveSwiftImport } from './import-resolver.js';
+import { resolveSwiftObjcImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
 import type { TSNode } from './treesitter/engine.js';
@@ -71,8 +71,12 @@ export class SwiftParser extends TreeSitterParser {
   ignoredDirs = ['DerivedData', 'Pods', 'Carthage'];
   protected grammarFile = 'tree-sitter-swift.wasm';
 
+  // Shared with ObjCParser — see import-resolver.ts. This is what gives
+  // Swift↔Objective-C interop (spec 039) for free: a Swift `import Foo`
+  // resolves to `Foo`'s `.m`/`.h` files, and vice versa, with neither
+  // parser knowing the other exists.
   resolveImport(specifier: string, importingFilePath: string, knownFileIds: Set<string>, knownFilesByPath: Map<string, string>): string[] {
-    return resolveSwiftImport(specifier, importingFilePath, knownFileIds, knownFilesByPath);
+    return resolveSwiftObjcImport(specifier, importingFilePath, knownFileIds, knownFilesByPath);
   }
 
   async parse(file: FileInfo): Promise<ParseResult> {

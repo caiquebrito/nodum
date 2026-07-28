@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveRelativeImport, resolveJvmImport, resolvePythonImport } from "./import-resolver.js";
+import { resolveRelativeImport, resolveJvmImport, resolvePythonImport, resolveSwiftObjcImport } from "./import-resolver.js";
 import { normalizeNodeId } from "../types.js";
 
 function fileId(path: string): string {
@@ -132,5 +132,51 @@ describe("resolvePythonImport", () => {
 
   it("returns an empty array when a relative import has no matching file", () => {
     expect(resolvePythonImport(".missing", "main.py", knownFileIds, knownFilesByPath)).toEqual([]);
+  });
+});
+
+describe("resolveSwiftObjcImport", () => {
+  const knownFileIds = new Set<string>();
+  const knownFilesByPath = new Map([
+    ["Sources/Legacy/LegacyManager.h", fileId("Sources/Legacy/LegacyManager.h")],
+    ["Sources/Legacy/LegacyManager.m", fileId("Sources/Legacy/LegacyManager.m")],
+    ["Sources/App/ViewController.swift", fileId("Sources/App/ViewController.swift")],
+    ["Sources/App/Helper.swift", fileId("Sources/App/Helper.swift")],
+  ]);
+
+  it("resolves a Swift module import to every .h/.m file under that directory — cross-language, not filtered by extension", () => {
+    const result = resolveSwiftObjcImport("Legacy", "Sources/App/ViewController.swift", knownFileIds, knownFilesByPath).sort();
+    expect(result).toEqual(
+      [fileId("Sources/Legacy/LegacyManager.h"), fileId("Sources/Legacy/LegacyManager.m")].sort(),
+    );
+  });
+
+  it("resolves a Swift dotted submodule import (only the first segment is the module)", () => {
+    const result = resolveSwiftObjcImport("Legacy.SomeType", "Sources/App/ViewController.swift", knownFileIds, knownFilesByPath).sort();
+    expect(result).toEqual(
+      [fileId("Sources/Legacy/LegacyManager.h"), fileId("Sources/Legacy/LegacyManager.m")].sort(),
+    );
+  });
+
+  it("resolves a quoted ObjC #import to its exact-extension file", () => {
+    expect(
+      resolveSwiftObjcImport("LegacyManager.h", "Sources/Legacy/LegacyManager.m", knownFileIds, knownFilesByPath),
+    ).toEqual([fileId("Sources/Legacy/LegacyManager.h")]);
+  });
+
+  it("falls back to a same-basename .swift file when a quoted #import has no matching .h/.m — the bridging-header case", () => {
+    expect(
+      resolveSwiftObjcImport("Helper.h", "Sources/Legacy/LegacyManager.m", knownFileIds, knownFilesByPath),
+    ).toEqual([fileId("Sources/App/Helper.swift")]);
+  });
+
+  it("returns an empty array for a system/SDK module (Foundation, UIKit)", () => {
+    expect(resolveSwiftObjcImport("Foundation", "Sources/App/ViewController.swift", knownFileIds, knownFilesByPath)).toEqual([]);
+  });
+
+  it("returns an empty array for a quoted include matching neither a same-extension nor a .swift file", () => {
+    expect(
+      resolveSwiftObjcImport("Missing.h", "Sources/Legacy/LegacyManager.m", knownFileIds, knownFilesByPath),
+    ).toEqual([]);
   });
 });

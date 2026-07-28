@@ -1,7 +1,7 @@
 import type { ParseResult, FileInfo, Node, Edge, NodeType } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
 import { hashTokens } from './duplicate-hash.js';
-import { resolveObjcImport } from './import-resolver.js';
+import { resolveSwiftObjcImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
 import type { TSNode } from './treesitter/engine.js';
@@ -52,8 +52,9 @@ export class ObjCParser extends TreeSitterParser {
   ignoredDirs = ['DerivedData', 'Pods', 'Carthage'];
   protected grammarFile = 'tree-sitter-objc.wasm';
 
+  // Shared with SwiftParser — see import-resolver.ts.
   resolveImport(specifier: string, importingFilePath: string, knownFileIds: Set<string>, knownFilesByPath: Map<string, string>): string[] {
-    return resolveObjcImport(specifier, importingFilePath, knownFileIds, knownFilesByPath);
+    return resolveSwiftObjcImport(specifier, importingFilePath, knownFileIds, knownFilesByPath);
   }
 
   async parse(file: FileInfo): Promise<ParseResult> {
