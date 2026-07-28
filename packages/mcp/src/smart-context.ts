@@ -63,7 +63,7 @@ interface Graph {
  * - "What's the auth flow?" → ["auth", "flow", "login"]
  * - "Find API endpoints" → ["api", "endpoint", "route"]
  */
-function extractKeywords(query: string): string[] {
+export function extractKeywords(query: string): string[] {
   const stopWords = new Set([
     "what", "is", "the", "a", "an", "and", "or", "in", "of", "to", "for",
     "from", "by", "with", "as", "can", "does", "do", "did", "how", "why",
@@ -81,7 +81,7 @@ function extractKeywords(query: string): string[] {
  * Score how relevant a node is to the query
  * Higher score = more relevant
  */
-function scoreNode(
+export function scoreNode(
   node: Graph["nodes"][0],
   keywords: string[]
 ): number {
@@ -113,7 +113,7 @@ function scoreNode(
  * Find nodes relevant to query
  * Returns sorted list with highest-scored nodes first
  */
-function findRelevantNodes(
+export function findRelevantNodes(
   keywords: string[],
   nodes: Graph["nodes"],
   limit: number = 20

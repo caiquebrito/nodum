@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { buildSmartContext, estimateTokenSavings } from "./smart-context.js";
+import {
+  buildSmartContext,
+  buildNodeContext,
+  estimateTokenSavings,
+  extractKeywords,
+  scoreNode,
+  findRelevantNodes,
+} from "./smart-context.js";
 
 const graph = {
   project: "proj",
@@ -26,6 +33,145 @@ const graph = {
     { source: "auth.ts", target: "auth.ts__logout", relation: "defines" },
   ],
 };
+
+describe("extractKeywords", () => {
+  it("filters stopwords, keeping meaningful terms (punctuation is not stripped)", () => {
+    expect(extractKeywords("What is the auth flow?")).toEqual(["auth", "flow?"]);
+  });
+
+  it("splits on whitespace, hyphens, underscores, dots, and slashes", () => {
+    expect(extractKeywords("auth-flow_v2.routes/login")).toEqual(["auth", "flow", "routes", "login"]);
+  });
+
+  it("drops short words and known stopwords, keeping the rest", () => {
+    expect(extractKeywords("What is the authentication flow for the API")).toEqual([
+      "authentication",
+      "flow",
+      "api",
+    ]);
+  });
+});
+
+describe("scoreNode", () => {
+  const node = { id: "auth.ts__login", label: "login", type: "function", file: "src/auth.ts" };
+
+  it("scores an exact label match higher than a substring match", () => {
+    const exact = scoreNode(node, ["login"]);
+    const substring = scoreNode({ ...node, label: "login-handler" }, ["login"]);
+    expect(exact).toBeGreaterThan(substring);
+  });
+
+  it("adds points independently for file-path and type matches", () => {
+    const baseline = scoreNode(node, ["login"]);
+    const withFileMatch = scoreNode(node, ["login", "auth"]);
+    const withTypeMatch = scoreNode(node, ["login", "function"]);
+    expect(withFileMatch).toBeGreaterThan(baseline);
+    expect(withTypeMatch).toBeGreaterThan(baseline);
+  });
+
+  it("scores 0 for a node matching none of the keywords", () => {
+    expect(scoreNode(node, ["database", "migration"])).toBe(0);
+  });
+});
+
+describe("findRelevantNodes", () => {
+  const nodes = [
+    { id: "a", label: "login", type: "function", file: "auth.ts" },
+    { id: "b", label: "logout", type: "function", file: "auth.ts" },
+    { id: "c", label: "database", type: "function", file: "db.ts" },
+  ];
+
+  it("excludes zero-score nodes and sorts the rest by score descending", () => {
+    const relevant = findRelevantNodes(["login", "logout"], nodes, 10);
+    expect(relevant.map((n) => n.id)).not.toContain("c");
+    expect(relevant.length).toBe(2);
+  });
+
+  it("respects the limit parameter", () => {
+    const manyNodes = Array.from({ length: 30 }, (_, i) => ({
+      id: `n${i}`,
+      label: "login",
+      type: "function",
+      file: "auth.ts",
+    }));
+    expect(findRelevantNodes(["login"], manyNodes, 5)).toHaveLength(5);
+  });
+});
+
+describe("buildNodeContext", () => {
+  const graph = {
+    project: "proj",
+    stats: { files: 1, functions: 1, classes: 0, interfaces: 0, edges: 0 },
+    nodes: [
+      { id: "auth.ts", label: "auth.ts", type: "file", file: "auth.ts", group: "service" },
+      { id: "auth.ts__login", label: "login", type: "function", file: "auth.ts", group: "service" },
+    ],
+    edges: [{ source: "auth.ts", target: "auth.ts__login", relation: "defines" }],
+  };
+
+  it("returns a not-found message for an unknown node id", () => {
+    expect(buildNodeContext("does-not-exist", graph as any)).toBe("Node not found: does-not-exist");
+  });
+
+  it("lists dependencies and dependents for a known node", () => {
+    const text = buildNodeContext("auth.ts", graph as any);
+    expect(text).toContain("login");
+    expect(text).toContain("Dependencies (1)");
+  });
+
+  it("truncates past 10 items per direction with an '... and N more' suffix", () => {
+    const manyDeps = {
+      project: "proj",
+      stats: { files: 1, functions: 15, classes: 0, interfaces: 0, edges: 15 },
+      nodes: [
+        { id: "hub", label: "hub", type: "file", file: "hub.ts", group: "util" },
+        ...Array.from({ length: 15 }, (_, i) => ({
+          id: `dep${i}`,
+          label: `dep${i}`,
+          type: "function",
+          file: "hub.ts",
+          group: "util",
+        })),
+      ],
+      edges: Array.from({ length: 15 }, (_, i) => ({ source: "hub", target: `dep${i}`, relation: "defines" })),
+    };
+
+    const text = buildNodeContext("hub", manyDeps as any);
+    expect(text).toContain("... and 5 more");
+  });
+});
+
+describe("formatContextText (via buildSmartContext)", () => {
+  it("shows a cluster summary once instead of listing each member node individually", async () => {
+    const clusteredGraph = {
+      project: "proj",
+      stats: { files: 2, functions: 2, classes: 0, interfaces: 0, edges: 0 },
+      nodes: [
+        { id: "auth.ts__login", label: "login", type: "function", file: "auth.ts", group: "service" },
+        { id: "auth.ts__logout", label: "logout", type: "function", file: "auth.ts", group: "service" },
+      ],
+      edges: [],
+      clusters: [
+        {
+          id: "cluster-1",
+          label: "Auth cluster",
+          summary: "login and logout handlers",
+          types: ["function"],
+          externalDeps: [],
+          nodeIds: ["auth.ts__login", "auth.ts__logout"],
+        },
+      ],
+      nodeToCluster: { "auth.ts__login": "cluster-1", "auth.ts__logout": "cluster-1" },
+    };
+
+    const { text } = await buildSmartContext("login", clusteredGraph as any, 25);
+    expect(text).toContain("Auth cluster");
+    expect(text).toContain("login and logout handlers");
+    // The cluster summary appears once; individual member lines (with the
+    // ⚙️ per-node marker) should not appear since they're folded into it.
+    expect(text).not.toContain("⚙️ login");
+  });
+});
 
 describe("estimateTokenSavings", () => {
   it("returns saved: 0, percentage: 0 for a zero-token baseline rather than NaN", () => {
