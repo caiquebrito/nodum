@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { homedir } from 'os';
 import type { ProjectIndexEntry } from '@caiquebrito/nodum-core';
 import { syncProject } from '../commands/sync.js';
+import { getOwnVersion, printUpdateNoticeIfAny } from '../utils/update-notice.js';
 
 const program = new Command();
 
@@ -16,7 +17,7 @@ function getNodeumDataDir(): string {
 program
   .name('nodum')
   .description('Local knowledge graph for your code — scan projects, build interactive 3D graphs')
-  .version('1.0.0');
+  .version(getOwnVersion());
 
 program
   .command('init [projectPath]')
@@ -26,6 +27,7 @@ program
       const nodumDataDir = getNodeumDataDir();
       const { initProject } = await import('../commands/init.js');
       await initProject(projectPath || process.cwd(), nodumDataDir);
+      await printUpdateNoticeIfAny(nodumDataDir);
     } catch (error) {
       console.error('❌ Error:', error instanceof Error ? error.message : String(error));
       process.exit(1);
@@ -41,6 +43,7 @@ program
       const nodumDataDir = getNodeumDataDir();
       const pathToSync = projectPath || process.cwd();
       await syncProject(pathToSync, nodumDataDir, { incremental: options.incremental });
+      await printUpdateNoticeIfAny(nodumDataDir);
     } catch (error) {
       console.error('❌ Error:', error instanceof Error ? error.message : String(error));
       process.exit(1);

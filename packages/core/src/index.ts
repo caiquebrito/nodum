@@ -91,3 +91,6 @@ export {
   appendActivityLog,
   buildAndWriteSummary,
 } from './memory/index.js';
+
+export { checkLatestVersion, formatUpdateNotice } from './version-check.js';
+export type { VersionCheckResult } from './version-check.js';
