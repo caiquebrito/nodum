@@ -140,16 +140,21 @@ Files ──imports──> Files
 Stored at `~/.nodum/projectname/graph/graph.json`
 
 ### 🤖 Claude Integration via MCP
-9 tools Claude can use:
+14 tools Claude can use:
 - `sync_project` — Scan a project
 - `get_graph` — Fetch the knowledge graph
 - `search_graph` — Find functions/classes/files with semantic search (v2.0)
 - `get_node` — Details about a code element
 - `get_dependencies` — What does X depend on?
-- `get_dependents` — What depends on X?
+- `get_dependents` — What depends on X (one hop)?
 - `analyze_file` — Deep dive into a file
 - `expand_cluster` — Explore grouped code regions (v2.0)
 - `project_status` — List all synced projects
+- `trace_impact` — Show the full transitive cascade of changes if you modify X (v2.1)
+- `find_bottlenecks` — Rank files by complexity × how many files depend on them (v2.1)
+- `explain_architecture` — Auto-generate a layer/dependency overview + rule violations (v2.1)
+- `find_similar_code` — Find structurally near-identical functions to a given node (v2.1)
+- `suggest_refactoring` — Unified suggestions: cycles, dead code, violations, complexity, duplication (v2.1)
 
 ### 🎨 3D Visualization
 View your code as an interactive 3D graph:
@@ -170,6 +175,31 @@ Opens `http://localhost:7842/` — orbit, zoom, click nodes, explore connections
 # Sync from current directory (or specify path)
 nodum sync                    # Uses current directory
 nodum sync /path/to/project   # Or explicit path
+nodum sync --incremental      # Only re-parse changed files (v2.1)
+nodum watch                   # Auto-sync on file changes (v2.1)
+nodum init                    # Interactive setup: sync + Claude Code integration
+
+# Configuration
+nodum config                                     # Show scan config
+nodum config --set-include "src/**"              # Include patterns
+nodum config --set-exclude "**/*.gen.ts"         # Exclude patterns
+nodum config --set-architecture-rules "ui:repo"  # Declare layer rules (v2.1)
+
+# Graph analysis (v2.1)
+nodum cycles                       # Detect circular imports
+nodum dead-code                    # Find files nothing imports
+nodum architecture                 # Check for architecture-rule violations
+nodum complexity                   # Rank functions by cyclomatic complexity
+nodum duplicates                   # Find structurally duplicated code
+nodum trace-impact <path> <id>     # Cascade of changes if you modify a node
+nodum bottlenecks                  # Complexity x dependents composite ranking
+nodum explain-architecture         # Layer/dependency overview + violations
+nodum similar-code <path> <id>     # Structurally near-identical code to a node
+nodum suggest-refactoring          # Unified suggestions from all of the above
+
+# Export & diff
+nodum export --format graphml   # JSON, GraphML, or CSV
+nodum diff <a> <b>              # Compare two graph snapshots
 
 # View 3D graph
 nodum serve
@@ -293,7 +323,7 @@ Saves to `~/.nodum/projectname/`:
 - `activity.md` — sync history
 
 ### 4. Claude Access via MCP
-- Nodum MCP server exposes 8 tools
+- Nodum MCP server exposes 14 tools (v2.1)
 - Claude Code calls these tools on demand
 - Graph stays local, nothing uploaded
 
@@ -388,7 +418,20 @@ npm install -g .
 
 ## Roadmap
 
-### ✅ v2.0.0 (Current)
+### ✅ v2.1.0 (Current)
+- **Incremental sync** — file-hash-based change detection, `nodum sync --incremental`
+- **`nodum watch`** — auto-sync on file changes
+- **Enhanced CLI** — `init`, `config`, `export` (JSON/GraphML/CSV), `diff`
+- **Real cross-file import edges** — TS/JS/Kotlin/Java import resolution (previously zero cross-file edges existed)
+- **Dependency cycle detection** — `nodum cycles`
+- **Dead code detection** — `nodum dead-code` (unreachable-file candidates)
+- **Architecture violation detection** — declared layer rules, `nodum architecture`
+- **Complexity scoring** — cyclomatic complexity, `nodum complexity`
+- **Code duplication detection** — structural (renaming-robust) matching, `nodum duplicates`
+- **5 new MCP tools** — `trace_impact`, `find_bottlenecks`, `explain_architecture`, `find_similar_code`, `suggest_refactoring`
+- 20 specs shipped, each with real end-to-end verification against synced projects — see [`docs/development/completed/`](./docs/development/completed/)
+
+### ✅ v2.0.0
 - **Multi-Turn Caching** — 83% token savings on repeated queries
 - **Semantic Search** — meaning-aware node discovery with embeddings
 - **Hierarchical Clustering** — 68% token reduction via smart grouping
@@ -399,14 +442,6 @@ npm install -g .
 - 3D graph viewer
 - Benchmark suite
 - CLI with optional path (defaults to cwd)
-
-### 📋 v2.1.0 (Planned)
-- **Incremental sync** — 10-100x faster for large projects
-- **Graph diffing** — see what changed
-- **Architecture violations** — detect bad patterns
-- **Dead code detection** — find unused code
-- `nodum watch` — auto-sync on file changes
-- Enhanced CLI (config, export, etc.)
 
 ### 🔮 v3.0.0 (Vision)
 - Multi-language expansion (Go, Rust, C++, C#)
@@ -459,7 +494,7 @@ A: Yes. It's safe to delete anytime. Just rescan with `nodum sync` to rebuild.
 A: TypeScript, JavaScript, Python, Kotlin, Java. More coming in v2.
 
 **Q: Is this production-ready?**
-A: Yes! v1.1.1 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes! v2.1.0 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet. v2 will support self-hosting. Currently: local only.
@@ -511,4 +546,4 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 **[Get Started Now →](./SETUP-GUIDE.md)**
 
-**Version 1.1.1** · MIT License · No cloud, no subscriptions, no BS.
+**Version 2.1.0** · MIT License · No cloud, no subscriptions, no BS.
