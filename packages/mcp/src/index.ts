@@ -19,6 +19,7 @@ import {
   handleTraceImpact,
   handleFindBottlenecks,
   handleExplainArchitecture,
+  handleFindSimilarCode,
 } from "./handlers.js";
 
 const server = new Server(
@@ -247,6 +248,25 @@ const tools: Tool[] = [
       required: ["project_name"],
     },
   },
+  {
+    name: "find_similar_code",
+    description:
+      "Find other functions/methods structurally near-identical to a given node (same control-flow shape, robust to renaming).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_name: {
+          type: "string",
+          description: "Project name",
+        },
+        node_id: {
+          type: "string",
+          description: "Node ID to find similar code for",
+        },
+      },
+      required: ["project_name", "node_id"],
+    },
+  },
 ];
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -324,6 +344,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "explain_architecture":
         result = await handleExplainArchitecture(
           (args as any).project_name as string
+        );
+        break;
+      case "find_similar_code":
+        result = await handleFindSimilarCode(
+          (args as any).project_name as string,
+          (args as any).node_id as string
         );
         break;
       default:

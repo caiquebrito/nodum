@@ -76,6 +76,9 @@ export type { Bottleneck, FindBottlenecksOptions } from './analyzer/bottlenecks.
 export { explainArchitecture } from './analyzer/architecture-summary.js';
 export type { ArchitectureSummary, LayerSummary, LayerDependency } from './analyzer/architecture-summary.js';
 
+export { findSimilarCode } from './analyzer/similar-code.js';
+export type { SimilarCodeResult, SimilarCodeMatch } from './analyzer/similar-code.js';
+
 export {
   injectCLAUDEContext,
   appendActivityLog,
