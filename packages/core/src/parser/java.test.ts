@@ -160,3 +160,35 @@ describe("JavaParser duplicateHash", () => {
     expect(nodes.find(n => n.label === "foo")?.duplicateHash).toBeUndefined();
   });
 });
+
+describe("JavaParser calls edges", () => {
+  it("emits a calls edge for a bare same-file method call", async () => {
+    const src = "public class A {\n  public int a() {\n    return b();\n  }\n  public int b() {\n    return 1;\n  }\n}\n";
+    const { nodes, edges } = await parser.parse(fileInfo("A.java", src));
+    const a = nodes.find(n => n.label === "a")!;
+    const b = nodes.find(n => n.label === "b")!;
+    expect(edges).toContainEqual({ source: a.id, target: b.id, relation: "calls" });
+  });
+
+  it("does not emit a calls edge for a qualified this.x() call", async () => {
+    const src = "public class A {\n  public int bar() {\n    return this.baz();\n  }\n  public int baz() {\n    return 1;\n  }\n}\n";
+    const { nodes, edges } = await parser.parse(fileInfo("A.java", src));
+    const bar = nodes.find(n => n.label === "bar")!;
+    const baz = nodes.find(n => n.label === "baz")!;
+    expect(edges).not.toContainEqual({ source: bar.id, target: baz.id, relation: "calls" });
+  });
+
+  it("does not emit a calls edge to an unresolvable name", async () => {
+    const src = "public class A {\n  public void a() {\n    unknownFn();\n  }\n}\n";
+    const { nodes, edges } = await parser.parse(fileInfo("A.java", src));
+    const a = nodes.find(n => n.label === "a")!;
+    expect(edges.filter(e => e.relation === "calls" && e.source === a.id)).toHaveLength(0);
+  });
+
+  it("emits a self-recursive calls edge", async () => {
+    const src = "public class A {\n  public int fact(int n) {\n    return n <= 1 ? 1 : n * fact(n - 1);\n  }\n}\n";
+    const { nodes, edges } = await parser.parse(fileInfo("A.java", src));
+    const fact = nodes.find(n => n.label === "fact")!;
+    expect(edges).toContainEqual({ source: fact.id, target: fact.id, relation: "calls" });
+  });
+});

@@ -142,3 +142,54 @@ describe("TypeScriptParser duplicateHash", () => {
     expect(a?.duplicateHash).toBe(b?.duplicateHash);
   });
 });
+
+describe("TypeScriptParser calls edges", () => {
+  it("emits a calls edge for a bare-identifier call to a same-file function", async () => {
+    const src = `function a() { return b(); }\nfunction b() { return 1; }\n`;
+    const { nodes, edges } = await parser.parse(fileInfo("a.ts", src));
+    const a = nodes.find(n => n.label === "a")!;
+    const b = nodes.find(n => n.label === "b")!;
+    expect(edges).toContainEqual({ source: a.id, target: b.id, relation: "calls" });
+  });
+
+  it("does not emit a calls edge for a qualified this.x() call", async () => {
+    const src = `
+      class Foo {
+        bar() { return this.baz(); }
+        baz() { return 1; }
+      }
+    `;
+    const { nodes, edges } = await parser.parse(fileInfo("a.ts", src));
+    const bar = nodes.find(n => n.label === "bar")!;
+    const baz = nodes.find(n => n.label === "baz")!;
+    expect(edges).not.toContainEqual({ source: bar.id, target: baz.id, relation: "calls" });
+  });
+
+  it("does not emit a calls edge to an unresolvable name", async () => {
+    const { nodes, edges } = await parser.parse(fileInfo("a.ts", `function a() { return unknownFn(); }\n`));
+    const a = nodes.find(n => n.label === "a")!;
+    expect(edges.filter(e => e.relation === "calls" && e.source === a.id)).toHaveLength(0);
+  });
+
+  it("emits a self-recursive calls edge", async () => {
+    const { nodes, edges } = await parser.parse(fileInfo("a.ts", `function fact(n) { return n <= 1 ? 1 : n * fact(n - 1); }\n`));
+    const fact = nodes.find(n => n.label === "fact")!;
+    expect(edges).toContainEqual({ source: fact.id, target: fact.id, relation: "calls" });
+  });
+
+  it("does not attribute a nested function's call to the enclosing function", async () => {
+    const src = `
+      function outer() {
+        function inner() { return target(); }
+        return inner;
+      }
+      function target() { return 1; }
+    `;
+    const { nodes, edges } = await parser.parse(fileInfo("a.ts", src));
+    const outer = nodes.find(n => n.label === "outer")!;
+    const inner = nodes.find(n => n.label === "inner")!;
+    const target = nodes.find(n => n.label === "target")!;
+    expect(edges).toContainEqual({ source: inner.id, target: target.id, relation: "calls" });
+    expect(edges).not.toContainEqual({ source: outer.id, target: target.id, relation: "calls" });
+  });
+});
