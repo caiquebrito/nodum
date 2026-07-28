@@ -1,5 +1,7 @@
 # Releasing Nodum
 
+> For the day-to-day branch → spec → PR workflow, see [`CONTRIBUTING.md`](../../CONTRIBUTING.md). This document covers release mechanics only: changesets, cutting a release, and what gets published.
+
 Releases are automated via [Changesets](https://github.com/changesets/changesets) and GitHub Actions. There is no manual `npm publish` step — publishing happens by merging PRs.
 
 ## Branching model
