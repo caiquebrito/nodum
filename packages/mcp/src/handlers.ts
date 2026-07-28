@@ -9,6 +9,7 @@ import {
   findBottlenecks,
   explainArchitecture,
   loadArchitectureConfig,
+  findSimilarCode,
   type ProjectIndexEntry,
   type Graph as CoreGraph,
 } from "@caiquebrito/nodum-core";
@@ -528,5 +529,33 @@ export async function handleExplainArchitecture(projectName: string) {
     };
   } catch (error) {
     return { error: `Failed to explain architecture: ${String(error)}` };
+  }
+}
+
+export async function handleFindSimilarCode(projectName: string, nodeId: string) {
+  try {
+    const graph = await loadGraph(projectName);
+    const node = graph.nodes.find((n) => n.id === nodeId);
+
+    // Same cast rationale as handleTraceImpact/handleFindBottlenecks.
+    const result = findSimilarCode(graph as unknown as CoreGraph, nodeId);
+
+    if (result.matches.length === 0) {
+      return {
+        content: [text(`✅ No similar code found for ${node?.label ?? nodeId}`)],
+      };
+    }
+
+    const lines: string[] = [
+      `🧬 Code similar to ${node?.label ?? nodeId}: ${result.matches.length} match${result.matches.length === 1 ? "" : "es"}`,
+      "",
+    ];
+    result.matches.forEach((m) => lines.push(`  • ${m.label} (${m.file})`));
+
+    return {
+      content: [text(lines.join("\n"))],
+    };
+  } catch (error) {
+    return { error: `Failed to find similar code: ${String(error)}` };
   }
 }

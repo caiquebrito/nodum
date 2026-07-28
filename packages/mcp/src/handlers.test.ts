@@ -140,3 +140,38 @@ describe("handleExplainArchitecture", () => {
     expect(text).toContain("src/ui/List.tsx");
   });
 });
+
+describe("handleFindSimilarCode", () => {
+  const graphWithDuplicates = {
+    project: "proj",
+    stats: { files: 2, functions: 2, classes: 0, interfaces: 0, edges: 0 },
+    nodes: [
+      { id: "a", label: "validateUserInput", type: "function", file: "a.ts", group: "other", duplicateHash: "h1" },
+      { id: "b", label: "validateOrderInput", type: "function", file: "b.ts", group: "other", duplicateHash: "h1" },
+    ],
+    edges: [],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    readFileMock.mockResolvedValue(JSON.stringify(graphWithDuplicates));
+  });
+
+  it("returns a formatted match list", async () => {
+    const { handleFindSimilarCode } = await import("./handlers.js");
+    const result = await handleFindSimilarCode("proj", "a");
+
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).toContain("validateUserInput");
+    expect(text).toContain("validateOrderInput");
+    expect(text).toContain("1 match");
+  });
+
+  it("returns a clear 'no similar code' message when there's no match", async () => {
+    const { handleFindSimilarCode } = await import("./handlers.js");
+    const result = await handleFindSimilarCode("proj", "nonexistent");
+
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).toContain("No similar code found");
+  });
+});
