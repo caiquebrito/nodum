@@ -101,6 +101,75 @@ export function resolveJvmImport(specifier: string, knownFilesByPath: Map<string
  * `import_from_statement`'s module can name either a plain module file or a
  * package directory.
  */
+// A quoted ObjC include always ends in a real file extension (`.h`/`.m`/
+// `.mm`) — that's what distinguishes it from a Swift dotted-submodule
+// specifier like `UIKit.UIView`, which also contains a `.` but never ends
+// in one of these.
+const QUOTED_FILE_EXTENSION = /\.(h|m|mm)$/i;
+
+/**
+ * Shared Swift + Objective-C import resolution (spec 039, unifying specs
+ * 037/038's formerly-separate `resolveSwiftImport`/`resolveObjcImport` —
+ * same precedent as `resolveJvmImport` being shared by Java/Kotlin). Two
+ * specifier shapes:
+ *
+ *  - **Quoted file** (`#import "Foo.h"` / `#include "Foo.h"`, detected via
+ *    `QUOTED_FILE_EXTENSION`): bare-filename suffix match against
+ *    `knownFilesByPath`, mirroring `resolveRelativeImport`'s shape (not
+ *    reused directly — that function is TS/JS-extension-specific and
+ *    requires a leading `.`, which a bare ObjC filename never has). If no
+ *    exact-extension match is found, also probes the same base name as a
+ *    `.swift` file — the cross-language payoff: an `#import "Foo.h"` still
+ *    resolves if `Foo` is a Swift class (a generated/bridging header
+ *    shares its base name with the `.swift` file it exposes).
+ *  - **Bare module name** (Swift `import Foo` / `import Foo.Bar` — only the
+ *    first dotted segment is the module; ObjC `@import Foo;`): directory-
+ *    suffix match against every known file, **regardless of extension** —
+ *    this is what makes cross-language interop free: a module resolves to
+ *    its `.swift`/`.m`/`.h` files together, with neither parser needing to
+ *    know the other's file extensions exist. Matches both SPM
+ *    (`Sources/Foo/**`) and CocoaPods (`Pods/Foo/**`) layouts without
+ *    parsing `Package.swift`/`.xcodeproj`/`Podfile` (same build-system-
+ *    knowledge reduction `resolveJvmImport` makes for `pom.xml`/
+ *    `build.gradle`). A module matching many files resolves to all of them
+ *    (the same wildcard-style behavior `resolveJvmImport` gives
+ *    `com.foo.*`); a system/SDK module (`Foundation`, `UIKit`) simply
+ *    matches nothing — no allowlist needed.
+ */
+export function resolveSwiftObjcImport(
+  specifier: string,
+  _importingFilePath: string,
+  _knownFileIds: Set<string>,
+  knownFilesByPath: Map<string, string>,
+): string[] {
+  if (QUOTED_FILE_EXTENSION.test(specifier)) {
+    const lower = specifier.toLowerCase();
+    for (const [path, id] of knownFilesByPath) {
+      const pathLower = path.toLowerCase();
+      if (pathLower === lower || pathLower.endsWith(`/${lower}`)) return [id];
+    }
+
+    const base = specifier.replace(/\.[^./]+$/, '');
+    const swiftLower = `${base}.swift`.toLowerCase();
+    for (const [path, id] of knownFilesByPath) {
+      const pathLower = path.toLowerCase();
+      if (pathLower === swiftLower || pathLower.endsWith(`/${swiftLower}`)) return [id];
+    }
+    return [];
+  }
+
+  const moduleName = specifier.split('.')[0];
+  if (!moduleName) return [];
+
+  const dirSuffix = `/${moduleName}/`.toLowerCase();
+  const matches: string[] = [];
+  for (const [path, id] of knownFilesByPath) {
+    const dir = path.slice(0, path.lastIndexOf('/') + 1).toLowerCase();
+    if (dir.endsWith(dirSuffix) || dir === `${moduleName.toLowerCase()}/`) matches.push(id);
+  }
+  return matches;
+}
+
 export function resolvePythonImport(
   specifier: string,
   importingFilePath: string,

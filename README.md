@@ -121,18 +121,18 @@ and can give accurate, context-aware answers. ✨
 ## What Nodum Does
 
 ### 📊 Scans Your Code
-- **TypeScript/JavaScript** (.ts, .tsx, .js)
-- **Python** (.py)
-- **Kotlin** (.kt)
-- **Java** (.java)
-- **More coming** (Go, Rust, C#)
+- **TypeScript** (.ts, .tsx) — via the TypeScript compiler API (real resolved-type data)
+- **Python, Java, JavaScript** (.py, .java, .js/.jsx) — via [tree-sitter](https://tree-sitter.github.io/tree-sitter/) (real AST, not regex)
+- **Kotlin** (.kt) — line-regex for now, tree-sitter migration planned (see [ROADMAP.md](./docs/development/ROADMAP.md))
+- **More coming** (iOS: Swift/Objective-C next, then KMP/Flutter/Go)
 
-Extracts: files, functions, classes, interfaces, imports, dependencies
+Extracts: files, functions, classes, interfaces, methods, imports, and same-file `calls` edges
 
 ### 🧠 Builds a Knowledge Graph
 ```
 Files ──imports──> Files
-  ├─ Functions ──calls──> Functions
+  ├─ Functions ──calls──> Functions   (same-file, bare calls — e.g. foo())
+  ├─ Methods ──calls──> Methods       (same-file, bare calls only — not this.x())
   ├─ Classes ──extends──> Classes
   └─ Interfaces ──implements──> Interfaces
 ```
@@ -326,7 +326,7 @@ Saves to `~/.nodum/projectname/`:
 - `activity.md` — sync history
 
 ### 4. Claude Access via MCP
-- Nodum MCP server exposes 14 tools (v2.1)
+- Nodum MCP server exposes 14 tools
 - Claude Code calls these tools on demand
 - Graph stays local, nothing uploaded
 
@@ -334,26 +334,29 @@ Saves to `~/.nodum/projectname/`:
 
 ## Supported Languages
 
-| Language | File Types | What's Extracted |
-|---|---|---|
-| TypeScript | .ts, .tsx | imports, functions, classes, interfaces |
-| JavaScript | .js, .jsx | imports, functions, classes |
-| Python | .py | imports, functions, classes (via AST) |
-| Kotlin | .kt | imports, functions, classes, objects |
-| Java | .java | imports, methods, classes |
+| Language | File Types | Parser | What's Extracted |
+|---|---|---|---|
+| TypeScript | .ts, .tsx | TypeScript compiler API | imports, functions, classes, interfaces, methods, same-file `calls` |
+| Python | .py | tree-sitter | imports, functions, classes, methods, same-file `calls` |
+| Java | .java | tree-sitter | imports, methods, constructors, classes, interfaces, same-file `calls` |
+| JavaScript | .js, .jsx | tree-sitter | imports, functions, classes, methods, same-file `calls` |
+| Kotlin | .kt | line-regex | imports, functions, classes, objects (no `calls` edges yet) |
 
-More coming in v2!
+Python, Java, and JavaScript migrated from line-regex to tree-sitter in v2.6.0 — see
+[ROADMAP.md](./docs/development/ROADMAP.md) for what changed. Kotlin's tree-sitter grammar isn't
+accurate enough yet (~61% structural fidelity in its own upstream benchmark), so it stays on regex
+until a better one exists. iOS (Swift/Objective-C) is next.
 
 ---
 
 ## Benchmarks
 
-`benchmarks/` measures RAG effectiveness against a small fixture project. Its original v2.0
-figures (~83%/68%/20%/90%) were the initial design targets rather than numbers with confidence
-intervals behind them, and the suite isn't yet wired into CI — both being hardened in an
-upcoming release. Until then, the trustworthy, up-to-date signal is the real per-response
-percentage every `search_graph` call now reports (see Token Efficiency above) and the
-per-session log at `~/.nodum/<project>/logs/metrics.jsonl`.
+`benchmarks/` measures RAG effectiveness against a small fixture project, gated in CI
+(`.github/workflows/benchmark-accuracy.yml`) — a token-efficiency or accuracy regression fails
+the build. Its original v2.0 figures (~83%/68%/20%/90%) were the initial design targets rather
+than numbers with confidence intervals behind them; the trustworthy, up-to-date signal is the
+real per-response percentage every `search_graph` call now reports (see Token Efficiency above)
+and the per-session log at `~/.nodum/<project>/logs/metrics.jsonl`.
 
 See [benchmarks/README.md](./benchmarks/README.md) for the suite's methodology.
 
@@ -415,40 +418,46 @@ npm install -g .
 
 ## Roadmap
 
-### ✅ v2.1.0 (Current)
+36 specs shipped so far, each with real end-to-end verification against synced projects — see
+[`docs/development/completed/`](./docs/development/completed/). Current published version is
+**v2.6.0** across all four packages (lockstep).
+
+### ✅ Tree-sitter foundation + `calls` edges (shipped as v2.6.0)
+- Python, Java, and JavaScript migrated from line-regex to real tree-sitter ASTs; TypeScript stays
+  on the compiler API for its resolved-type data
+- New same-file `calls` edges (bare-identifier calls, e.g. `foo()` — not `this.foo()`)
+- Python gets real cross-file imports for the first time; JavaScript gets `line` numbers and real
+  class-member extraction for the first time; Java gets constructor extraction
+
+### ✅ Truth & measurement (shipped as v2.5.0)
+- Real token accounting on every `search_graph` response — no more hardcoded percentage strings
+- Fixed an unbounded-context bug where a hub file's dependents could blow context open
+- Benchmark suite moved into CI and gated on every PR
+
+### ✅ v2.1.0 — Speed & scale
 - **Incremental sync** — file-hash-based change detection, `nodum sync --incremental`
 - **`nodum watch`** — auto-sync on file changes
 - **Enhanced CLI** — `init`, `config`, `export` (JSON/GraphML/CSV), `diff`
-- **Real cross-file import edges** — TS/JS/Kotlin/Java import resolution (previously zero cross-file edges existed)
-- **Dependency cycle detection** — `nodum cycles`
-- **Dead code detection** — `nodum dead-code` (unreachable-file candidates)
-- **Architecture violation detection** — declared layer rules, `nodum architecture`
-- **Complexity scoring** — cyclomatic complexity, `nodum complexity`
-- **Code duplication detection** — structural (renaming-robust) matching, `nodum duplicates`
-- **5 new MCP tools** — `trace_impact`, `find_bottlenecks`, `explain_architecture`, `find_similar_code`, `suggest_refactoring`
-- 20 specs shipped, each with real end-to-end verification against synced projects — see [`docs/development/completed/`](./docs/development/completed/)
+- **Real cross-file import edges** — TS/JS/Kotlin/Java import resolution
+- **5 analyzers** — `cycles`, `dead-code`, `architecture`, `complexity`, `duplicates`
+- **5 MCP tools** — `trace_impact`, `find_bottlenecks`, `explain_architecture`, `find_similar_code`, `suggest_refactoring`
 
 ### ✅ v2.0.0
 - **Multi-Turn Caching** — reuses context across related queries in a conversation
 - **Semantic Search** — meaning-aware node discovery with embeddings
 - **Hierarchical Clustering** — cluster summaries instead of a full node dump
 - **expand_cluster tool** — on-demand cluster expansion
-- TypeScript/Node.js monorepo
-- 5 language parsers
-- MCP integration for Claude
-- 3D graph viewer
-- Benchmark suite
-- CLI with optional path (defaults to cwd)
+- TypeScript/Node.js monorepo, 5 language parsers, MCP integration, 3D graph viewer, benchmark suite
 
-### 🔮 v3.0.0 (Vision)
-- Multi-language expansion (Go, Rust, C++, C#)
-- Type flow analysis
-- Data flow graphs
-- IDE extensions (VS Code, JetBrains)
-- Self-hosted server
-- Team collaboration features
+### 🔜 Next: iOS (Swift/Objective-C), then adaptive context budgeting, then cross-platform mobile
+### 🔮 v3.0.0 — reframed as MCP-native, not a multi-AI adapter hub
 
-See [ROADMAP.md](./docs/development/ROADMAP.md) for full details.
+The original v3.0 vision was per-provider adapters (OpenAI, Gemini, Ollama). MCP already gives
+that for free — any MCP client (Claude Code, Cursor, Zed, Continue) can use Nodum today with zero
+per-provider code. v3.0 is now about graph quality (type flow, data-flow edges) and a hardened,
+verified-multi-client MCP server, not adapter breadth.
+
+See [ROADMAP.md](./docs/development/ROADMAP.md) for the full plan and the reasoning behind it.
 
 ---
 
@@ -488,10 +497,12 @@ A: ~5 MB per 1000 files. Completely depends on project size.
 A: Yes. It's safe to delete anytime. Just rescan with `nodum sync` to rebuild.
 
 **Q: What languages does it support?**
-A: TypeScript, JavaScript, Python, Kotlin, Java. More coming in v2.
+A: TypeScript, Python, Java, JavaScript (all real AST-based parsing — TypeScript via the compiler
+API, the other three via tree-sitter), and Kotlin (still line-regex, pending its own tree-sitter
+migration). iOS (Swift/Objective-C) is next on the roadmap.
 
 **Q: Is this production-ready?**
-A: Yes! v2.1.0 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.6.0 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.
@@ -543,4 +554,4 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 **[Get Started Now →](./SETUP-GUIDE.md)**
 
-**Version 2.1.0** · MIT License · No cloud, no subscriptions, no BS.
+**Version 2.6.0** · MIT License · No cloud, no subscriptions, no BS.

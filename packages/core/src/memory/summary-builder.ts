@@ -39,6 +39,20 @@ function buildSummaryContent(graph: Graph, analysis: ProjectAnalysis): string {
   const now = new Date();
   const lastSync = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
+  // Optional per-language counters (spec 036, Swift/Objective-C) — only
+  // rendered when non-zero, so a non-iOS project's summary is unchanged.
+  const optionalStatLines = (
+    [
+      ['Structs', graph.stats.structs],
+      ['Enums', graph.stats.enums],
+      ['Protocols', graph.stats.protocols],
+      ['Extensions', graph.stats.extensions],
+    ] as const
+  )
+    .filter(([, count]) => (count ?? 0) > 0)
+    .map(([label, count]) => `- **${label}**: ${count}\n`)
+    .join('');
+
   return `# ${graph.project} — Project Summary
 
 **Last synced**: ${lastSync}
@@ -62,7 +76,7 @@ ${analysis.description || 'A project tracked with nodum.'}
 - **Functions**: ${graph.stats.functions}
 - **Classes**: ${graph.stats.classes}
 - **Interfaces**: ${graph.stats.interfaces}
-- **Dependencies**: ${graph.stats.edges}
+${optionalStatLines}- **Dependencies**: ${graph.stats.edges}
 
 ## Environment Variables
 

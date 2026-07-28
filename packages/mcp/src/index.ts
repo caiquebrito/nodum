@@ -121,7 +121,7 @@ const tools: Tool[] = [
         },
         type_filter: {
           type: "string",
-          enum: ["function", "class", "file", "interface", "method"],
+          enum: ["function", "class", "file", "interface", "method", "struct", "enum", "protocol", "extension"],
           description: "Optional: filter results by node type",
         },
       },

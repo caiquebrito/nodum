@@ -19,6 +19,46 @@ const graph = {
   ],
 };
 
+describe("handleGetGraph — spec 036 optional stats lines", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("omits struct/enum/protocol/extension lines entirely for a project with none of them", async () => {
+    readFileMock.mockResolvedValue(JSON.stringify(graph));
+    const { handleGetGraph } = await import("./handlers.js");
+    const result = await handleGetGraph("proj");
+
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).not.toContain("Structs");
+    expect(text).not.toContain("Enums");
+    expect(text).not.toContain("Protocols");
+    expect(text).not.toContain("Extensions");
+  });
+
+  it("includes only the non-zero new-type lines for a mixed Swift-ish project", async () => {
+    const swiftyGraph = {
+      ...graph,
+      stats: { ...graph.stats, structs: 2, enums: 0, protocols: 1, extensions: 0 },
+      nodes: [
+        ...graph.nodes,
+        { id: "s1", label: "S", type: "struct", file: "a.swift", group: "other" },
+        { id: "s2", label: "S2", type: "struct", file: "a.swift", group: "other" },
+        { id: "p1", label: "P", type: "protocol", file: "a.swift", group: "other" },
+      ],
+    };
+    readFileMock.mockResolvedValue(JSON.stringify(swiftyGraph));
+    const { handleGetGraph } = await import("./handlers.js");
+    const result = await handleGetGraph("proj");
+
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).toContain("Structs: 2");
+    expect(text).toContain("Protocols: 1");
+    expect(text).not.toContain("Enums");
+    expect(text).not.toContain("Extensions");
+  });
+});
+
 describe("handleTraceImpact", () => {
   beforeEach(() => {
     vi.clearAllMocks();

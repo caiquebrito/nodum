@@ -49,8 +49,12 @@ export function diffGraphs(a: Graph, b: Graph): GraphDiff {
   const edgesAdded = b.edges.filter(e => !aEdgeKeys.has(edgeKey(e)));
   const edgesRemoved = a.edges.filter(e => !bEdgeKeys.has(edgeKey(e)));
 
+  // Optional counters (spec 036: structs/enums/protocols/extensions) are
+  // absent on a pre-036 graph.json rather than 0 — treated as 0 here so
+  // diffing an old graph against a new one reports a real delta instead of
+  // `NaN`.
   const statsDelta = Object.fromEntries(
-    (Object.keys(b.stats) as Array<keyof Graph['stats']>).map(k => [k, b.stats[k] - a.stats[k]]),
+    (Object.keys(b.stats) as Array<keyof Graph['stats']>).map(k => [k, (b.stats[k] ?? 0) - (a.stats[k] ?? 0)]),
   ) as Record<keyof Graph['stats'], number>;
 
   return {

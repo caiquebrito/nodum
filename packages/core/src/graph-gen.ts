@@ -241,6 +241,13 @@ function buildStats(fileCount: number, nodes: Node[], edges: Edge[]): Graph['sta
     classes: nodes.filter(n => n.type === 'class').length,
     interfaces: nodes.filter(n => n.type === 'interface').length,
     edges: edges.length,
+    // Optional per Graph['stats']'s doc comment, but always populated here —
+    // every graph generated after spec 036 gets all four, regardless of
+    // whether the project has any Swift/ObjC code.
+    structs: nodes.filter(n => n.type === 'struct').length,
+    enums: nodes.filter(n => n.type === 'enum').length,
+    protocols: nodes.filter(n => n.type === 'protocol').length,
+    extensions: nodes.filter(n => n.type === 'extension').length,
   };
 }
 
