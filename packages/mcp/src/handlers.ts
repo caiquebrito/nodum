@@ -211,7 +211,8 @@ export async function handleGetNode(projectName: string, nodeId: string) {
 export async function handleSearch(
   projectName: string,
   query: string,
-  typeFilter?: string
+  typeFilter?: string,
+  tokenBudget?: number
 ) {
   try {
     const graph = await loadGraph(projectName);
@@ -219,7 +220,12 @@ export async function handleSearch(
     // Use smart context with caching + semantic search
     // v1.1.2: 40-60% reduction (300 tokens)
     // v2.0: 83% reduction on cache hits + 20% better selection via semantic search
-    const { text: smartContext } = await buildSmartContext(query, graph, 20, globalConversationCache);
+    const { text: smartContext } = await buildSmartContext(query, graph, {
+      maxNodes: 20,
+      cache: globalConversationCache,
+      typeFilter,
+      tokenBudget,
+    });
 
     return {
       content: [text(smartContext)],
