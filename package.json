@@ -26,7 +26,8 @@
     "packages/core",
     "packages/cli",
     "packages/server",
-    "packages/mcp"
+    "packages/mcp",
+    "benchmarks"
   ],
   "keywords": [
     "claude",
