@@ -5,27 +5,50 @@ import type { FileInfo, FileManifest } from './types.js';
 import { getAvailableParsers } from './parser/index.js';
 import { loadScanConfig, buildFileMatcher, type FileMatcher } from './scan-config.js';
 
-export const IGNORED_DIRS = new Set([
+// Cross-cutting only — entries no single language ecosystem owns. Anything
+// language-specific (`__pycache__`, `.gradle`, `venv`, ...) is contributed
+// by the owning Parser's `ignoredDirs` instead (spec 030) — the same
+// registry-driven pattern `supportedExtensions()` below already used.
+const CROSS_CUTTING_IGNORED_DIRS = new Set([
   'node_modules',
   '.git',
   '.github',
   'dist',
   'build',
   '.next',
-  '__pycache__',
   'coverage',
-  '.gradle',
   '.idea',
   '.DS_Store',
-  'target',
   '.env',
-  '.venv',
-  'venv',
   'vendor',
   '.cargo',
   'output',
   'tmp',
 ]);
+
+/**
+ * Cross-cutting dirs merged with every registered parser's own
+ * `ignoredDirs`, computed once at module load — parsers are constructed
+ * eagerly and synchronously (see spec 030), so this needs no async
+ * handling despite some of those parsers being tree-sitter-backed.
+ *
+ * Kept as a plain exported `Set`, not a function, since `packages/cli`'s
+ * `watch` command already consumes it directly as a synchronous constant.
+ */
+export const IGNORED_DIRS = new Set([
+  ...CROSS_CUTTING_IGNORED_DIRS,
+  ...getAvailableParsers().flatMap(p => p.ignoredDirs ?? []),
+]);
+
+/**
+ * `IGNORED_DIRS` plus a project's own `.nodumrc.json` `ignoredDirs`
+ * additions — used by `discoverFiles`/`discoverChangedFiles`, which (unlike
+ * `IGNORED_DIRS` itself) have per-project config in scope.
+ */
+function buildIgnoredDirs(configIgnoredDirs?: string[]): Set<string> {
+  if (!configIgnoredDirs?.length) return IGNORED_DIRS;
+  return new Set([...IGNORED_DIRS, ...configIgnoredDirs]);
+}
 
 function supportedExtensions(): Set<string> {
   return new Set(getAvailableParsers().flatMap(p => p.extensions.map(e => e.toLowerCase())));
@@ -38,6 +61,7 @@ async function walkFiles(
   rootPath: string,
   matcher: FileMatcher,
   extensions: Set<string>,
+  ignoredDirs: Set<string>,
   visit: FileVisitor,
 ): Promise<void> {
   try {
@@ -49,7 +73,7 @@ async function walkFiles(
         continue;
       }
 
-      if (IGNORED_DIRS.has(entry.name)) {
+      if (ignoredDirs.has(entry.name)) {
         continue;
       }
 
@@ -66,7 +90,7 @@ async function walkFiles(
         if (matcher.isExcluded(`${relativePath}/`)) {
           continue;
         }
-        await walkFiles(fullPath, rootPath, matcher, extensions, visit);
+        await walkFiles(fullPath, rootPath, matcher, extensions, ignoredDirs, visit);
       } else if (entry.isFile()) {
         const ext = extname(entry.name);
         if (extensions.has(ext.toLowerCase()) && !matcher.isExcluded(relativePath) && matcher.isIncluded(relativePath)) {
@@ -88,8 +112,9 @@ export async function discoverFiles(rootPath: string): Promise<FileInfo[]> {
   const config = await loadScanConfig(rootPath);
   const matcher = await buildFileMatcher(rootPath, config);
   const extensions = supportedExtensions();
+  const ignoredDirs = buildIgnoredDirs(config.ignoredDirs);
 
-  await walkFiles(rootPath, rootPath, matcher, extensions, async (fullPath, relativePath, ext) => {
+  await walkFiles(rootPath, rootPath, matcher, extensions, ignoredDirs, async (fullPath, relativePath, ext) => {
     const content = await readFile(fullPath, 'utf-8');
     const stats = await stat(fullPath);
     const hash = createHash('sha256').update(content).digest('hex');
@@ -130,8 +155,9 @@ export async function discoverChangedFiles(
   const config = await loadScanConfig(rootPath);
   const matcher = await buildFileMatcher(rootPath, config);
   const extensions = supportedExtensions();
+  const ignoredDirs = buildIgnoredDirs(config.ignoredDirs);
 
-  await walkFiles(rootPath, rootPath, matcher, extensions, async (fullPath, relativePath, ext) => {
+  await walkFiles(rootPath, rootPath, matcher, extensions, ignoredDirs, async (fullPath, relativePath, ext) => {
     seenPaths.add(relativePath);
     const stats = await stat(fullPath);
     const prev = previousManifest[relativePath];

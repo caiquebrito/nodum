@@ -1,7 +1,13 @@
 import type { NodeCluster } from './analyzer/clustering.js';
 
 export type NodeType = 'file' | 'function' | 'class' | 'interface' | 'method';
-export type RelationType = 'imports' | 'defines' | 'extends' | 'implements';
+/**
+ * `'calls'` (spec 034) is same-file only: emitted when a function/method
+ * calls another function/method defined in the same file, resolved by a
+ * flat name lookup within that file (same simplification `defines` edges
+ * already use). Cross-file call resolution is a future spec's job.
+ */
+export type RelationType = 'imports' | 'defines' | 'extends' | 'implements' | 'calls';
 
 export interface Node {
   id: string;
@@ -10,7 +16,7 @@ export interface Node {
   file: string;
   group: string;
   line?: number;
-  embedding?: number[];  // v2.0: Semantic search embeddings (1536-dim)
+  embedding?: number[];  // v2.0: Semantic search embeddings (384-dim, Xenova/all-MiniLM-L6-v2)
   clusterId?: string;     // v2.0: Cluster assignment for hierarchical compression
   /** Cyclomatic complexity (McCabe). Only set for function/method nodes whose
    * parser could determine a body; omitted (not zero) when unknown. */

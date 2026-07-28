@@ -16,6 +16,7 @@ import {
 } from "./semantic-search.js";
 import { generateQueryEmbedding, hasEmbeddings } from "./embeddings.js";
 import { countTokens } from "@caiquebrito/nodum-core";
+import type { Graph } from "@caiquebrito/nodum-core";
 
 /**
  * `buildSmartContext()`'s result: the formatted text plus its approximate
@@ -29,32 +30,6 @@ export interface SmartContextResult {
 
 function withTokenCount(text: string): SmartContextResult {
   return { text, approxTokens: countTokens(text) };
-}
-
-interface Graph {
-  project: string;
-  stats: any;
-  nodes: Array<{
-    id: string;
-    label: string;
-    type: string;
-    group?: string;
-    file?: string;
-  }>;
-  edges: Array<{
-    source: string;
-    target: string;
-    relation: string;
-  }>;
-  clusters?: Array<{
-    id: string;
-    label: string;
-    summary: string;
-    types: string[];
-    externalDeps: string[];
-    nodeIds: string[];
-  }>;
-  nodeToCluster?: { [nodeId: string]: string };
 }
 
 /**

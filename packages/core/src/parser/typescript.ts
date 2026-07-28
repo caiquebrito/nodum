@@ -3,15 +3,28 @@ import { Parser } from './base.js';
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
 import { hashTokens } from './duplicate-hash.js';
+import { resolveRelativeImport } from './import-resolver.js';
+
+interface CallableUnit {
+  nodeId: string;
+  name: string;
+  body: ts.Node;
+}
 
 export class TypeScriptParser extends Parser {
   language = 'TypeScript';
   extensions = ['.ts', '.tsx'];
 
-  parse(file: FileInfo): ParseResult {
+  resolveImport(specifier: string, importingFilePath: string, knownFileIds: Set<string>): string[] {
+    const id = resolveRelativeImport(importingFilePath, specifier, knownFileIds);
+    return id ? [id] : [];
+  }
+
+  async parse(file: FileInfo): Promise<ParseResult> {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
     const imports: string[] = [];
+    const callables: CallableUnit[] = [];
     const sourceFile = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
 
     // File node
@@ -25,12 +38,27 @@ export class TypeScriptParser extends Parser {
     });
 
     // Visit all declarations
-    this.visitNode(sourceFile, nodes, edges, imports, file.path, fileId);
+    this.visitNode(sourceFile, nodes, edges, imports, callables, file.path, fileId);
+
+    // Same-file `calls` edges (spec 034) — a second pass, once every
+    // function/method in this file has a node id, so a call can resolve
+    // against the full file-local name table regardless of source order
+    // (a function calling one declared later in the same file still
+    // resolves correctly).
+    this.extractCalls(callables, edges);
 
     return { nodes, edges, imports };
   }
 
-  private visitNode(node: ts.Node, nodes: Node[], edges: Edge[], imports: string[], filePath: string, fileId: string): void {
+  private visitNode(
+    node: ts.Node,
+    nodes: Node[],
+    edges: Edge[],
+    imports: string[],
+    callables: CallableUnit[],
+    filePath: string,
+    fileId: string,
+  ): void {
     if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node)) {
       const name = (node.name?.getText() || 'anonymous').replace(/\s+/g, '');
       const funcId = normalizeNodeId(filePath, name, 'function');
@@ -44,6 +72,7 @@ export class TypeScriptParser extends Parser {
         ...(node.body ? this.duplicateHashField(node.body) : {}),
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
+      if (node.body) callables.push({ nodeId: funcId, name, body: node.body });
     } else if (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) {
       const name = (node.name?.getText() || 'anonymous').replace(/\s+/g, '');
       const type = ts.isInterfaceDeclaration(node) ? 'interface' : 'class';
@@ -73,6 +102,7 @@ export class TypeScriptParser extends Parser {
               ...(member.body ? this.duplicateHashField(member.body) : {}),
             });
             edges.push({ source: classId, target: methodId, relation: 'defines' });
+            if (member.body) callables.push({ nodeId: methodId, name: methodName, body: member.body });
           }
         });
       }
@@ -89,7 +119,7 @@ export class TypeScriptParser extends Parser {
       }
     }
 
-    ts.forEachChild(node, child => this.visitNode(child, nodes, edges, imports, filePath, fileId));
+    ts.forEachChild(node, child => this.visitNode(child, nodes, edges, imports, callables, filePath, fileId));
   }
 
   /**
@@ -173,6 +203,55 @@ export class TypeScriptParser extends Parser {
 
     ts.forEachChild(bodyNode, visit);
     return tokens;
+  }
+
+  /**
+   * Same-file `calls` edges (spec 034). Only bare-identifier calls
+   * (`foo()`) are resolved — a property-access call (`this.foo()`,
+   * `obj.foo()`) is deliberately left alone, since without real type
+   * information there's no reliable way to tell whether `obj` even refers
+   * to something in this file, and guessing risks false-positive edges.
+   * This means the feature mostly captures function-to-function calls, not
+   * method-to-method calls (which are almost always written as `this.x()`)
+   * — a real, stated scope reduction, not an oversight.
+   *
+   * Same nested-function traversal boundary as `computeComplexity`: a call
+   * inside a nested function/method belongs to that nested unit, not the
+   * enclosing one — it gets its own edges when its own turn comes in
+   * `callables`.
+   */
+  private extractCalls(callables: CallableUnit[], edges: Edge[]): void {
+    if (callables.length === 0) return;
+
+    // First-definition-wins on a name collision, same convention every
+    // other extraction pass in this file already uses.
+    const nameToNodeId = new Map<string, string>();
+    for (const { name, nodeId } of callables) {
+      if (!nameToNodeId.has(name)) nameToNodeId.set(name, nodeId);
+    }
+
+    for (const { nodeId, body } of callables) {
+      const calledIds = new Set<string>();
+
+      const visit = (node: ts.Node): void => {
+        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+          const targetId = nameToNodeId.get(node.expression.text);
+          if (targetId) calledIds.add(targetId);
+        }
+
+        if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)) {
+          return; // this nested unit's own calls are handled on its own turn
+        }
+
+        ts.forEachChild(node, visit);
+      };
+
+      ts.forEachChild(body, visit);
+
+      for (const targetId of calledIds) {
+        edges.push({ source: nodeId, target: targetId, relation: 'calls' });
+      }
+    }
   }
 
   private extractModuleName(node: ts.ImportDeclaration | ts.ImportEqualsDeclaration): string | null {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Graph, FileManifest, FileInfo } from "./types.js";
 import { normalizeNodeId } from "./types.js";
+import { resolveRelativeImport } from "./parser/import-resolver.js";
 
 const discoverFilesMock = vi.fn();
 const discoverChangedFilesMock = vi.fn();
@@ -134,6 +135,13 @@ describe("generateGraph — import edge resolution", () => {
           const nodes = [{ id: fileId, label: file.path, type: "file" as const, file: file.path, group: "other" }];
           const imports = fileImports[file.path];
           return { nodes, edges: [], ...(imports ? { imports } : {}) };
+        },
+        // Mirrors TypeScriptParser/JavaScriptParser's real resolveImport —
+        // resolveImportsInto (graph-gen.ts) now dispatches through this
+        // method rather than a hardcoded extension check (spec 030).
+        resolveImport: (specifier: string, importingFilePath: string, knownFileIds: Set<string>) => {
+          const id = resolveRelativeImport(importingFilePath, specifier, knownFileIds);
+          return id ? [id] : [];
         },
       };
     });
