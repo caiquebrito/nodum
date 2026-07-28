@@ -175,3 +175,56 @@ describe("handleFindSimilarCode", () => {
     expect(text).toContain("No similar code found");
   });
 });
+
+describe("handleSuggestRefactoring", () => {
+  const cyclicGraph = {
+    project: "proj",
+    stats: { files: 2, functions: 0, classes: 0, interfaces: 0, edges: 2 },
+    nodes: [
+      { id: "a", label: "a.ts", type: "file", file: "a.ts", group: "ui" },
+      { id: "b", label: "b.ts", type: "file", file: "b.ts", group: "repo" },
+    ],
+    edges: [
+      { source: "a", target: "b", relation: "imports" },
+      { source: "b", target: "a", relation: "imports" },
+    ],
+  };
+
+  function mockFiles(projectsJson: unknown, nodumrc: object | null) {
+    readFileMock.mockImplementation((path: string) => {
+      if (path.endsWith("graph.json")) return Promise.resolve(JSON.stringify(cyclicGraph));
+      if (path.endsWith("projects.json")) return Promise.resolve(JSON.stringify(projectsJson));
+      if (path.endsWith(".nodumrc.json")) {
+        if (nodumrc === null) return Promise.reject(new Error("ENOENT"));
+        return Promise.resolve(JSON.stringify(nodumrc));
+      }
+      return Promise.reject(new Error(`unexpected path: ${path}`));
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns a formatted, category-grouped suggestion list without architecture rules", async () => {
+    mockFiles({ proj: { name: "proj", path: "/src/proj" } }, null);
+    const { handleSuggestRefactoring } = await import("./handlers.js");
+    const result = await handleSuggestRefactoring("proj");
+
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).toContain("CYCLE");
+    expect(text).not.toContain("ARCHITECTURE-VIOLATION");
+  });
+
+  it("includes architecture-violation suggestions when the project has configured rules", async () => {
+    mockFiles(
+      { proj: { name: "proj", path: "/src/proj" } },
+      { architecture: { rules: [{ from: "ui", to: "repo" }] } },
+    );
+    const { handleSuggestRefactoring } = await import("./handlers.js");
+    const result = await handleSuggestRefactoring("proj");
+
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).toContain("ARCHITECTURE-VIOLATION");
+  });
+});

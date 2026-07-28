@@ -79,6 +79,13 @@ export type { ArchitectureSummary, LayerSummary, LayerDependency } from './analy
 export { findSimilarCode } from './analyzer/similar-code.js';
 export type { SimilarCodeResult, SimilarCodeMatch } from './analyzer/similar-code.js';
 
+export { suggestRefactoring } from './analyzer/suggest-refactoring.js';
+export type {
+  RefactoringSuggestion,
+  RefactoringSuggestionKind,
+  SuggestRefactoringOptions,
+} from './analyzer/suggest-refactoring.js';
+
 export {
   injectCLAUDEContext,
   appendActivityLog,
