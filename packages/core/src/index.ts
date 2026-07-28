@@ -70,6 +70,9 @@ export type { DuplicateGroup } from './analyzer/duplication.js';
 export { traceImpact } from './analyzer/impact.js';
 export type { ImpactedFile, TraceImpactOptions } from './analyzer/impact.js';
 
+export { findBottlenecks } from './analyzer/bottlenecks.js';
+export type { Bottleneck, FindBottlenecksOptions } from './analyzer/bottlenecks.js';
+
 export {
   injectCLAUDEContext,
   appendActivityLog,

@@ -17,6 +17,7 @@ import {
   handleGetNode,
   handleExpandCluster,
   handleTraceImpact,
+  handleFindBottlenecks,
 } from "./handlers.js";
 
 const server = new Server(
@@ -211,6 +212,25 @@ const tools: Tool[] = [
       required: ["project_name", "node_id"],
     },
   },
+  {
+    name: "find_bottlenecks",
+    description:
+      "Rank files by a composite bottleneck score — code complexity combined with how many other files transitively depend on them.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project_name: {
+          type: "string",
+          description: "Project name",
+        },
+        limit: {
+          type: "number",
+          description: "Optional: cap the number of results",
+        },
+      },
+      required: ["project_name"],
+    },
+  },
 ];
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -277,6 +297,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           (args as any).project_name as string,
           (args as any).node_id as string,
           (args as any).max_depth as number | undefined
+        );
+        break;
+      case "find_bottlenecks":
+        result = await handleFindBottlenecks(
+          (args as any).project_name as string,
+          (args as any).limit as number | undefined
         );
         break;
       default:

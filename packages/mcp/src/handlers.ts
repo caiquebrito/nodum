@@ -6,6 +6,7 @@ import {
   syncProject,
   writeGraphFile,
   traceImpact,
+  findBottlenecks,
   type ProjectIndexEntry,
   type Graph as CoreGraph,
 } from "@caiquebrito/nodum-core";
@@ -451,5 +452,34 @@ export async function handleTraceImpact(
     };
   } catch (error) {
     return { error: `Failed to trace impact: ${String(error)}` };
+  }
+}
+
+export async function handleFindBottlenecks(projectName: string, limit?: number) {
+  try {
+    const graph = await loadGraph(projectName);
+
+    // Same cast rationale as handleTraceImpact — the local `Graph` type
+    // above and nodum-core's `Graph` describe the same graph.json shape.
+    const bottlenecks = findBottlenecks(graph as unknown as CoreGraph, { limit });
+
+    if (bottlenecks.length === 0) {
+      return {
+        content: [text("✅ No scored functions found")],
+      };
+    }
+
+    const lines: string[] = [`🔥 Bottlenecks (${bottlenecks.length})`, ""];
+    bottlenecks.forEach((b, i) => {
+      lines.push(
+        `  ${i + 1}. ${b.file}  score=${b.score}  complexity=${b.maxComplexity}  dependents=${b.dependentCount}`
+      );
+    });
+
+    return {
+      content: [text(lines.join("\n"))],
+    };
+  } catch (error) {
+    return { error: `Failed to find bottlenecks: ${String(error)}` };
   }
 }

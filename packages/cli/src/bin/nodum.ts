@@ -218,6 +218,25 @@ program
   });
 
 program
+  .command('bottlenecks [projectPath]')
+  .description('Rank files by a composite bottleneck score (complexity x dependents)')
+  .option('--json', 'Output machine-readable JSON instead of a formatted summary')
+  .option('--limit <n>', 'Cap the number of results')
+  .action(async (projectPath: string | undefined, options: { json?: boolean; limit?: string }) => {
+    try {
+      const nodumDataDir = getNodeumDataDir();
+      const { bottlenecksCommand } = await import('../commands/bottlenecks.js');
+      await bottlenecksCommand(projectPath || process.cwd(), nodumDataDir, {
+        json: options.json,
+        limit: options.limit ? parseInt(options.limit, 10) : undefined,
+      });
+    } catch (error) {
+      console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+program
   .command('status')
   .description('Show all synced projects')
   .action(async () => {

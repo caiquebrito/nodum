@@ -51,3 +51,38 @@ describe("handleTraceImpact", () => {
     expect(result).toEqual({ error: "Node not found: nonexistent" });
   });
 });
+
+describe("handleFindBottlenecks", () => {
+  const graphWithScores = {
+    ...graph,
+    nodes: [
+      ...graph.nodes,
+      { id: "c__f", label: "f", type: "function", file: "c.ts", group: "other", complexity: 5 },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    readFileMock.mockResolvedValue(JSON.stringify(graphWithScores));
+  });
+
+  it("returns a formatted ranked summary", async () => {
+    const { handleFindBottlenecks } = await import("./handlers.js");
+    const result = await handleFindBottlenecks("proj");
+
+    expect("error" in result).toBe(false);
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).toContain("Bottlenecks");
+    expect(text).toContain("c.ts");
+    expect(text).toContain("complexity=5");
+  });
+
+  it("returns a clear 'none found' message when no function is scored", async () => {
+    readFileMock.mockResolvedValue(JSON.stringify(graph));
+    const { handleFindBottlenecks } = await import("./handlers.js");
+    const result = await handleFindBottlenecks("proj");
+
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).toContain("No scored functions found");
+  });
+});
