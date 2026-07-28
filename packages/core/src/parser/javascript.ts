@@ -1,15 +1,44 @@
-import { Parser } from './base.js';
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
-import { extractBraceBody } from './brace-body.js';
-import { countCyclomaticComplexity } from './complexity-text.js';
-import { normalizeBodyTokens } from './normalize-body-text.js';
 import { hashTokens } from './duplicate-hash.js';
 import { resolveRelativeImport } from './import-resolver.js';
+import { TreeSitterParser } from './treesitter/base.js';
+import { getQuery } from './treesitter/engine.js';
+import type { TSNode } from './treesitter/engine.js';
 
-export class JavaScriptParser extends Parser {
+// Three named-function shapes: `function foo() {}`, `const foo = function()
+// {}`, `const foo = () => {}` — @def captures the actual function node in
+// each (the outer function_declaration itself, or the variable_declarator's
+// value), not the declarator, so the body/complexity walk below always
+// gets a real function node regardless of which shape matched.
+const FUNCTION_QUERY = `
+  (function_declaration name: (identifier) @name) @def
+  (variable_declarator name: (identifier) @name value: (function_expression) @def)
+  (variable_declarator name: (identifier) @name value: (arrow_function) @def)
+`;
+const CLASS_QUERY = '(class_declaration name: (identifier) @name) @def';
+
+// `switch_case` counted, `switch_default` (bare `default:`) not — matching
+// the old regex scorer's `\bcase\s+[^:]+:` pattern exactly, which never
+// matched a bare `default:` either. `for_in_statement` covers both
+// `for...of` and `for...in` in this grammar (one node type, not two).
+const COMPLEXITY_NODE_TYPES = new Set([
+  'if_statement',
+  'for_statement',
+  'for_in_statement',
+  'while_statement',
+  'do_statement',
+  'catch_clause',
+  'ternary_expression',
+  'switch_case',
+]);
+
+const LITERAL_NODE_TYPES = new Set(['string', 'number', 'true', 'false', 'null', 'undefined']);
+
+export class JavaScriptParser extends TreeSitterParser {
   language = 'JavaScript';
   extensions = ['.js', '.mjs', '.cjs', '.jsx'];
+  protected grammarFile = 'tree-sitter-javascript.wasm';
 
   resolveImport(specifier: string, importingFilePath: string, knownFileIds: Set<string>): string[] {
     const id = resolveRelativeImport(importingFilePath, specifier, knownFileIds);
@@ -17,10 +46,13 @@ export class JavaScriptParser extends Parser {
   }
 
   async parse(file: FileInfo): Promise<ParseResult> {
+    const { parser, language } = await this.ensureReady();
+    const tree = parser.parse(file.content);
+    const root = tree!.rootNode;
+
     const nodes: Node[] = [];
     const edges: Edge[] = [];
 
-    // File node
     const fileId = normalizeNodeId(file.path, file.path, 'file');
     nodes.push({
       id: fileId,
@@ -30,72 +62,192 @@ export class JavaScriptParser extends Parser {
       group: getNodeGroup(file.path),
     });
 
-    // Extract functions
-    const lines = file.content.split('\n');
-    const funcRegex = /(?:^|\s)(?:export\s+)?(?:async\s+)?(?:function|const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?:\(|=\s*(?:async\s*)?(?:\(|\w))/gm;
-    let match;
-    const seenNames = new Set<string>();
+    // Classes — new capability: the old regex parser extracted the class
+    // node itself and nothing inside it. Same flat fileId->classId /
+    // classId->methodId split as TypeScriptParser/JavaParser/PythonParser:
+    // every class_declaration, at any depth, gets a flat file edge; its own
+    // direct method_definition members get attributed to it.
+    const seenClassNames = new Set<string>();
+    const classQuery = getQuery(language, 'javascript-classes', CLASS_QUERY);
+    for (const match of classQuery.matches(root)) {
+      const defNode = match.captures.find(c => c.name === 'def')?.node;
+      const nameNode = match.captures.find(c => c.name === 'name')?.node;
+      if (!defNode || !nameNode) continue;
 
-    while ((match = funcRegex.exec(file.content)) !== null) {
-      const name = match[1];
-      if (!seenNames.has(name)) {
-        const funcId = normalizeNodeId(file.path, name, 'function');
-        const lineIdx = file.content.slice(0, match.index).split('\n').length - 1;
-        const body = extractBraceBody(lines, lineIdx);
-        const duplicateHash = body !== null ? hashTokens(normalizeBodyTokens(body)) : null;
+      const className = nameNode.text;
+      if (seenClassNames.has(className)) continue;
+      seenClassNames.add(className);
+
+      const classId = normalizeNodeId(file.path, className, 'class');
+      nodes.push({
+        id: classId,
+        label: className,
+        type: 'class',
+        file: file.path,
+        group: getNodeGroup(file.path),
+        line: defNode.startPosition.row + 1,
+      });
+      edges.push({ source: fileId, target: classId, relation: 'defines' });
+
+      const body = defNode.childForFieldName('body');
+      if (!body) continue;
+
+      const seenMethodNames = new Set<string>();
+      for (const child of body.namedChildren) {
+        if (child?.type !== 'method_definition') continue;
+        const methodNameNode = child.childForFieldName('name');
+        if (!methodNameNode) continue;
+        const methodName = methodNameNode.text;
+        if (seenMethodNames.has(methodName)) continue;
+        seenMethodNames.add(methodName);
+
+        const methodBody = child.childForFieldName('body');
+        const duplicateHash = methodBody ? hashTokens(collectNormalizedTokens(methodBody)) : null;
+        const methodId = normalizeNodeId(file.path, `${className}#${methodName}`, 'method');
         nodes.push({
-          id: funcId,
-          label: name,
-          type: 'function',
+          id: methodId,
+          label: methodName,
+          type: 'method',
           file: file.path,
           group: getNodeGroup(file.path),
-          ...(body !== null ? { complexity: countCyclomaticComplexity(body) } : {}),
-          ...(duplicateHash !== null ? { duplicateHash } : {}),
+          line: child.startPosition.row + 1,
+          ...(methodBody ? { complexity: computeComplexity(methodBody) } : {}),
+          ...(duplicateHash ? { duplicateHash } : {}),
         });
-        edges.push({ source: fileId, target: funcId, relation: 'defines' });
-        seenNames.add(name);
+        edges.push({ source: classId, target: methodId, relation: 'defines' });
       }
     }
 
-    // Extract classes
-    const classRegex = /(?:^|\s)(?:export\s+)?class\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/gm;
-    const seenClasses = new Set<string>();
+    // Functions — no exclusion set needed: a class's method_definition
+    // members are never matched by FUNCTION_QUERY (a distinct node type
+    // from function_declaration/function_expression/arrow_function), so
+    // there's no overlap with the class pass above to guard against,
+    // unlike PythonParser's single-nesting-level case.
+    const seenFunctionNames = new Set<string>();
+    const functionQuery = getQuery(language, 'javascript-functions', FUNCTION_QUERY);
+    for (const match of functionQuery.matches(root)) {
+      const defNode = match.captures.find(c => c.name === 'def')?.node;
+      const nameNode = match.captures.find(c => c.name === 'name')?.node;
+      if (!defNode || !nameNode) continue;
 
-    while ((match = classRegex.exec(file.content)) !== null) {
-      const name = match[1];
-      if (!seenClasses.has(name)) {
-        const classId = normalizeNodeId(file.path, name, 'class');
-        nodes.push({
-          id: classId,
-          label: name,
-          type: 'class',
-          file: file.path,
-          group: getNodeGroup(file.path),
-        });
-        edges.push({ source: fileId, target: classId, relation: 'defines' });
-        seenClasses.add(name);
-      }
+      const name = nameNode.text;
+      if (seenFunctionNames.has(name)) continue;
+      seenFunctionNames.add(name);
+
+      const funcId = normalizeNodeId(file.path, name, 'function');
+      const body = defNode.childForFieldName('body');
+      // A concise-body arrow (`x => x + 1`, no braces) has a bare
+      // expression as its "body", not a `statement_block` — left unscored,
+      // same as the old regex parser's documented behavior (there's no
+      // brace-delimited body to walk).
+      const hasBlockBody = body?.type === 'statement_block';
+      const duplicateHash = hasBlockBody ? hashTokens(collectNormalizedTokens(body!)) : null;
+      nodes.push({
+        id: funcId,
+        label: name,
+        type: 'function',
+        file: file.path,
+        group: getNodeGroup(file.path),
+        line: defNode.startPosition.row + 1,
+        ...(hasBlockBody ? { complexity: computeComplexity(body!) } : {}),
+        ...(duplicateHash ? { duplicateHash } : {}),
+      });
+      edges.push({ source: fileId, target: funcId, relation: 'defines' });
     }
 
-    // Extract imports. Not line-anchored (unlike the old version) so
-    // indented/mid-expression imports are caught, and it actually matches
-    // real CommonJS require('x') calls — the previous regex required
-    // `require` to be followed directly by a string, which real
-    // `require('x')` (a call expression) never is.
-    const importRegex = /import\s+(?:[\w*{}\s,]+\s+from\s+)?['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]\s*\)/g;
-    const imports: string[] = [];
-    const seenImports = new Set<string>();
-
-    while ((match = importRegex.exec(file.content)) !== null) {
-      const moduleName = match[1] ?? match[2];
-      if (moduleName && !seenImports.has(moduleName)) {
-        imports.push(moduleName);
-        seenImports.add(moduleName);
-      }
-    }
+    const imports = extractImports(root);
 
     return { nodes, edges, imports };
   }
+}
+
+/**
+ * Direct tree walk, not a query — mirrors both `import` statements (only
+ * the source path matters, not which names are imported) and real
+ * `require('x')` call expressions, matching the old regex parser's own
+ * dual handling. Deduplicated, same as the old parser's `seenImports`.
+ */
+function extractImports(root: TSNode): string[] {
+  const imports: string[] = [];
+  const seen = new Set<string>();
+
+  function addSpecifier(stringNode: TSNode | null): void {
+    const specifier = stringNode?.namedChildren[0]?.text; // the string_fragment, not the quoted node itself
+    if (specifier && !seen.has(specifier)) {
+      imports.push(specifier);
+      seen.add(specifier);
+    }
+  }
+
+  for (const importStmt of root.descendantsOfType('import_statement')) {
+    const source = importStmt?.childForFieldName('source');
+    if (source?.type === 'string') addSpecifier(source);
+  }
+
+  for (const call of root.descendantsOfType('call_expression')) {
+    const fn = call?.childForFieldName('function');
+    if (fn?.type !== 'identifier' || fn.text !== 'require') continue;
+    const args = call!.childForFieldName('arguments');
+    const firstArg = args?.namedChildren[0];
+    if (firstArg?.type === 'string') addSpecifier(firstArg);
+  }
+
+  return imports;
+}
+
+const FUNCTION_NODE_TYPES = new Set(['function_declaration', 'function_expression', 'arrow_function', 'method_definition']);
+
+/**
+ * McCabe cyclomatic complexity. Same traversal boundary as every other
+ * parser here: doesn't descend into a nested function/method definition
+ * (separately scored) — `&&`/`||` counted via `binary_expression`'s
+ * `operator` field text, since this grammar (like Java's) uses one generic
+ * node for every binary operator.
+ */
+function computeComplexity(bodyNode: TSNode): number {
+  let complexity = 1;
+
+  function visit(node: TSNode | null): void {
+    if (!node) return;
+    if (COMPLEXITY_NODE_TYPES.has(node.type)) complexity++;
+    if (node.type === 'binary_expression') {
+      const op = node.childForFieldName('operator')?.text;
+      if (op === '&&' || op === '||') complexity++;
+    }
+    if (FUNCTION_NODE_TYPES.has(node.type)) return;
+    for (const child of node.namedChildren) visit(child);
+  }
+
+  for (const child of bodyNode.namedChildren) visit(child);
+  return complexity;
+}
+
+/**
+ * Normalized structural token stream for duplication detection. Same
+ * ID/LIT/node-type-name scheme as the other tree-sitter parsers here.
+ */
+function collectNormalizedTokens(bodyNode: TSNode): string[] {
+  const tokens: string[] = [];
+
+  function visit(node: TSNode | null): void {
+    if (!node) return;
+    if (node.type === 'identifier' || node.type === 'property_identifier') {
+      tokens.push('ID');
+      return;
+    }
+    if (LITERAL_NODE_TYPES.has(node.type)) {
+      tokens.push('LIT');
+      return;
+    }
+
+    tokens.push(node.type);
+
+    if (FUNCTION_NODE_TYPES.has(node.type)) return;
+    for (const child of node.namedChildren) visit(child);
+  }
+
+  for (const child of bodyNode.namedChildren) visit(child);
+  return tokens;
 }
 
 export default new JavaScriptParser();
