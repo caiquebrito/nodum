@@ -86,3 +86,57 @@ describe("handleFindBottlenecks", () => {
     expect(text).toContain("No scored functions found");
   });
 });
+
+describe("handleExplainArchitecture", () => {
+  const layeredGraph = {
+    project: "proj",
+    stats: { files: 2, functions: 0, classes: 0, interfaces: 0, edges: 1 },
+    nodes: [
+      { id: "a", label: "List.tsx", type: "file", file: "src/ui/List.tsx", group: "ui" },
+      { id: "b", label: "repo.ts", type: "file", file: "src/db/repo.ts", group: "repo" },
+    ],
+    edges: [{ source: "a", target: "b", relation: "imports" }],
+  };
+
+  function mockFiles(projectsJson: unknown, nodumrc: object | null) {
+    readFileMock.mockImplementation((path: string) => {
+      if (path.endsWith("graph.json")) return Promise.resolve(JSON.stringify(layeredGraph));
+      if (path.endsWith("projects.json")) return Promise.resolve(JSON.stringify(projectsJson));
+      if (path.endsWith(".nodumrc.json")) {
+        if (nodumrc === null) return Promise.reject(new Error("ENOENT"));
+        return Promise.resolve(JSON.stringify(nodumrc));
+      }
+      return Promise.reject(new Error(`unexpected path: ${path}`));
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("reports layers and dependencies with a 'not configured' message when no rules exist", async () => {
+    mockFiles({ proj: { name: "proj", path: "/src/proj" } }, null);
+    const { handleExplainArchitecture } = await import("./handlers.js");
+    const result = await handleExplainArchitecture("proj");
+
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).toContain("ui");
+    expect(text).toContain("repo");
+    expect(text).toContain("ui → repo  1 imports");
+    expect(text).toContain("none configured");
+  });
+
+  it("includes violations automatically when the project has configured architecture rules", async () => {
+    mockFiles(
+      { proj: { name: "proj", path: "/src/proj" } },
+      { architecture: { rules: [{ from: "ui", to: "repo" }] } },
+    );
+    const { handleExplainArchitecture } = await import("./handlers.js");
+    const result = await handleExplainArchitecture("proj");
+
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).toContain("Architecture rules: 1 configured");
+    expect(text).toContain("Violations: 1 found");
+    expect(text).toContain("src/ui/List.tsx");
+  });
+});

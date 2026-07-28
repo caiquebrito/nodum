@@ -7,6 +7,8 @@ import {
   writeGraphFile,
   traceImpact,
   findBottlenecks,
+  explainArchitecture,
+  loadArchitectureConfig,
   type ProjectIndexEntry,
   type Graph as CoreGraph,
 } from "@caiquebrito/nodum-core";
@@ -481,5 +483,50 @@ export async function handleFindBottlenecks(projectName: string, limit?: number)
     };
   } catch (error) {
     return { error: `Failed to find bottlenecks: ${String(error)}` };
+  }
+}
+
+export async function handleExplainArchitecture(projectName: string) {
+  try {
+    const graph = await loadGraph(projectName);
+    const index = await loadProjectIndex();
+    const projectPath = index[projectName]?.path;
+    const rules = projectPath ? (await loadArchitectureConfig(projectPath)).rules : undefined;
+
+    // Same cast rationale as handleTraceImpact/handleFindBottlenecks.
+    const summary = explainArchitecture(graph as unknown as CoreGraph, rules);
+
+    const lines: string[] = ["🏛️  Architecture overview", "", "Layers:"];
+    for (const layer of summary.layers) {
+      lines.push(`  ${layer.group}  ${layer.fileCount} files, ${layer.nodeCount} nodes`);
+    }
+
+    lines.push("", "Dependencies between layers:");
+    if (summary.layerDependencies.length === 0) {
+      lines.push("  (none)");
+    } else {
+      for (const dep of summary.layerDependencies) {
+        lines.push(`  ${dep.sourceGroup} → ${dep.targetGroup}  ${dep.importCount} imports`);
+      }
+    }
+
+    lines.push("");
+    if (summary.violations === undefined) {
+      lines.push(
+        "Architecture rules: (none configured — run `nodum config --set-architecture-rules` to add some)"
+      );
+    } else {
+      lines.push(`Architecture rules: ${rules!.length} configured`);
+      lines.push(`Violations: ${summary.violations.length} found`);
+      summary.violations.forEach((v) => {
+        lines.push(`  [${v.rule.from} → ${v.rule.to}] ${v.sourceFile} → ${v.targetFile}`);
+      });
+    }
+
+    return {
+      content: [text(lines.join("\n"))],
+    };
+  } catch (error) {
+    return { error: `Failed to explain architecture: ${String(error)}` };
   }
 }

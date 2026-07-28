@@ -73,6 +73,9 @@ export type { ImpactedFile, TraceImpactOptions } from './analyzer/impact.js';
 export { findBottlenecks } from './analyzer/bottlenecks.js';
 export type { Bottleneck, FindBottlenecksOptions } from './analyzer/bottlenecks.js';
 
+export { explainArchitecture } from './analyzer/architecture-summary.js';
+export type { ArchitectureSummary, LayerSummary, LayerDependency } from './analyzer/architecture-summary.js';
+
 export {
   injectCLAUDEContext,
   appendActivityLog,
