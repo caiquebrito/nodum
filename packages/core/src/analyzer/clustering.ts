@@ -4,21 +4,7 @@
  * v2.0 Phase 3: 25% additional token reduction
  */
 
-interface Node {
-  id: string;
-  label: string;
-  type: string;
-  file?: string;
-  group?: string;
-  embedding?: number[];
-  clusterId?: string;
-}
-
-interface Edge {
-  source: string;
-  target: string;
-  relation: string;
-}
+import type { Node, Edge } from '../types.js';
 
 export interface NodeCluster {
   id: string;

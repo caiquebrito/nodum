@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Node } from "@caiquebrito/nodum-core";
 
 // Deterministic fake vector so cosine similarity behaves predictably in tests,
 // without downloading the real model.
@@ -48,7 +49,7 @@ describe("embeddings (local model)", () => {
   it("hasEmbeddings requires at least 50% of non-file nodes embedded", async () => {
     const { hasEmbeddings } = await import("./embeddings.js");
 
-    const nodes = [
+    const nodes: Node[] = [
       { id: "1", label: "a", type: "function", file: "a.ts", group: "g" },
       { id: "2", label: "b", type: "function", file: "b.ts", group: "g" },
       { id: "3", label: "c", type: "function", file: "c.ts", group: "g", embedding: [0.1, 0.2] },
@@ -66,7 +67,7 @@ describe("embeddings (local model)", () => {
   it("returns false, not vacuously true, for a graph with zero non-file nodes", async () => {
     const { hasEmbeddings } = await import("./embeddings.js");
 
-    const allFileNodes = [
+    const allFileNodes: Node[] = [
       { id: "1", label: "a.ts", type: "file", file: "a.ts", group: "g" },
       { id: "2", label: "b.ts", type: "file", file: "b.ts", group: "g" },
     ];
@@ -95,7 +96,7 @@ describe("embeddings (local model)", () => {
     const { generateGraphEmbeddings } = await import("./embeddings.js");
 
     const preEmbedded = [0.9, 0.9];
-    const nodes = [
+    const nodes: Node[] = [
       { id: "1", label: "already", type: "function", file: "a.ts", group: "g", embedding: preEmbedded },
       { id: "2", label: "file node", type: "file", file: "b.ts", group: "g" },
       { id: "3", label: "needs embedding", type: "function", file: "c.ts", group: "g" },

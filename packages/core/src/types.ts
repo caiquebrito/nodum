@@ -16,7 +16,7 @@ export interface Node {
   file: string;
   group: string;
   line?: number;
-  embedding?: number[];  // v2.0: Semantic search embeddings (1536-dim)
+  embedding?: number[];  // v2.0: Semantic search embeddings (384-dim, Xenova/all-MiniLM-L6-v2)
   clusterId?: string;     // v2.0: Cluster assignment for hierarchical compression
   /** Cyclomatic complexity (McCabe). Only set for function/method nodes whose
    * parser could determine a body; omitted (not zero) when unknown. */
