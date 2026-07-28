@@ -94,3 +94,5 @@ export {
 
 export { checkLatestVersion, formatUpdateNotice } from './version-check.js';
 export type { VersionCheckResult } from './version-check.js';
+
+export { countTokens } from './token-count.js';
