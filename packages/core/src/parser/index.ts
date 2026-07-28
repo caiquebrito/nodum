@@ -5,9 +5,10 @@ import { PythonParser } from './python.js';
 import { KotlinParser } from './kotlin.js';
 import { JavaParser } from './java.js';
 import { SwiftParser } from './swift.js';
+import { ObjCParser } from './objc.js';
 
 export { Parser };
-export { TypeScriptParser, JavaScriptParser, PythonParser, KotlinParser, JavaParser, SwiftParser };
+export { TypeScriptParser, JavaScriptParser, PythonParser, KotlinParser, JavaParser, SwiftParser, ObjCParser };
 
 const parsers: Parser[] = [
   new TypeScriptParser(),
@@ -16,6 +17,7 @@ const parsers: Parser[] = [
   new KotlinParser(),
   new JavaParser(),
   new SwiftParser(),
+  new ObjCParser(),
 ];
 
 export function selectParser(ext: string): Parser | null {

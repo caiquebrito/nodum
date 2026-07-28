@@ -134,6 +134,51 @@ export function resolveSwiftImport(
   return matches;
 }
 
+/**
+ * Import resolution for Objective-C (spec 038). Two specifier shapes,
+ * distinguished by the parser at extraction time (see `objc.ts`'s
+ * `extractImports`):
+ *
+ *  - A quoted `#import "Foo.h"` / `#include "Foo.h"` — a same-project file
+ *    reference. Resolved by bare-filename suffix match against
+ *    `knownFilesByPath`, mirroring `resolveRelativeImport`'s shape (but not
+ *    reusing it directly — that function is TS/JS-extension-specific and
+ *    additionally requires a leading `.`, which a bare ObjC filename never
+ *    has).
+ *  - A module name from `@import Foo;` — same directory-suffix matching
+ *    `resolveSwiftImport` uses, since both are the same kind of specifier
+ *    (a module name, not a file path) resolved the same zero-build-system-
+ *    knowledge way. This is also what gives a Swift `import` of an
+ *    Objective-C module for free once `resolveSwiftObjcImport` unifies the
+ *    two in spec 039 — not yet unified here.
+ */
+export function resolveObjcImport(
+  specifier: string,
+  _importingFilePath: string,
+  _knownFileIds: Set<string>,
+  knownFilesByPath: Map<string, string>,
+): string[] {
+  // A quoted include always has a `.` (an extension) — a bare module name
+  // from `@import` never does. This distinguishes the two shapes without
+  // needing the parser to encode which one it was.
+  if (specifier.includes('.')) {
+    const lower = specifier.toLowerCase();
+    for (const [path, id] of knownFilesByPath) {
+      const pathLower = path.toLowerCase();
+      if (pathLower === lower || pathLower.endsWith(`/${lower}`)) return [id];
+    }
+    return [];
+  }
+
+  const dirSuffix = `/${specifier}/`.toLowerCase();
+  const matches: string[] = [];
+  for (const [path, id] of knownFilesByPath) {
+    const dir = path.slice(0, path.lastIndexOf('/') + 1).toLowerCase();
+    if (dir.endsWith(dirSuffix) || dir === `${specifier.toLowerCase()}/`) matches.push(id);
+  }
+  return matches;
+}
+
 export function resolvePythonImport(
   specifier: string,
   importingFilePath: string,
