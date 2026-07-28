@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 import { mkdtemp, writeFile, rm, stat, utimes, readFile, mkdir } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import { discoverFiles, discoverChangedFiles } from "./file-discovery.js";
+import { discoverFiles, discoverChangedFiles, IGNORED_DIRS } from "./file-discovery.js";
 import type { FileManifest } from "./types.js";
 
 vi.mock("fs/promises", async (importOriginal) => {
@@ -186,5 +186,28 @@ describe("discoverFiles — scan config integration", () => {
     const files = await discoverFiles(dir);
 
     expect(files.map(f => f.path)).toEqual(["src/index.ts"]);
+  });
+
+  it("skips a directory added via .nodumrc.json's ignoredDirs, on top of the built-in set", async () => {
+    dir = await mkdtemp(join(tmpdir(), "nodum-file-discovery-ignoreddirs-"));
+    await writeFile(join(dir, "kept.ts"), "export const k = 1;\n", "utf-8");
+    await mkdir(join(dir, ".terraform"), { recursive: true });
+    await writeFile(join(dir, ".terraform", "inner.ts"), "export const i = 1;\n", "utf-8");
+    await writeFile(join(dir, ".nodumrc.json"), JSON.stringify({ ignoredDirs: [".terraform"] }), "utf-8");
+
+    const files = await discoverFiles(dir);
+
+    expect(files.map(f => f.path)).toEqual(["kept.ts"]);
+  });
+});
+
+describe("IGNORED_DIRS", () => {
+  it("merges the cross-cutting base set with every registered parser's own ignoredDirs", () => {
+    // Cross-cutting, owned by no single parser.
+    expect(IGNORED_DIRS.has("node_modules")).toBe(true);
+    // Parser-contributed (spec 030) — Python, Kotlin/Java respectively.
+    expect(IGNORED_DIRS.has("__pycache__")).toBe(true);
+    expect(IGNORED_DIRS.has(".gradle")).toBe(true);
+    expect(IGNORED_DIRS.has("target")).toBe(true);
   });
 });

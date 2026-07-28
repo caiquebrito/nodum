@@ -5,8 +5,9 @@ import { getNodeGroup, normalizeNodeId } from '../types.js';
 export class PythonParser extends Parser {
   language = 'Python';
   extensions = ['.py'];
+  ignoredDirs = ['__pycache__', '.venv', 'venv'];
 
-  parse(file: FileInfo): ParseResult {
+  async parse(file: FileInfo): Promise<ParseResult> {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
 

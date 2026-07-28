@@ -5,12 +5,18 @@ import { extractBraceBody } from './brace-body.js';
 import { countCyclomaticComplexity } from './complexity-text.js';
 import { normalizeBodyTokens } from './normalize-body-text.js';
 import { hashTokens } from './duplicate-hash.js';
+import { resolveRelativeImport } from './import-resolver.js';
 
 export class JavaScriptParser extends Parser {
   language = 'JavaScript';
   extensions = ['.js', '.mjs', '.cjs', '.jsx'];
 
-  parse(file: FileInfo): ParseResult {
+  resolveImport(specifier: string, importingFilePath: string, knownFileIds: Set<string>): string[] {
+    const id = resolveRelativeImport(importingFilePath, specifier, knownFileIds);
+    return id ? [id] : [];
+  }
+
+  async parse(file: FileInfo): Promise<ParseResult> {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
 

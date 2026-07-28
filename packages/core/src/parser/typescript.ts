@@ -3,12 +3,18 @@ import { Parser } from './base.js';
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
 import { hashTokens } from './duplicate-hash.js';
+import { resolveRelativeImport } from './import-resolver.js';
 
 export class TypeScriptParser extends Parser {
   language = 'TypeScript';
   extensions = ['.ts', '.tsx'];
 
-  parse(file: FileInfo): ParseResult {
+  resolveImport(specifier: string, importingFilePath: string, knownFileIds: Set<string>): string[] {
+    const id = resolveRelativeImport(importingFilePath, specifier, knownFileIds);
+    return id ? [id] : [];
+  }
+
+  async parse(file: FileInfo): Promise<ParseResult> {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
     const imports: string[] = [];

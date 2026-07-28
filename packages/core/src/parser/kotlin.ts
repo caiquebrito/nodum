@@ -5,12 +5,22 @@ import { extractBraceBody } from './brace-body.js';
 import { countCyclomaticComplexity } from './complexity-text.js';
 import { normalizeBodyTokens } from './normalize-body-text.js';
 import { hashTokens } from './duplicate-hash.js';
+import { resolveJvmImport } from './import-resolver.js';
 
 export class KotlinParser extends Parser {
   language = 'Kotlin';
   extensions = ['.kt'];
+  ignoredDirs = ['.gradle', 'target'];
 
-  parse(file: FileInfo): ParseResult {
+  // Shared with JavaParser — both JVM languages resolve dotted-FQN imports
+  // the same suffix-matching way (see import-resolver.ts), regardless of
+  // which one is on tree-sitter (Java, spec 032) and which isn't (Kotlin,
+  // deferred — its tree-sitter grammar isn't good enough yet).
+  resolveImport(specifier: string, _importingFilePath: string, _knownFileIds: Set<string>, knownFilesByPath: Map<string, string>): string[] {
+    return resolveJvmImport(specifier, knownFilesByPath);
+  }
+
+  async parse(file: FileInfo): Promise<ParseResult> {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
 

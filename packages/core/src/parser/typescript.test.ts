@@ -7,34 +7,34 @@ function fileInfo(path: string, content: string): FileInfo {
 }
 
 describe("TypeScriptParser imports", () => {
-  it("extracts a default/named import specifier", () => {
-    const { imports } = parser.parse(fileInfo("a.ts", `import { foo } from './foo';\nimport bar from '../bar';\n`));
+  it("extracts a default/named import specifier", async () => {
+    const { imports } = await parser.parse(fileInfo("a.ts", `import { foo } from './foo';\nimport bar from '../bar';\n`));
     expect(imports).toEqual(["./foo", "../bar"]);
   });
 
-  it("extracts a bare package specifier", () => {
-    const { imports } = parser.parse(fileInfo("a.ts", `import React from 'react';\n`));
+  it("extracts a bare package specifier", async () => {
+    const { imports } = await parser.parse(fileInfo("a.ts", `import React from 'react';\n`));
     expect(imports).toEqual(["react"]);
   });
 
-  it("extracts an import= external module reference", () => {
-    const { imports } = parser.parse(fileInfo("a.ts", `import foo = require('./foo');\n`));
+  it("extracts an import= external module reference", async () => {
+    const { imports } = await parser.parse(fileInfo("a.ts", `import foo = require('./foo');\n`));
     expect(imports).toEqual(["./foo"]);
   });
 
-  it("returns an empty array when there are no imports", () => {
-    const { imports } = parser.parse(fileInfo("a.ts", `export const x = 1;\n`));
+  it("returns an empty array when there are no imports", async () => {
+    const { imports } = await parser.parse(fileInfo("a.ts", `export const x = 1;\n`));
     expect(imports).toEqual([]);
   });
 });
 
 describe("TypeScriptParser complexity", () => {
-  it("scores a function with no decision points as 1", () => {
-    const { nodes } = parser.parse(fileInfo("a.ts", `function foo() { return 1; }`));
+  it("scores a function with no decision points as 1", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.ts", `function foo() { return 1; }`));
     expect(nodes.find(n => n.label === "foo")?.complexity).toBe(1);
   });
 
-  it("counts if/for/ternary/&& as decision points", () => {
+  it("counts if/for/ternary/&& as decision points", async () => {
     const src = `
       function foo(x: number) {
         if (x > 0) {
@@ -43,12 +43,12 @@ describe("TypeScriptParser complexity", () => {
         return x > 0 && x < 10 ? 1 : 2;
       }
     `;
-    const { nodes } = parser.parse(fileInfo("a.ts", src));
+    const { nodes } = await parser.parse(fileInfo("a.ts", src));
     // base 1 + if + for + && + ternary = 5
     expect(nodes.find(n => n.label === "foo")?.complexity).toBe(5);
   });
 
-  it("does not double-count a nested named function's branches into the parent", () => {
+  it("does not double-count a nested named function's branches into the parent", async () => {
     const src = `
       function outer() {
         if (true) {}
@@ -59,22 +59,22 @@ describe("TypeScriptParser complexity", () => {
         return inner;
       }
     `;
-    const { nodes } = parser.parse(fileInfo("a.ts", src));
+    const { nodes } = await parser.parse(fileInfo("a.ts", src));
     expect(nodes.find(n => n.label === "outer")?.complexity).toBe(2); // base 1 + its own if
     expect(nodes.find(n => n.label === "inner")?.complexity).toBe(3); // base 1 + its own 2 ifs
   });
 
-  it("does count a nested arrow-function callback's branches into the enclosing scored function", () => {
+  it("does count a nested arrow-function callback's branches into the enclosing scored function", async () => {
     const src = `
       function outer(items: number[]) {
         return items.map(x => x > 0 ? x : -x);
       }
     `;
-    const { nodes } = parser.parse(fileInfo("a.ts", src));
+    const { nodes } = await parser.parse(fileInfo("a.ts", src));
     expect(nodes.find(n => n.label === "outer")?.complexity).toBe(2); // base 1 + arrow's ternary
   });
 
-  it("scores a class method", () => {
+  it("scores a class method", async () => {
     const src = `
       class Foo {
         bar(x: number) {
@@ -83,7 +83,7 @@ describe("TypeScriptParser complexity", () => {
         }
       }
     `;
-    const { nodes } = parser.parse(fileInfo("a.ts", src));
+    const { nodes } = await parser.parse(fileInfo("a.ts", src));
     expect(nodes.find(n => n.label === "bar")?.complexity).toBe(2);
   });
 });
@@ -100,21 +100,21 @@ describe("TypeScriptParser duplicateHash", () => {
     return ${target};
   `;
 
-  it("gives the same hash to renamed-but-structurally-identical functions", () => {
+  it("gives the same hash to renamed-but-structurally-identical functions", async () => {
     const srcA = `function foo(x: number) { let acc = 0; ${bodyOf("x", "acc")} }`;
     const srcB = `function bar(y: number) { let total = 0; ${bodyOf("y", "total")} }`;
-    const a = parser.parse(fileInfo("a.ts", srcA)).nodes.find(n => n.label === "foo");
-    const b = parser.parse(fileInfo("b.ts", srcB)).nodes.find(n => n.label === "bar");
+    const a = (await parser.parse(fileInfo("a.ts", srcA))).nodes.find(n => n.label === "foo");
+    const b = (await parser.parse(fileInfo("b.ts", srcB))).nodes.find(n => n.label === "bar");
     expect(a?.duplicateHash).toBeDefined();
     expect(a?.duplicateHash).toBe(b?.duplicateHash);
   });
 
-  it("gives a small function no duplicateHash", () => {
-    const { nodes } = parser.parse(fileInfo("a.ts", `function foo() { return 1; }`));
+  it("gives a small function no duplicateHash", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.ts", `function foo() { return 1; }`));
     expect(nodes.find(n => n.label === "foo")?.duplicateHash).toBeUndefined();
   });
 
-  it("does not merge a nested named function's own tokens into the parent's hash", () => {
+  it("does not merge a nested named function's own tokens into the parent's hash", async () => {
     // Both outers have a nested `inner` declaration (so the boundary token
     // itself is present in both streams equally) — only inner's internal
     // content differs. If inner's tokens leaked into outer's stream, these
@@ -136,8 +136,8 @@ describe("TypeScriptParser duplicateHash", () => {
         }
       }
     `;
-    const a = parser.parse(fileInfo("a.ts", srcA)).nodes.find(n => n.label === "outer");
-    const b = parser.parse(fileInfo("b.ts", srcB)).nodes.find(n => n.label === "outer");
+    const a = (await parser.parse(fileInfo("a.ts", srcA))).nodes.find(n => n.label === "outer");
+    const b = (await parser.parse(fileInfo("b.ts", srcB))).nodes.find(n => n.label === "outer");
     expect(a?.duplicateHash).toBeDefined();
     expect(a?.duplicateHash).toBe(b?.duplicateHash);
   });

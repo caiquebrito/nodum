@@ -5,12 +5,19 @@ import { extractBraceBody } from './brace-body.js';
 import { countCyclomaticComplexity } from './complexity-text.js';
 import { normalizeBodyTokens } from './normalize-body-text.js';
 import { hashTokens } from './duplicate-hash.js';
+import { resolveJvmImport } from './import-resolver.js';
 
 export class JavaParser extends Parser {
   language = 'Java';
   extensions = ['.java'];
+  ignoredDirs = ['.gradle', 'target'];
 
-  parse(file: FileInfo): ParseResult {
+  // Shared with KotlinParser — see the comment there.
+  resolveImport(specifier: string, _importingFilePath: string, _knownFileIds: Set<string>, knownFilesByPath: Map<string, string>): string[] {
+    return resolveJvmImport(specifier, knownFilesByPath);
+  }
+
+  async parse(file: FileInfo): Promise<ParseResult> {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
 

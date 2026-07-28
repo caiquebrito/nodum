@@ -7,6 +7,13 @@ export interface ScanConfig {
   include?: string[];
   /** Glob/gitignore-syntax patterns, applied in addition to .gitignore. */
   exclude?: string[];
+  /**
+   * Directory names added to the built-in `IGNORED_DIRS` (cross-cutting
+   * defaults plus whatever each registered parser contributes — see
+   * `file-discovery.ts`). Additive, same posture as `exclude` alongside
+   * `.gitignore` — this never replaces the built-in set.
+   */
+  ignoredDirs?: string[];
 }
 
 const CONFIG_FILENAME = '.nodumrc.json';
@@ -18,6 +25,7 @@ export async function loadScanConfig(rootPath: string): Promise<ScanConfig> {
     return {
       include: Array.isArray(parsed.include) ? parsed.include : undefined,
       exclude: Array.isArray(parsed.exclude) ? parsed.exclude : undefined,
+      ignoredDirs: Array.isArray(parsed.ignoredDirs) ? parsed.ignoredDirs : undefined,
     };
   } catch {
     return {};
@@ -39,6 +47,7 @@ export async function saveScanConfig(rootPath: string, update: ScanConfig): Prom
   }
   if (update.include !== undefined) raw.include = update.include;
   if (update.exclude !== undefined) raw.exclude = update.exclude;
+  if (update.ignoredDirs !== undefined) raw.ignoredDirs = update.ignoredDirs;
   await writeFile(path, JSON.stringify(raw, null, 2), 'utf-8');
 }
 
