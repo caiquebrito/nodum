@@ -1,27 +1,69 @@
-import { Parser } from './base.js';
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
-import { extractBraceBody } from './brace-body.js';
-import { countCyclomaticComplexity } from './complexity-text.js';
-import { normalizeBodyTokens } from './normalize-body-text.js';
 import { hashTokens } from './duplicate-hash.js';
 import { resolveJvmImport } from './import-resolver.js';
+import { TreeSitterParser } from './treesitter/base.js';
+import { getQuery } from './treesitter/engine.js';
+import type { TSNode } from './treesitter/engine.js';
 
-export class JavaParser extends Parser {
+// One query covering both — a plain node-type check (`defNode.type`)
+// distinguishes class from interface at capture time.
+const TYPE_QUERY = `
+  (class_declaration name: (identifier) @name) @def
+  (interface_declaration name: (identifier) @name) @def
+`;
+
+// Real decision points via actual AST node types — no more CONTROL_FLOW_WORDS
+// guard against "} else if (...)" matching as a method named "if", and no
+// more missed constructors (the old regex needed two words before the
+// paren, which "public Foo(" never has once "public" is consumed as a
+// modifier). `enhanced_for_statement` (`for (T x : xs)`) and `do_statement`
+// are distinct node types from `for_statement`/`while_statement` in this
+// grammar — both counted, matching the old regex's intent even though it
+// never actually distinguished them either.
+const COMPLEXITY_NODE_TYPES = new Set([
+  'if_statement',
+  'for_statement',
+  'enhanced_for_statement',
+  'while_statement',
+  'do_statement',
+  'catch_clause',
+  'ternary_expression', // this grammar's name for what TS/Python call a conditional expression
+]);
+
+const LITERAL_NODE_TYPES = new Set([
+  'decimal_integer_literal',
+  'hex_integer_literal',
+  'octal_integer_literal',
+  'decimal_floating_point_literal',
+  'string_literal',
+  'character_literal',
+  'true',
+  'false',
+  'null_literal',
+]);
+
+export class JavaParser extends TreeSitterParser {
   language = 'Java';
   extensions = ['.java'];
   ignoredDirs = ['.gradle', 'target'];
+  protected grammarFile = 'tree-sitter-java.wasm';
 
-  // Shared with KotlinParser — see the comment there.
+  // Shared with KotlinParser — see the comment there. Import specifier
+  // format (dotted FQN, optional `.*` wildcard suffix) is unchanged by this
+  // migration, so this delegation needs no changes.
   resolveImport(specifier: string, _importingFilePath: string, _knownFileIds: Set<string>, knownFilesByPath: Map<string, string>): string[] {
     return resolveJvmImport(specifier, knownFilesByPath);
   }
 
   async parse(file: FileInfo): Promise<ParseResult> {
+    const { parser, language } = await this.ensureReady();
+    const tree = parser.parse(file.content);
+    const root = tree!.rootNode;
+
     const nodes: Node[] = [];
     const edges: Edge[] = [];
 
-    // File node
     const fileId = normalizeNodeId(file.path, file.path, 'file');
     nodes.push({
       id: fileId,
@@ -31,92 +73,149 @@ export class JavaParser extends Parser {
       group: getNodeGroup(file.path),
     });
 
-    const lines = file.content.split('\n');
-    const seenNames = new Set<string>();
-    // Words that can precede a parenthesized expression in ways that look
-    // like "returnType methodName(" to the regex below but aren't a method
-    // declaration — most commonly "} else if (...)". Not an exhaustive fix
-    // for this regex's fragility (e.g. "return foo(" has the same shape),
-    // just a narrow guard against the specific false positive this was
-    // caught producing.
-    const CONTROL_FLOW_WORDS = new Set(['if', 'else', 'for', 'while', 'switch', 'catch', 'try', 'do']);
+    // Every class/interface, at any nesting depth, gets a flat
+    // fileId->id edge — matching TypeScriptParser's own precedent (it
+    // doesn't track an enclosing-class scope for class/interface edges,
+    // only for their member methods). Each one's own direct member
+    // methods/constructors are then attributed to *that* declaration —
+    // since a method is only ever a direct child of exactly one
+    // class/interface body, no exclusion-tracking is needed the way
+    // PythonParser needs it for its flatter (no interfaces, no nesting
+    // depth beyond one) function/method split.
+    const seenTypeNames = new Set<string>();
+    const typeQuery = getQuery(language, 'java-types', TYPE_QUERY);
+    for (const match of typeQuery.matches(root)) {
+      const defNode = match.captures.find(c => c.name === 'def')?.node;
+      const nameNode = match.captures.find(c => c.name === 'name')?.node;
+      if (!defNode || !nameNode) continue;
 
-    lines.forEach((line, idx) => {
-      // Extract methods: public void methodName(
-      const methodMatch = line.match(/(?:public|private|protected)?\s*(?:static)?\s*(?:synchronized)?\s*(?:final)?\s*\w+(?:<[^>]+>)?\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/);
-      if (methodMatch && !line.includes('class ') && !line.includes('interface ') && !CONTROL_FLOW_WORDS.has(methodMatch[1])) {
-        const name = methodMatch[1];
-        if (!seenNames.has(name)) {
-          const methodId = normalizeNodeId(file.path, name, 'function');
-          const body = extractBraceBody(lines, idx);
-          const duplicateHash = body !== null ? hashTokens(normalizeBodyTokens(body)) : null;
-          nodes.push({
-            id: methodId,
-            label: name,
-            type: 'function',
-            file: file.path,
-            group: getNodeGroup(file.path),
-            line: idx + 1,
-            ...(body !== null ? { complexity: countCyclomaticComplexity(body) } : {}),
-            ...(duplicateHash !== null ? { duplicateHash } : {}),
-          });
-          edges.push({ source: fileId, target: methodId, relation: 'defines' });
-          seenNames.add(name);
-        }
+      const typeName = nameNode.text;
+      const dedupeKey = `${defNode.type}:${typeName}`;
+      if (seenTypeNames.has(dedupeKey)) continue;
+      seenTypeNames.add(dedupeKey);
+
+      const kind: 'class' | 'interface' = defNode.type === 'interface_declaration' ? 'interface' : 'class';
+      const typeId = normalizeNodeId(file.path, typeName, kind);
+      nodes.push({
+        id: typeId,
+        label: typeName,
+        type: kind,
+        file: file.path,
+        group: getNodeGroup(file.path),
+        line: defNode.startPosition.row + 1,
+      });
+      edges.push({ source: fileId, target: typeId, relation: 'defines' });
+
+      const body = defNode.childForFieldName('body');
+      if (!body) continue;
+
+      const seenMemberNames = new Set<string>();
+      for (const child of body.namedChildren) {
+        if (!child) continue;
+        if (child.type !== 'method_declaration' && child.type !== 'constructor_declaration') continue;
+
+        const memberNameNode = child.childForFieldName('name');
+        if (!memberNameNode) continue;
+        const memberName = memberNameNode.text;
+        if (seenMemberNames.has(memberName)) continue; // first overload wins — same posture as every other parser here
+        seenMemberNames.add(memberName);
+
+        const memberBody = child.childForFieldName('body'); // `block` for methods, `constructor_body` for constructors — either walks the same way
+        const duplicateHash = memberBody ? hashTokens(collectNormalizedTokens(memberBody)) : null;
+        const methodId = normalizeNodeId(file.path, `${typeName}#${memberName}`, 'method');
+        nodes.push({
+          id: methodId,
+          label: memberName,
+          type: 'method',
+          file: file.path,
+          group: getNodeGroup(file.path),
+          line: child.startPosition.row + 1,
+          ...(memberBody ? { complexity: computeComplexity(memberBody) } : {}),
+          ...(duplicateHash ? { duplicateHash } : {}),
+        });
+        edges.push({ source: typeId, target: methodId, relation: 'defines' });
       }
-
-      // Extract classes: public class ClassName
-      const classMatch = line.match(/(?:public|private)?\s*(?:final)?\s*(?:abstract)?\s*class\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
-      if (classMatch) {
-        const name = classMatch[1];
-        if (!seenNames.has(name)) {
-          const classId = normalizeNodeId(file.path, name, 'class');
-          nodes.push({
-            id: classId,
-            label: name,
-            type: 'class',
-            file: file.path,
-            group: getNodeGroup(file.path),
-            line: idx + 1,
-          });
-          edges.push({ source: fileId, target: classId, relation: 'defines' });
-          seenNames.add(name);
-        }
-      }
-
-      // Extract interfaces: public interface InterfaceName
-      const ifaceMatch = line.match(/(?:public)?\s*interface\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
-      if (ifaceMatch) {
-        const name = ifaceMatch[1];
-        if (!seenNames.has(name)) {
-          const ifaceId = normalizeNodeId(file.path, name, 'interface');
-          nodes.push({
-            id: ifaceId,
-            label: name,
-            type: 'interface',
-            file: file.path,
-            group: getNodeGroup(file.path),
-            line: idx + 1,
-          });
-          edges.push({ source: fileId, target: ifaceId, relation: 'defines' });
-          seenNames.add(name);
-        }
-      }
-    });
-
-    // Extract imports: import com.example.ClassName; or import com.example.*;
-    // Optionally skips a leading `static` (import static com.example.Foo.bar;)
-    // — the old regex had no such handling, so `static` itself was captured
-    // as if it were the start of the fully-qualified name.
-    const importRegex = /^import\s+(?:static\s+)?([\w.]+\*?)\s*;/gm;
-    const imports: string[] = [];
-    let match;
-    while ((match = importRegex.exec(file.content)) !== null) {
-      imports.push(match[1]);
     }
+
+    const imports = extractImports(root);
 
     return { nodes, edges, imports };
   }
+}
+
+function extractImports(root: TSNode): string[] {
+  const imports: string[] = [];
+
+  for (const importDecl of root.descendantsOfType('import_declaration')) {
+    if (!importDecl) continue;
+
+    let dottedNode: TSNode | null = null;
+    let isWildcard = false;
+    for (let i = 0; i < importDecl.childCount; i++) {
+      const child = importDecl.child(i);
+      if (!child) continue;
+      if (child.type === 'scoped_identifier' || child.type === 'identifier') dottedNode = child;
+      if (child.type === 'asterisk') isWildcard = true;
+    }
+
+    if (dottedNode) imports.push(isWildcard ? `${dottedNode.text}.*` : dottedNode.text);
+  }
+
+  return imports;
+}
+
+/**
+ * McCabe cyclomatic complexity. Same traversal boundary as every other
+ * parser here: doesn't descend into a nested `method_declaration`/
+ * `constructor_declaration` (a Java local/anonymous class's own methods
+ * would be separately scored if that class is itself walked — this only
+ * guards against the rarer case of counting a directly nested method
+ * declaration's branches twice).
+ */
+function computeComplexity(bodyNode: TSNode): number {
+  let complexity = 1;
+
+  function visit(node: TSNode | null): void {
+    if (!node) return;
+    if (COMPLEXITY_NODE_TYPES.has(node.type)) complexity++;
+    if (node.type === 'binary_expression') {
+      const op = node.childForFieldName('operator')?.text;
+      if (op === '&&' || op === '||') complexity++;
+    }
+    if (node.type === 'method_declaration' || node.type === 'constructor_declaration') return;
+    for (const child of node.namedChildren) visit(child);
+  }
+
+  for (const child of bodyNode.namedChildren) visit(child);
+  return complexity;
+}
+
+/**
+ * Normalized structural token stream for duplication detection. Same
+ * ID/LIT/node-type-name scheme as the other tree-sitter parsers here.
+ */
+function collectNormalizedTokens(bodyNode: TSNode): string[] {
+  const tokens: string[] = [];
+
+  function visit(node: TSNode | null): void {
+    if (!node) return;
+    if (node.type === 'identifier') {
+      tokens.push('ID');
+      return;
+    }
+    if (LITERAL_NODE_TYPES.has(node.type)) {
+      tokens.push('LIT');
+      return;
+    }
+
+    tokens.push(node.type);
+
+    if (node.type === 'method_declaration' || node.type === 'constructor_declaration') return;
+    for (const child of node.namedChildren) visit(child);
+  }
+
+  for (const child of bodyNode.namedChildren) visit(child);
+  return tokens;
 }
 
 export default new JavaParser();
