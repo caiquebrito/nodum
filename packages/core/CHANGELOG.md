@@ -1,5 +1,47 @@
 # @caiquebrito/nodum-core
 
+## 2.6.0
+
+### Minor Changes
+
+- fb2299d: Adds same-file `calls` edges: a function/method that calls another function/method defined in the same file (via a bare identifier, e.g. `foo()`) now gets a `calls` edge to it in the graph. Qualified calls (`this.x()`, `self.x()`, `obj.x()`) are deliberately not resolved — without real type information there's no reliable way to tell whether the receiver refers to something in this file. Implemented for TypeScript, Python, Java, and JavaScript; Kotlin stays on its regex parser and is excluded this release.
+
+  This is the prerequisite spec 012 deferred symbol-level dead code on — existing analyzers (`cycles`, `dead-code`, `architecture`, `trace-impact`) are unchanged and continue to operate on `imports` edges only.
+
+  Both viewer copies now render `calls` edges with a distinct color/arrowhead from `defines` edges.
+
+- fb2299d: Migrates the Java parser from line-regex to tree-sitter. The old method regex needed a `CONTROL_FLOW_WORDS` guard just to avoid matching `} else if (...)` as a method named `if` — its own comment admitted the fix wasn't exhaustive — and missed constructors entirely (`public Foo(int x)` doesn't match a "two words before the paren" pattern once `public` is consumed as a modifier). Both are now structurally impossible rather than patched around.
+
+  Constructors are now extracted (as `method`-type nodes labeled with the class name). Methods and constructors are attributed to their class or interface (`classId -> methodId` edge) instead of flattened to the file. Real cyclomatic complexity, including a ternary (previously excluded across all three regex-scored languages, spec 014) and two node types the old regex never distinguished: enhanced-for (`for (T x : xs)`) and do-while. Real `duplicateHash`. Import resolution (`resolveJvmImport`, shared with Kotlin) is unchanged.
+
+  Spec 032, third of the v2.3.0 tree-sitter migration batch.
+
+- fb2299d: Migrates the JavaScript parser from line-regex to tree-sitter. Two previously-undetected bugs fixed: `javascript.ts` never set a `line` number on any node (computed one internally purely to feed the old brace-matching helper, then discarded it — the only one of the four regex parsers with this gap, and untested since nothing anywhere in this codebase asserted line numbers before now), and JS classes got zero member extraction at all.
+
+  Class methods (instance, static — all the same node type in this grammar) are now attributed to their class (`classId -> methodId` edge), matching the precedent Python (031) and Java (032) already established. Real cyclomatic complexity, now including a ternary and correctly distinguishing `for...of`/`for...in` from a C-style `for`. Real `duplicateHash`. A concise-body arrow function (`x => x + 1`) deliberately still gets no complexity/hash, same as before this migration — there's no brace-delimited body to walk.
+
+  Spec 033, last of the three language migrations in the v2.3.0 tree-sitter batch — TypeScript stays on the compiler API throughout.
+
+- fb2299d: Migrates the Python parser from line-regex to tree-sitter. Python previously had no real import extraction at all — the loop existed but its body was dead code, so every Python project silently produced zero cross-file `imports` edges while `nodum sync` reported success. It now resolves absolute (`import os.path`, `from os import x`), package (`from pkg import x` → `pkg/__init__.py`), and relative (`from . import sibling`, `from .pkg import x`) imports into real edges via new `resolvePythonImport()`.
+
+  Also adds real cyclomatic complexity (including ternaries — the old regex-based scorer deliberately excluded them across all three of its languages to dodge a Kotlin false-positive that doesn't apply to a tree-sitter-based parser) and `duplicateHash` for Python for the first time, fixes a class/function name collision from a shared name-tracking set, fixes `async def` never matching the old `^\s*def` regex anchor, and attributes class methods to their class (`type: 'method'`, `classId -> methodId` edge) instead of flattening them into file-level `function` nodes.
+
+  Spec 031, second of the v2.3.0 tree-sitter migration batch.
+
+- fb2299d: Adds a tree-sitter runtime (`web-tree-sitter@^0.25.10` + `tree-sitter-wasms@^0.1.13`, pinned deliberately — 0.26.x breaks ABI compatibility with these grammars, tree-sitter#5171) as the foundation for migrating the regex-based parsers to tree-sitter in upcoming releases. `Parser.parse()` is now async (`Promise<ParseResult>`) — a signature change affecting anyone implementing the `Parser` interface directly, though all five existing parsers' own behavior is unchanged (verified byte-identical graph output on an unchanged fixture project).
+
+  New `registerParser()` export lets a consumer register an additional parser at runtime instead of needing to fork `nodum-core`. `Parser` is now exported as a real class (previously type-only), so `registerParser()` is actually usable — `class MyParser extends Parser { ... }` works.
+
+  Closes three abstraction leaks: import resolution now dispatches through an optional `Parser.resolveImport()` method instead of a hardcoded extension list in `graph-gen.ts`; ignored directories (`IGNORED_DIRS`) are now contributed by each parser (`ignoredDirs?: string[]`) merged with a smaller cross-cutting base set, and additionally overridable per-project via `.nodumrc.json`'s new `ignoredDirs` key.
+
+  No language migration in this release — spec 030, first of the v2.3.0 batch.
+
+### Patch Changes
+
+- fb2299d: Consolidates duplicated `Graph`/`Node`/`Edge` type declarations. `packages/core/src/analyzer/clustering.ts`, `packages/mcp/src/embeddings.ts`, and `packages/mcp/src/smart-context.ts` now import these types from `@caiquebrito/nodum-core` instead of hand-redeclaring an approximation of them. `packages/mcp/src/handlers.ts`'s local `Graph` type (which used `type: string` instead of the real `NodeType`, papered over with an `as unknown as CoreGraph` cast at five call sites) is removed entirely along with all five casts.
+
+  Fixes a stale doc comment claiming 1536-dim embeddings — the real model is 384-dim. Pure type consolidation with no intended behavior change; verified via a real end-to-end sync exercising every previously-cast handler.
+
 ## 2.5.0
 
 ### Minor Changes
