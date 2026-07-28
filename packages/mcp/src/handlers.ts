@@ -18,7 +18,12 @@ import { buildSmartContext, buildNodeContext } from "./smart-context.js";
 import { globalConversationCache } from "./conversation-cache.js";
 import { generateGraphEmbeddings } from "./embeddings.js";
 
-const NODUM_DATA_DIR = join(homedir(), ".nodum");
+export const NODUM_DATA_DIR = join(homedir(), ".nodum");
+
+// Caps a single file/cluster listing's member list — distinct from
+// smart-context.ts's expansion caps, which bound a 1-hop graph traversal
+// rather than a flat listing. See spec 027.
+const MAX_LISTED_MEMBERS = 20;
 
 interface Graph {
   project: string;
@@ -213,7 +218,7 @@ export async function handleSearch(
     // Use smart context with caching + semantic search
     // v1.1.2: 40-60% reduction (300 tokens)
     // v2.0: 83% reduction on cache hits + 20% better selection via semantic search
-    const smartContext = await buildSmartContext(query, graph, 20, globalConversationCache);
+    const { text: smartContext } = await buildSmartContext(query, graph, 20, globalConversationCache);
 
     return {
       content: [text(smartContext)],
@@ -320,13 +325,18 @@ export async function handleAnalyzeFile(
       (e) => !nodesInFile.some((n) => n.id === e.target)
     );
 
+    const listedMembers = nodesInFile.filter((n) => n.type !== "file");
+
     const summary =
       `📄 File: ${filePath}\n\n` +
       `📊 Contents:\n` +
-      nodesInFile
-        .filter((n) => n.type !== "file")
+      listedMembers
+        .slice(0, MAX_LISTED_MEMBERS)
         .map((n) => `  • ${n.label} (${n.type})`)
         .join("\n") +
+      (listedMembers.length > MAX_LISTED_MEMBERS
+        ? `\n  ... and ${listedMembers.length - MAX_LISTED_MEMBERS} more`
+        : "") +
       `\n\n` +
       `🔗 External dependencies (${externalDeps.length}):\n` +
       (externalDeps.length === 0
@@ -379,8 +389,12 @@ export async function handleExpandCluster(
       `🔗 ${cluster.label}\n\n` +
       `📊 Member nodes (${memberNodes.length}):\n` +
       memberNodes
+        .slice(0, MAX_LISTED_MEMBERS)
         .map((n: any) => `  • ${n.label} (${n.type})`)
         .join("\n") +
+      (memberNodes.length > MAX_LISTED_MEMBERS
+        ? `\n  ... and ${memberNodes.length - MAX_LISTED_MEMBERS} more`
+        : "") +
       `\n\n` +
       `🔀 Internal connections (${internalEdges.length}):\n` +
       (internalEdges.length === 0
@@ -397,8 +411,12 @@ export async function handleExpandCluster(
       (cluster.externalDeps.length === 0
         ? "  (none)"
         : cluster.externalDeps
+            .slice(0, MAX_LISTED_MEMBERS)
             .map((id: string) => `  • ${nodeMap[id]?.label || id}`)
-            .join("\n"));
+            .join("\n") +
+          (cluster.externalDeps.length > MAX_LISTED_MEMBERS
+            ? `\n  ... and ${cluster.externalDeps.length - MAX_LISTED_MEMBERS} more`
+            : ""));
 
     return {
       content: [text(summary)],

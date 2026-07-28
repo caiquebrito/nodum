@@ -1,6 +1,6 @@
 {
   "name": "@caiquebrito/nodum",
-  "version": "1.1.1",
+  "version": "2.4.0",
   "description": "Local knowledge graph for Claude — scan code, build interactive 3D dependency graph, inject context into CLAUDE.md",
   "type": "module",
   "private": true,
@@ -26,7 +26,8 @@
     "packages/core",
     "packages/cli",
     "packages/server",
-    "packages/mcp"
+    "packages/mcp",
+    "benchmarks"
   ],
   "keywords": [
     "claude",

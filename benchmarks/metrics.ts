@@ -1,5 +1,14 @@
 import type { BenchmarkQuestion, BenchmarkSummary, QuestionResult } from './datasets/schema.js';
 
+// A response mentioning every expected element in ~150 words is treated as
+// maximally precise; padding well past that for the same recall is
+// penalized. This is a length-based proxy, not true precision — the
+// dataset has no ground truth for *incorrect* claims a response could make,
+// so there's nothing to check false positives against. Named and
+// documented as a proxy rather than asserted as real precision, matching
+// the rest of this release's stance on not overstating what's measured.
+const IDEAL_WORDS_PER_EXPECTED_ELEMENT = 150;
+
 export function scoreAccuracy(
   response: string,
   expectedElements: BenchmarkQuestion['expectedElements'],
@@ -52,7 +61,17 @@ export function scoreAccuracy(
   }
 
   if (total === 0) return 100; // If no expected elements, consider it a pass
-  return (found / total) * 100;
+
+  const recall = found / total;
+  const wordCount = response.split(/\s+/).filter(Boolean).length;
+  const idealWordCount = total * IDEAL_WORDS_PER_EXPECTED_ELEMENT;
+  const precision = Math.min(1, idealWordCount / Math.max(wordCount, 1));
+
+  // Harmonic mean (F1) — a response only scores well if it's both complete
+  // AND reasonably concise, not just long enough to accidentally contain
+  // every expected keyword.
+  const f1 = recall + precision === 0 ? 0 : (2 * recall * precision) / (recall + precision);
+  return f1 * 100;
 }
 
 export function aggregateResults(results: QuestionResult[]): BenchmarkSummary['aggregate'] {

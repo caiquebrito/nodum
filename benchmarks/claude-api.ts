@@ -7,13 +7,17 @@ export interface APICallMetrics {
   latencyMs: number;
 }
 
+const DEFAULT_MODEL = 'claude-opus-5';
+
 export class ClaudeAPI {
   private client: Anthropic;
+  private model: string;
 
-  constructor(apiKey?: string) {
+  constructor(apiKey?: string, model: string = process.env.NODUM_BENCHMARK_MODEL || DEFAULT_MODEL) {
     this.client = new Anthropic({
       apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
     });
+    this.model = model;
   }
 
   async callWithMetrics(
@@ -23,7 +27,7 @@ export class ClaudeAPI {
     const startTime = performance.now();
 
     const response = await this.client.messages.create({
-      model: 'claude-opus-4-7',
+      model: this.model,
       max_tokens: 2000,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],

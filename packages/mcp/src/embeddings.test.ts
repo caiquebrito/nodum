@@ -63,6 +63,18 @@ describe("embeddings (local model)", () => {
     expect(hasEmbeddings(nodes)).toBe(true);
   });
 
+  it("returns false, not vacuously true, for a graph with zero non-file nodes", async () => {
+    const { hasEmbeddings } = await import("./embeddings.js");
+
+    const allFileNodes = [
+      { id: "1", label: "a.ts", type: "file", file: "a.ts", group: "g" },
+      { id: "2", label: "b.ts", type: "file", file: "b.ts", group: "g" },
+    ];
+
+    // 0 non-file nodes means 0 >= 0 * 0.5 without the guard — vacuously true.
+    expect(hasEmbeddings(allFileNodes)).toBe(false);
+  });
+
   it("returns [] and does not throw when the pipeline fails", async () => {
     pipelineMock.mockResolvedValue(
       vi.fn(async () => {

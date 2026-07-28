@@ -9,9 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### 🐛 Fixed
-- **Semantic search embeddings were completely broken since 2.0.0** — `embeddings.ts` called a non-existent `client.embeddings.create()` on the Anthropic SDK (which has no embeddings endpoint) using an OpenAI model name. Every call threw, was silently swallowed, and `hasEmbeddings()` always returned `false`, so semantic search silently degraded to keyword-only search.
-- **New**: Embeddings now use a local model (`Xenova/all-MiniLM-L6-v2`, 384-dim) via `@xenova/transformers` — no cloud API, no API key, consistent with nodum's local-first design. Downloads once (~23MB) on first use, then fully offline.
+_(nothing — this root changelog is retained for history; see below)_
+
+---
+
+### A note on this file
+
+This changelog covers the pre-monorepo and early-monorepo history (v1.0.0 through v2.0.0). From
+v2.1.0 onward, each package is versioned and changelogged independently by
+[Changesets](https://github.com/changesets/changesets) — see `packages/core/CHANGELOG.md`,
+`packages/cli/CHANGELOG.md`, `packages/mcp/CHANGELOG.md`, and `packages/server/CHANGELOG.md` for
+the accurate, per-release record. The embeddings fix previously listed here as "Unreleased" —
+semantic search silently degrading to keyword-only search because `embeddings.ts` called a
+non-existent Anthropic embeddings endpoint — shipped in `@caiquebrito/nodum-core@2.2.2` (spec
+001), which switched to a local model (`Xenova/all-MiniLM-L6-v2`, 384-dim) via
+`@xenova/transformers`.
 
 ---
 

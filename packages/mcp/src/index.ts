@@ -11,7 +11,7 @@ import {
   Tool,
   TextContent,
 } from "@modelcontextprotocol/sdk/types.js";
-import { checkLatestVersion, formatUpdateNotice } from "@caiquebrito/nodum-core";
+import { checkLatestVersion, formatUpdateNotice, appendMetricsLog, countTokens } from "@caiquebrito/nodum-core";
 import {
   handleSync,
   handleGetGraph,
@@ -26,6 +26,7 @@ import {
   handleExplainArchitecture,
   handleFindSimilarCode,
   handleSuggestRefactoring,
+  NODUM_DATA_DIR,
 } from "./handlers.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -306,10 +307,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args = {} } = request.params;
+  const startedAt = Date.now();
+  const projectName =
+    typeof (args as any).project_name === "string" ? (args as any).project_name : undefined;
+  let result: { content: TextContent[] } | { error: string };
 
   try {
-    let result: { content: TextContent[] } | { error: string };
-
     switch (name) {
       case "sync_project":
         result = await handleSync((args as any).project_path as string);
@@ -390,13 +393,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         );
         break;
       default:
-        return { error: `Unknown tool: ${name}` };
+        result = { error: `Unknown tool: ${name}` };
     }
-
-    return result;
   } catch (error) {
-    return { error: String(error) };
+    result = { error: String(error) };
   }
+
+  const success = !("error" in result);
+  const responseText =
+    "content" in result ? result.content.map((c) => c.text).join("\n") : undefined;
+
+  await appendMetricsLog(join(NODUM_DATA_DIR, projectName ?? "_unscoped", "logs"), {
+    timestamp: new Date().toISOString(),
+    tool: name,
+    projectName,
+    durationMs: Date.now() - startedAt,
+    approxTokens: responseText ? countTokens(responseText) : undefined,
+    success,
+  });
+
+  return result;
 });
 
 async function main() {
