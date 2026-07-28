@@ -29,7 +29,7 @@ describe("JavaParser imports", () => {
 });
 
 describe("JavaParser method extraction", () => {
-  it("does not mis-parse 'else if (...)' as a method named 'if'", async () => {
+  it("does not mis-parse 'else if (...)' as a method named 'if' — structurally impossible now, not just guarded against", async () => {
     const src = [
       "public class A {",
       "  public int foo(int x) {",
@@ -45,6 +45,43 @@ describe("JavaParser method extraction", () => {
     const { nodes } = await parser.parse(fileInfo("A.java", src));
     expect(nodes.map(n => n.label)).not.toContain("if");
   });
+
+  it("extracts a constructor, previously missed entirely by the old regex", async () => {
+    const src = "public class A {\n  public A(int x) {\n    this.x = x;\n  }\n}\n";
+    const { nodes, edges } = await parser.parse(fileInfo("A.java", src));
+    const ctor = nodes.find(n => n.label === "A" && n.type === "method");
+    expect(ctor).toBeDefined();
+    const classNode = nodes.find(n => n.label === "A" && n.type === "class")!;
+    expect(edges).toContainEqual({ source: classNode.id, target: ctor!.id, relation: "defines" });
+  });
+
+  it("attributes a method to its class (classId->methodId), not the file", async () => {
+    const src = "public class A {\n  public void foo() {}\n}\n";
+    const { nodes, edges } = await parser.parse(fileInfo("A.java", src));
+    const fileNode = nodes.find(n => n.type === "file")!;
+    const classNode = nodes.find(n => n.label === "A" && n.type === "class")!;
+    const method = nodes.find(n => n.label === "foo")!;
+
+    expect(method.type).toBe("method");
+    expect(edges).toContainEqual({ source: classNode.id, target: method.id, relation: "defines" });
+    expect(edges).not.toContainEqual({ source: fileNode.id, target: method.id, relation: "defines" });
+  });
+
+  it("attributes an interface's method to the interface", async () => {
+    const src = "public interface A {\n  void foo();\n}\n";
+    const { nodes, edges } = await parser.parse(fileInfo("A.java", src));
+    const iface = nodes.find(n => n.label === "A" && n.type === "interface")!;
+    const method = nodes.find(n => n.label === "foo")!;
+    expect(method.type).toBe("method");
+    expect(edges).toContainEqual({ source: iface.id, target: method.id, relation: "defines" });
+  });
+
+  it("gives an interface method with no body no complexity/duplicateHash, without throwing", async () => {
+    const { nodes } = await parser.parse(fileInfo("A.java", "public interface A {\n  void foo();\n}\n"));
+    const method = nodes.find(n => n.label === "foo");
+    expect(method?.complexity).toBeUndefined();
+    expect(method?.duplicateHash).toBeUndefined();
+  });
 });
 
 describe("JavaParser complexity", () => {
@@ -54,7 +91,7 @@ describe("JavaParser complexity", () => {
     expect(nodes.find(n => n.label === "foo")?.complexity).toBe(1);
   });
 
-  it("counts if/for/catch/&& via brace-body extraction", async () => {
+  it("counts if/for/catch/&& via real AST node types", async () => {
     const src = [
       "public class A {",
       "  public int foo(int x) {",
@@ -70,6 +107,28 @@ describe("JavaParser complexity", () => {
     const { nodes } = await parser.parse(fileInfo("A.java", src));
     // base 1 + if + && + for + catch = 5
     expect(nodes.find(n => n.label === "foo")?.complexity).toBe(5);
+  });
+
+  it("counts a ternary — the old regex-based scorer excluded ternaries across all its languages (spec 014); tree-sitter has no reason to", async () => {
+    const src = "public class A {\n  public int foo(int x) {\n    return x > 0 ? 1 : 0;\n  }\n}\n";
+    const { nodes } = await parser.parse(fileInfo("A.java", src));
+    // base 1 + ternary = 2
+    expect(nodes.find(n => n.label === "foo")?.complexity).toBe(2);
+  });
+
+  it("counts enhanced-for and do-while as their own distinct node types", async () => {
+    const src = [
+      "public class A {",
+      "  public void foo(java.util.List<Integer> xs) {",
+      "    for (int x : xs) {}",
+      "    int i = 0;",
+      "    do { i++; } while (i < 10);",
+      "  }",
+      "}",
+    ].join("\n");
+    const { nodes } = await parser.parse(fileInfo("A.java", src));
+    // base 1 + enhanced-for + do-while = 3
+    expect(nodes.find(n => n.label === "foo")?.complexity).toBe(3);
   });
 });
 
