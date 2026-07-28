@@ -1,5 +1,22 @@
 # @caiquebrito/nodum-cli
 
+## 2.7.0
+
+### Patch Changes
+
+- Updated dependencies [e9ad9fc]
+- Updated dependencies [e129d4f]
+- Updated dependencies [9b97d6f]
+- Updated dependencies [384a549]
+- Updated dependencies [265c38e]
+- Updated dependencies [5397b91]
+- Updated dependencies [f2de187]
+- Updated dependencies [7a8d6b4]
+- Updated dependencies [0d550d5]
+- Updated dependencies [afa1ed2]
+  - @caiquebrito/nodum-core@2.7.0
+  - @caiquebrito/nodum-server@2.7.0
+
 ## 2.6.0
 
 ### Patch Changes

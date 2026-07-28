@@ -1,5 +1,33 @@
 # @caiquebrito/nodum-mcp
 
+## 2.7.0
+
+### Minor Changes
+
+- 265c38e: Extends `NodeType` with `struct`/`enum`/`protocol`/`extension`, laying the vocabulary groundwork for Swift and Objective-C support (specs 037-038). `Graph['stats']` gains four optional counters (`structs`/`enums`/`protocols`/`extensions`), always populated on any freshly generated graph. `search_graph`'s `type_filter` accepts the new values.
+
+  Also fixes a pre-existing gap in the 3D viewer where `interface` and `method` node types silently fell back to a generic grey color — they now have their own distinct colors, alongside the four new types.
+
+  No behavior change for existing (non-Swift/ObjC) projects: the original 5 stats keys are unaffected, and the four new counters report `0`.
+
+### Patch Changes
+
+- e129d4f: Consolidates duplicated `Graph`/`Node`/`Edge` type declarations. `packages/core/src/analyzer/clustering.ts`, `packages/mcp/src/embeddings.ts`, and `packages/mcp/src/smart-context.ts` now import these types from `@caiquebrito/nodum-core` instead of hand-redeclaring an approximation of them. `packages/mcp/src/handlers.ts`'s local `Graph` type (which used `type: string` instead of the real `NodeType`, papered over with an `as unknown as CoreGraph` cast at five call sites) is removed entirely along with all five casts.
+
+  Fixes a stale doc comment claiming 1536-dim embeddings — the real model is 384-dim. Pure type consolidation with no intended behavior change; verified via a real end-to-end sync exercising every previously-cast handler.
+
+- Updated dependencies [e9ad9fc]
+- Updated dependencies [e129d4f]
+- Updated dependencies [9b97d6f]
+- Updated dependencies [384a549]
+- Updated dependencies [265c38e]
+- Updated dependencies [5397b91]
+- Updated dependencies [f2de187]
+- Updated dependencies [7a8d6b4]
+- Updated dependencies [0d550d5]
+- Updated dependencies [afa1ed2]
+  - @caiquebrito/nodum-core@2.7.0
+
 ## 2.6.0
 
 ### Patch Changes
