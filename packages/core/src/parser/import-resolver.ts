@@ -101,6 +101,39 @@ export function resolveJvmImport(specifier: string, knownFilesByPath: Map<string
  * `import_from_statement`'s module can name either a plain module file or a
  * package directory.
  */
+/**
+ * Module-name resolution for Swift (spec 037). `import Foo` / `import
+ * Foo.Bar` specifiers have no file-path shape at all — Swift resolves them
+ * against a compiled module graph (`Package.swift`, `.xcodeproj`), which
+ * this function deliberately doesn't parse (same reduction `resolveJvmImport`
+ * makes for `pom.xml`/`build.gradle`: no build-system knowledge of source
+ * roots is required). Instead, the first dotted segment is treated as a
+ * directory-name segment and suffix-matched against known file paths — this
+ * matches both SPM (`Sources/Foo/**`) and CocoaPods (`Pods/Foo/**`) layouts
+ * without knowing which one a given project uses. A module matching many
+ * files resolves to all of them (the same wildcard-style behavior
+ * `resolveJvmImport` gives `com.foo.*`); a system module (`Foundation`,
+ * `UIKit`) simply matches nothing and resolves to `[]` — no allowlist of
+ * system modules is needed.
+ */
+export function resolveSwiftImport(
+  specifier: string,
+  _importingFilePath: string,
+  _knownFileIds: Set<string>,
+  knownFilesByPath: Map<string, string>,
+): string[] {
+  const moduleName = specifier.split('.')[0];
+  if (!moduleName) return [];
+
+  const dirSuffix = `/${moduleName}/`.toLowerCase();
+  const matches: string[] = [];
+  for (const [path, id] of knownFilesByPath) {
+    const dir = path.slice(0, path.lastIndexOf('/') + 1).toLowerCase();
+    if (dir.endsWith(dirSuffix) || dir === `${moduleName.toLowerCase()}/`) matches.push(id);
+  }
+  return matches;
+}
+
 export function resolvePythonImport(
   specifier: string,
   importingFilePath: string,
