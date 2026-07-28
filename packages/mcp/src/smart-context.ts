@@ -1,8 +1,9 @@
 /**
  * Smart context injection for Claude
- * Only includes relevant parts of the graph based on query
- * Reduces token usage by 40-60% vs dumping entire graph
- * v2.0: With caching (83% on multi-turn) + semantic search (20% better selection)
+ * Only includes relevant parts of the graph based on query, instead of
+ * dumping the entire graph. Token savings are computed per call against a
+ * real full-graph-dump baseline (see `buildRawGraphDump` / spec 026) rather
+ * than asserted as a fixed percentage.
  */
 
 import { ConversationCache } from "./conversation-cache.js";
@@ -162,7 +163,7 @@ function expandContext(
 
 /**
  * Format relevant nodes and edges as readable text for Claude
- * v2.0: Shows cluster summaries instead of all nodes (saves 50% tokens)
+ * v2.0: Shows cluster summaries instead of listing every node individually
  */
 function formatContextText(
   relevantIds: Set<string>,
@@ -251,6 +252,22 @@ function formatContextText(
   }
 
   return lines.join("\n");
+}
+
+/**
+ * Plain-text dump of every node and edge — the "no smart context" baseline
+ * `estimateTokenSavings()` compares against. Deliberately unformatted (no
+ * clustering, no truncation) since it represents the cost of NOT doing any
+ * of that.
+ */
+function buildRawGraphDump(graph: Graph): string {
+  const nodeLines = graph.nodes.map(
+    (n) => `${n.id} | ${n.label} (${n.type}) | ${n.file ?? ""}`
+  );
+  const edgeLines = graph.edges.map(
+    (e) => `${e.source} -> ${e.target} (${e.relation})`
+  );
+  return [`Project: ${graph.project}`, ...nodeLines, ...edgeLines].join("\n");
 }
 
 /**
@@ -352,14 +369,26 @@ export async function buildSmartContext(
   // 5. Return with summary (include cache hit indicator)
   const cacheIndicator = cacheHit ? " (📦 from cache)" : "";
   const hasSemanticSearch = hasEmbeddings(graph.nodes as any) ? " (🧠 semantic)" : "";
-  return withTokenCount(
+  const responseBody =
     `Knowledge Graph Context (${graph.project})${cacheIndicator}${hasSemanticSearch}\n` +
     `Found ${expandedIds.size} relevant nodes for: "${query}"\n\n` +
     contextText +
     `\n📊 Summary:\n` +
     `• Total project: ${graph.stats.files} files, ${graph.stats.functions} functions, ${graph.stats.classes} classes\n` +
-    `• Context includes: ${expandedIds.size} relevant nodes (40-60% fewer tokens${cacheHit ? ", 83% more reduction on cache hit" : ""}${!cacheHit && hasEmbeddings(graph.nodes as any) ? ", 20% better selection via semantic search" : ""})\n`
-  );
+    `• Context includes: ${expandedIds.size} relevant nodes\n`;
+
+  // Real, measured comparison against a full unfiltered dump of the graph —
+  // not an asserted percentage. See spec 026.
+  const rawDumpTokens = countTokens(buildRawGraphDump(graph));
+  const { percentage } = estimateTokenSavings(rawDumpTokens, countTokens(responseBody));
+  const notes = [
+    `${percentage}% fewer tokens than a full graph dump`,
+    cacheHit ? "served from cache" : null,
+    !cacheHit && hasEmbeddings(graph.nodes as any) ? "semantic search enabled" : null,
+  ].filter((n): n is string => n !== null);
+
+  const fullText = responseBody + `  (${notes.join(", ")})\n`;
+  return { text: fullText, approxTokens: countTokens(fullText) };
 }
 
 /**
@@ -431,6 +460,7 @@ export function estimateTokenSavings(
   fullGraphTokens: number,
   smartContextTokens: number
 ): { saved: number; percentage: number } {
+  if (fullGraphTokens <= 0) return { saved: 0, percentage: 0 };
   const saved = fullGraphTokens - smartContextTokens;
   const percentage = Math.round((saved / fullGraphTokens) * 100);
   return { saved, percentage };
