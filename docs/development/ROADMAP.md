@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-## ✅ Version 2.0.0 (Current - Released 2026-05-31)
+## ✅ Version 2.0.0 (Released 2026-05-31)
 
 ### Token Efficiency Optimizations (Shipped)
 - ✅ Phase 1: Multi-turn conversation caching (83% token savings on repeated queries)
@@ -24,36 +24,41 @@
 
 ---
 
-## 📋 Version 2.1.0 (Next - ETA: Q3 2026)
+## ✅ Version 2.1.0 (Shipped)
+
+Delivered as 20 sequential specs (`docs/development/completed/000` through `020`), each
+written, approved, implemented, and verified end-to-end against real synced projects before
+merging. See [`docs/development/completed/`](./completed/) for the full spec history.
 
 ### Incremental Sync (Priority: HIGH)
-- [ ] File-level change detection (git-aware diffing)
-- [ ] Incremental graph updates (delta merges)
-- [ ] `nodum sync --incremental` flag
-- [ ] Metadata tracking: file hashes, timestamps, modification dates
-- [ ] Smart cache invalidation
-- **Impact:** 10-100x faster syncs for large projects (1000+ files)
+- [x] File-level change detection (hash/mtime-based, not git-diff — works uncommitted too)
+- [x] Incremental graph updates (delta merges, cross-file edge-safe)
+- [x] `nodum sync --incremental` flag
+- [x] Metadata tracking: file hashes, timestamps, modification dates
+- [x] Smart cache invalidation
+- **Impact:** faster syncs for large projects by only re-parsing changed files
 
 ### Enhanced CLI
-- [ ] `nodum watch` - Auto-sync on file changes (inotify/chokidar)
-- [ ] `nodum init` - Interactive project setup wizard
-- [ ] `nodum config` - Configure scan patterns (include/exclude)
-- [ ] `nodum export` - Export graphs (JSON, GraphML, CSV)
-- [ ] `nodum diff` - Compare graph versions
+- [x] `nodum watch` - Auto-sync on file changes (chokidar)
+- [x] `nodum init` - Interactive project setup wizard
+- [x] `nodum config` - Configure scan patterns (include/exclude) and architecture rules
+- [x] `nodum export` - Export graphs (JSON, GraphML, CSV)
+- [x] `nodum diff` - Compare graph versions
 
 ### Advanced Graph Analysis
-- [ ] Dependency cycle detection (circular imports)
-- [ ] Dead code detection (unreachable nodes)
-- [ ] Architecture violation detection (enforce patterns)
-- [ ] Complexity scoring (cyclomatic, cognitive)
-- [ ] Code duplication detection
+- [x] Real cross-file `imports` edges (TS/JS/Kotlin/Java resolution — spec 010, prerequisite for everything below)
+- [x] Dependency cycle detection (circular imports) — `nodum cycles`
+- [x] Dead code detection (unreachable-file candidates) — `nodum dead-code`
+- [x] Architecture violation detection (declared layer rules) — `nodum architecture`
+- [x] Complexity scoring (cyclomatic; cognitive deferred to a future spec) — `nodum complexity`
+- [x] Code duplication detection (structural, renaming-robust) — `nodum duplicates`
 
 ### MCP Enhancements
-- [ ] `suggest_refactoring` - ML-based refactoring recommendations
-- [ ] `find_bottlenecks` - Identify high-complexity areas
-- [ ] `trace_impact` - Show cascade of changes if you modify X
-- [ ] `explain_architecture` - Auto-generate architecture docs
-- [ ] `find_similar_code` - Detect duplicate patterns
+- [x] `suggest_refactoring` - Unified suggestions synthesized from every analyzer above (scoped away from "ML-based," which nothing in this codebase implements — see spec 020)
+- [x] `find_bottlenecks` - Composite complexity x transitive-impact ranking
+- [x] `trace_impact` - Transitive cascade of changes if you modify X
+- [x] `explain_architecture` - Layer/dependency overview + rule violations
+- [x] `find_similar_code` - Node-scoped structural duplicate lookup
 
 ---
 
