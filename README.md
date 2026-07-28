@@ -451,7 +451,7 @@ npm install -g .
 - Self-hosted server
 - Team collaboration features
 
-See [ROADMAP.md](./ROADMAP.md) for full details.
+See [ROADMAP.md](./docs/development/ROADMAP.md) for full details.
 
 ---
 
@@ -497,7 +497,7 @@ A: TypeScript, JavaScript, Python, Kotlin, Java. More coming in v2.
 A: Yes! v2.1.0 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
-A: Not yet. v2 will support self-hosting. Currently: local only.
+A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.
 
 ---
 

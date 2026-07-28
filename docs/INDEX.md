@@ -53,4 +53,4 @@ Measuring effectiveness:
 
 ---
 
-**Last updated:** 2026-05-31 | **Version:** 2.0.0
+**Last updated:** 2026-07-28 | **Version:** 2.4.0 (pre-lockstep; see `CONTRIBUTING.md`)
