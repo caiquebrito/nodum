@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveRelativeImport, resolveJvmImport } from "./import-resolver.js";
+import { resolveRelativeImport, resolveJvmImport, resolvePythonImport } from "./import-resolver.js";
 import { normalizeNodeId } from "../types.js";
 
 function fileId(path: string): string {
@@ -75,5 +75,62 @@ describe("resolveJvmImport", () => {
 
   it("returns an empty array when nothing matches", () => {
     expect(resolveJvmImport("com.other.Unknown", knownFilesByPath)).toEqual([]);
+  });
+});
+
+describe("resolvePythonImport", () => {
+  const knownFileIds = new Set([
+    fileId("main.py"),
+    fileId("local_sibling.py"),
+    fileId("pkg/__init__.py"),
+    fileId("pkg/util.py"),
+  ]);
+  const knownFilesByPath = new Map([
+    ["main.py", fileId("main.py")],
+    ["local_sibling.py", fileId("local_sibling.py")],
+    ["pkg/__init__.py", fileId("pkg/__init__.py")],
+    ["pkg/util.py", fileId("pkg/util.py")],
+  ]);
+
+  it("resolves an absolute dotted-module import to its file", () => {
+    expect(resolvePythonImport("pkg.util", "main.py", knownFileIds, knownFilesByPath)).toEqual([
+      fileId("pkg/util.py"),
+    ]);
+  });
+
+  it("resolves an absolute import of a package to its __init__.py", () => {
+    expect(resolvePythonImport("pkg", "main.py", knownFileIds, knownFilesByPath)).toEqual([
+      fileId("pkg/__init__.py"),
+    ]);
+  });
+
+  it("resolves a bare relative import ('from . import x') to a sibling file", () => {
+    expect(resolvePythonImport(".local_sibling", "main.py", knownFileIds, knownFilesByPath)).toEqual([
+      fileId("local_sibling.py"),
+    ]);
+  });
+
+  it("resolves a relative import naming an explicit module ('from .pkg import x')", () => {
+    expect(resolvePythonImport(".pkg", "main.py", knownFileIds, knownFilesByPath)).toEqual([
+      fileId("pkg/__init__.py"),
+    ]);
+  });
+
+  it("resolves a relative import from within a package, one level up ('from .. import x')", () => {
+    const ids = new Set([fileId("main.py"), fileId("pkg/util.py")]);
+    const byPath = new Map([
+      ["main.py", fileId("main.py")],
+      ["pkg/util.py", fileId("pkg/util.py")],
+    ]);
+    // pkg/other.py doing `from .. import main` — one level up from pkg/ is root.
+    expect(resolvePythonImport("..main", "pkg/other.py", ids, byPath)).toEqual([fileId("main.py")]);
+  });
+
+  it("returns an empty array for an external absolute import (stdlib/third-party)", () => {
+    expect(resolvePythonImport("os.path", "main.py", knownFileIds, knownFilesByPath)).toEqual([]);
+  });
+
+  it("returns an empty array when a relative import has no matching file", () => {
+    expect(resolvePythonImport(".missing", "main.py", knownFileIds, knownFilesByPath)).toEqual([]);
   });
 });
