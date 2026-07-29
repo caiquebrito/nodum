@@ -1,5 +1,29 @@
 # @caiquebrito/nodum-core
 
+## 2.9.0
+
+### Minor Changes
+
+- 88c2842: Adds cognitive complexity (SonarSource-inspired) as a second complexity metric alongside the existing cyclomatic (McCabe) one, across all 8 supported languages — nesting-depth-aware, so a deeply-nested `if` costs more than the same count of sequential `if`s, unlike cyclomatic complexity. New `Node.cognitiveComplexity` field, set alongside the existing `complexity` field, never replacing it.
+
+  `rankByComplexity` gains an optional `metric: 'cyclomatic' | 'cognitive'` (defaults to `'cyclomatic'`, unchanged behavior); CLI's `nodum complexity` gains a `--cognitive` flag. `find_bottlenecks`/`suggest_refactoring` are unchanged — both keep using cyclomatic complexity by default.
+
+  Third and final spec in the v2.9.0 batch (Go parser, Kotlin tree-sitter migration, cognitive complexity).
+
+- 9864c49: Adds first-class Go support (`.go`) via tree-sitter: structs, interfaces, top-level functions, methods (attributed to their receiver's struct — including across files, when a type and its method live in different files of the same package), real cyclomatic complexity, structural `duplicateHash`, same-file `calls` edges, and package-path import resolution (directory-suffix matching against known files — no `go.mod` parsing).
+
+  Zero changes to `graph-gen.ts` or `file-discovery.ts` — the parser plugin architecture generalizes cleanly to Go with no changes outside the new parser itself.
+
+  First of three specs in the v2.9.0 batch (Go parser, Kotlin tree-sitter migration, cognitive complexity).
+
+- 1a65311: Migrates Kotlin from line-regex to tree-sitter, gaining real `method` nodes (class/interface members are now properly attributed instead of flat file-attached functions colliding on same-named methods across classes), same-file `calls` edges, a dedicated `enum` node type, real complexity/`duplicateHash` for expression-bodied functions, and fixes a real gap where extension functions (`fun String.slugify()`) were silently never extracted at all by the old regex parser.
+
+  Cyclomatic complexity now also counts non-default `when` entries (never matched by the old regex) and `elvis_expression` (`?:`) — previously excluded as a text-matching workaround that a real AST makes unnecessary, matching Swift's `??` precedent.
+
+  Import resolution (`resolveJvmImport`, dotted-FQN + wildcard specifier format) is unchanged — every pre-existing import test passes unmodified, this migration's explicit contract.
+
+  Second of three specs in the v2.9.0 batch (Go parser, Kotlin tree-sitter migration, cognitive complexity).
+
 ## 2.8.0
 
 ### Minor Changes
