@@ -1,6 +1,6 @@
 {
   "name": "@caiquebrito/nodum-server",
-  "version": "2.12.0",
+  "version": "2.13.0",
   "description": "HTTP server and visualizer backend for nodum",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,7 +21,7 @@
     "clean": "rm -rf dist viewer"
   },
   "dependencies": {
-    "@caiquebrito/nodum-core": "^2.12.0",
+    "@caiquebrito/nodum-core": "^2.13.0",
     "express": "^4.18.0",
     "open": "^9.1.0"
   },
