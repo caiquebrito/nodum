@@ -292,3 +292,44 @@ describe("SwiftParser scope reductions", () => {
     expect(nodes.find(n => n.label === "outer")).toBeDefined();
   });
 });
+
+describe("SwiftParser cognitive complexity (spec 045)", () => {
+  it("scores a function with no decision points as 0", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.swift", "func f() -> Int {\n    return 1\n}\n"));
+    expect(nodes.find(n => n.label === "f")?.cognitiveComplexity).toBe(0);
+  });
+
+  it("gives nested ifs a higher cognitive score than sequential ifs, unlike cyclomatic", async () => {
+    const seq = "func seq(_ x: Int) {\n    if x == 1 {}\n    if x == 2 {}\n    if x == 3 {}\n}\n";
+    const nested = "func nested(_ x: Int) {\n    if x == 1 {\n        if x == 2 {\n            if x == 3 {}\n        }\n    }\n}\n";
+    const seqNode = (await parser.parse(fileInfo("a.swift", seq))).nodes.find(n => n.label === "seq");
+    const nestedNode = (await parser.parse(fileInfo("b.swift", nested))).nodes.find(n => n.label === "nested");
+    expect(seqNode?.complexity).toBe(nestedNode?.complexity);
+    expect(seqNode?.cognitiveComplexity).toBe(3);
+    expect(nestedNode?.cognitiveComplexity).toBe(6);
+  });
+
+  it("collapses a boolean-operator chain to +1", async () => {
+    const src = "func f(_ a: Bool, _ b: Bool, _ c: Bool) {\n    if a && b && c {}\n}\n";
+    const { nodes } = await parser.parse(fileInfo("a.swift", src));
+    expect(nodes.find(n => n.label === "f")?.cognitiveComplexity).toBe(2);
+  });
+
+  it("scores a self-recursive call as +1", async () => {
+    const src = "func fact(_ n: Int) -> Int {\n    if n <= 1 {\n        return 1\n    }\n    return fact(n - 1) + n\n}\n";
+    const { nodes } = await parser.parse(fileInfo("a.swift", src));
+    expect(nodes.find(n => n.label === "fact")?.cognitiveComplexity).toBe(2);
+  });
+
+  it("counts a guard statement as a real decision point", async () => {
+    const src = "func f(_ x: Int?) -> Int {\n    guard let y = x else {\n        return 0\n    }\n    return y\n}\n";
+    const { nodes } = await parser.parse(fileInfo("a.swift", src));
+    expect(nodes.find(n => n.label === "f")?.cognitiveComplexity).toBe(1);
+  });
+
+  it("rolls a closure's branches into the enclosing function, at one deeper nesting level", async () => {
+    const src = "func f() {\n    let g = {\n        if true {}\n    }\n    g()\n}\n";
+    const { nodes } = await parser.parse(fileInfo("a.swift", src));
+    expect(nodes.find(n => n.label === "f")?.cognitiveComplexity).toBe(2); // the if, at depth 1 inside the closure
+  });
+});

@@ -5,6 +5,23 @@ import { resolveJvmImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
 import type { TSNode } from './treesitter/engine.js';
+import { computeCognitiveComplexity, type CognitiveConfig } from './cognitive-complexity.js';
+
+// See cognitive-complexity.ts's CognitiveConfig doc comment. `when_entry`
+// (Kotlin's switch-equivalent) is deliberately excluded — not scored at
+// all in this implementation, same posture as every other language's
+// switch/case exclusion (see that module's doc comment).
+const KOTLIN_COGNITIVE_CONFIG: CognitiveConfig = {
+  nesting: new Set(['if_expression', 'for_statement', 'while_statement', 'do_while_statement', 'catch_block']),
+  nestingOnly: new Set(['lambda_literal']),
+  boundary: new Set(['function_declaration']),
+  isBooleanOp: node => node.type === 'conjunction_expression' || node.type === 'disjunction_expression',
+  calleeName: node => {
+    if (node.type !== 'call_expression') return null;
+    const fn = node.namedChild(0);
+    return fn?.type === 'simple_identifier' ? fn.text : null;
+  },
+};
 
 // This grammar (fwcd/tree-sitter-kotlin) carries NO field names anywhere —
 // `childForFieldName` returns null for every node, unlike every other
@@ -159,6 +176,7 @@ export class KotlinParser extends TreeSitterParser {
           group: getNodeGroup(file.path),
           line: child.startPosition.row + 1,
           ...(memberBody ? { complexity: computeComplexity(memberBody) } : {}),
+          ...(memberBody ? { cognitiveComplexity: computeCognitiveComplexity(memberBody, KOTLIN_COGNITIVE_CONFIG, memberName) } : {}),
           ...(duplicateHash ? { duplicateHash } : {}),
         });
         edges.push({ source: typeId, target: methodId, relation: 'defines' });
@@ -195,6 +213,7 @@ export class KotlinParser extends TreeSitterParser {
         group: getNodeGroup(file.path),
         line: defNode.startPosition.row + 1,
         ...(body ? { complexity: computeComplexity(body) } : {}),
+        ...(body ? { cognitiveComplexity: computeCognitiveComplexity(body, KOTLIN_COGNITIVE_CONFIG, name) } : {}),
         ...(duplicateHash ? { duplicateHash } : {}),
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });

@@ -5,6 +5,23 @@ import { resolveSwiftObjcImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
 import type { TSNode } from './treesitter/engine.js';
+import { computeCognitiveComplexity, type CognitiveConfig } from './cognitive-complexity.js';
+
+// See cognitive-complexity.ts's CognitiveConfig doc comment. `guard_statement`
+// (an early-exit construct with no direct cyclomatic-complexity analogue in
+// most other languages this codebase covers) counts as a real decision
+// point, matching its inclusion in COMPLEXITY_NODE_TYPES above.
+const SWIFT_COGNITIVE_CONFIG: CognitiveConfig = {
+  nesting: new Set(['if_statement', 'guard_statement', 'for_statement', 'while_statement', 'catch_block']),
+  nestingOnly: new Set(['lambda_literal']),
+  boundary: new Set(['function_declaration', 'init_declaration', 'deinit_declaration']),
+  isBooleanOp: node => node.type === 'conjunction_expression' || node.type === 'disjunction_expression',
+  calleeName: node => {
+    if (node.type !== 'call_expression') return null;
+    const callee = node.namedChild(0);
+    return callee?.type === 'simple_identifier' ? callee.text : null;
+  },
+};
 
 // Verified empirically (spec 037): `class`/`struct`/`enum`/`actor`/`extension`
 // all parse as one `class_declaration` node type — there is no dedicated
@@ -172,6 +189,7 @@ export class SwiftParser extends TreeSitterParser {
           group: getNodeGroup(file.path),
           line: child.startPosition.row + 1,
           ...(memberBody ? { complexity: computeComplexity(memberBody) } : {}),
+          ...(memberBody ? { cognitiveComplexity: computeCognitiveComplexity(memberBody, SWIFT_COGNITIVE_CONFIG, memberName) } : {}),
           ...(duplicateHash ? { duplicateHash } : {}),
         });
         edges.push({ source: typeId, target: methodId, relation: 'defines' });
@@ -204,6 +222,7 @@ export class SwiftParser extends TreeSitterParser {
         group: getNodeGroup(file.path),
         line: child.startPosition.row + 1,
         ...(body ? { complexity: computeComplexity(body) } : {}),
+        ...(body ? { cognitiveComplexity: computeCognitiveComplexity(body, SWIFT_COGNITIVE_CONFIG, name) } : {}),
         ...(duplicateHash ? { duplicateHash } : {}),
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });

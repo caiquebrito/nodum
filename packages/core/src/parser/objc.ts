@@ -5,6 +5,29 @@ import { resolveSwiftObjcImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
 import type { TSNode } from './treesitter/engine.js';
+import { computeCognitiveComplexity, type CognitiveConfig } from './cognitive-complexity.js';
+
+// See cognitive-complexity.ts's CognitiveConfig doc comment. No
+// `nestingOnly` entry for a block literal (`^{ }`) — unlike every other
+// language's closure syntax here, this grammar's block-literal parsing
+// proved unstable enough during this spec's own verification to leave
+// untouched rather than risk it; blocks simply walk through as regular
+// container nodes, same as `computeComplexity` above already does (it has
+// no special block handling either).
+const OBJC_COGNITIVE_CONFIG: CognitiveConfig = {
+  nesting: new Set(['if_statement', 'for_statement', 'while_statement', 'catch_clause']),
+  boundary: new Set(['method_definition', 'function_definition']),
+  isBooleanOp: node => {
+    if (node.type !== 'binary_expression') return false;
+    const op = node.childForFieldName('operator')?.text;
+    return op === '&&' || op === '||';
+  },
+  calleeName: node => {
+    if (node.type !== 'call_expression') return null;
+    const fn = node.childForFieldName('function');
+    return fn?.type === 'identifier' ? fn.text : null;
+  },
+};
 
 // Verified empirically (spec 038): a type's name has no grammar field on
 // any of these three node types — it's simply the first named child,
@@ -151,6 +174,7 @@ export class ObjCParser extends TreeSitterParser {
           group: getNodeGroup(file.path),
           line: member.startPosition.row + 1,
           ...(memberBody ? { complexity: computeComplexity(memberBody) } : {}),
+          ...(memberBody ? { cognitiveComplexity: computeCognitiveComplexity(memberBody, OBJC_COGNITIVE_CONFIG, selector) } : {}),
           ...(duplicateHash ? { duplicateHash } : {}),
         });
         edges.push({ source: typeId, target: methodId, relation: 'defines' });
@@ -187,6 +211,7 @@ export class ObjCParser extends TreeSitterParser {
         group: getNodeGroup(file.path),
         line: child.startPosition.row + 1,
         ...(body ? { complexity: computeComplexity(body) } : {}),
+        ...(body ? { cognitiveComplexity: computeCognitiveComplexity(body, OBJC_COGNITIVE_CONFIG, name) } : {}),
         ...(duplicateHash ? { duplicateHash } : {}),
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });

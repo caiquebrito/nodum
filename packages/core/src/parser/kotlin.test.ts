@@ -286,3 +286,38 @@ describe("KotlinParser calls edges", () => {
     expect(edges).toContainEqual({ source: a.id, target: b.id, relation: "calls" });
   });
 });
+
+describe("KotlinParser cognitive complexity (spec 045)", () => {
+  it("scores a function with no decision points as 0", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.kt", `fun foo(): Int {\n  return 1\n}\n`));
+    expect(nodes.find(n => n.label === "foo")?.cognitiveComplexity).toBe(0);
+  });
+
+  it("gives nested ifs a higher cognitive score than sequential ifs, unlike cyclomatic", async () => {
+    const seq = `fun seq(x: Int) {\n    if (x == 1) {}\n    if (x == 2) {}\n    if (x == 3) {}\n}\n`;
+    const nested = `fun nested(x: Int) {\n    if (x == 1) {\n        if (x == 2) {\n            if (x == 3) {}\n        }\n    }\n}\n`;
+    const seqNode = (await parser.parse(fileInfo("a.kt", seq))).nodes.find(n => n.label === "seq");
+    const nestedNode = (await parser.parse(fileInfo("b.kt", nested))).nodes.find(n => n.label === "nested");
+    expect(seqNode?.complexity).toBe(nestedNode?.complexity);
+    expect(seqNode?.cognitiveComplexity).toBe(3);
+    expect(nestedNode?.cognitiveComplexity).toBe(6);
+  });
+
+  it("collapses a boolean-operator chain to +1", async () => {
+    const src = `fun foo(a: Boolean, b: Boolean, c: Boolean) {\n    if (a && b && c) {}\n}\n`;
+    const { nodes } = await parser.parse(fileInfo("a.kt", src));
+    expect(nodes.find(n => n.label === "foo")?.cognitiveComplexity).toBe(2);
+  });
+
+  it("scores a self-recursive call as +1", async () => {
+    const src = `fun fact(n: Int): Int {\n    if (n <= 1) {\n        return 1\n    }\n    return fact(n - 1) + n\n}\n`;
+    const { nodes } = await parser.parse(fileInfo("a.kt", src));
+    expect(nodes.find(n => n.label === "fact")?.cognitiveComplexity).toBe(2);
+  });
+
+  it("rolls a lambda_literal's branches into the enclosing function, at one deeper nesting level", async () => {
+    const src = `fun foo() {\n    val fn = {\n        if (true) {}\n    }\n    fn()\n}\n`;
+    const { nodes } = await parser.parse(fileInfo("a.kt", src));
+    expect(nodes.find(n => n.label === "foo")?.cognitiveComplexity).toBe(2); // the if, at depth 1 inside the lambda
+  });
+});

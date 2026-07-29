@@ -280,3 +280,79 @@ describe("GoParser calls edges", () => {
     expect(edges).toContainEqual({ source: outer.id, target: target.id, relation: "calls" });
   });
 });
+
+describe("GoParser cognitive complexity (spec 045)", () => {
+  it("scores a function with no decision points as 0", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.go", "package a\n\nfunc f() int {\n\treturn 1\n}\n"));
+    expect(nodes.find(n => n.label === "f")?.cognitiveComplexity).toBe(0);
+  });
+
+  it("gives nested ifs a higher cognitive score than sequential ifs, unlike cyclomatic", async () => {
+    const seq = [
+      "package a",
+      "",
+      "func seq(x int) {",
+      "\tif x == 1 {",
+      "\t}",
+      "\tif x == 2 {",
+      "\t}",
+      "\tif x == 3 {",
+      "\t}",
+      "}",
+    ].join("\n");
+    const nested = [
+      "package a",
+      "",
+      "func nested(x int) {",
+      "\tif x == 1 {",
+      "\t\tif x == 2 {",
+      "\t\t\tif x == 3 {",
+      "\t\t\t}",
+      "\t\t}",
+      "\t}",
+      "}",
+    ].join("\n");
+    const seqNode = (await parser.parse(fileInfo("a.go", seq))).nodes.find(n => n.label === "seq");
+    const nestedNode = (await parser.parse(fileInfo("b.go", nested))).nodes.find(n => n.label === "nested");
+    expect(seqNode?.complexity).toBe(nestedNode?.complexity);
+    expect(seqNode?.cognitiveComplexity).toBe(3);
+    expect(nestedNode?.cognitiveComplexity).toBe(6);
+  });
+
+  it("collapses a boolean-operator chain to +1", async () => {
+    const src = ["package a", "", "func f(a, b, c bool) {", "\tif a && b && c {", "\t}", "}"].join("\n");
+    const { nodes } = await parser.parse(fileInfo("a.go", src));
+    expect(nodes.find(n => n.label === "f")?.cognitiveComplexity).toBe(2);
+  });
+
+  it("scores a self-recursive call as +1", async () => {
+    const src = [
+      "package a",
+      "",
+      "func fact(n int) int {",
+      "\tif n <= 1 {",
+      "\t\treturn 1",
+      "\t}",
+      "\treturn fact(n-1) + n",
+      "}",
+    ].join("\n");
+    const { nodes } = await parser.parse(fileInfo("a.go", src));
+    expect(nodes.find(n => n.label === "fact")?.cognitiveComplexity).toBe(2);
+  });
+
+  it("rolls a func_literal's branches into the enclosing function, at one deeper nesting level", async () => {
+    const src = [
+      "package a",
+      "",
+      "func f() {",
+      "\tfn := func() {",
+      "\t\tif true {",
+      "\t\t}",
+      "\t}",
+      "\tfn()",
+      "}",
+    ].join("\n");
+    const { nodes } = await parser.parse(fileInfo("a.go", src));
+    expect(nodes.find(n => n.label === "f")?.cognitiveComplexity).toBe(2); // the if, at depth 1 inside the func_literal
+  });
+});

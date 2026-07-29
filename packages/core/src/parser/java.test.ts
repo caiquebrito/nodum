@@ -192,3 +192,46 @@ describe("JavaParser calls edges", () => {
     expect(edges).toContainEqual({ source: fact.id, target: fact.id, relation: "calls" });
   });
 });
+
+describe("JavaParser cognitive complexity (spec 045)", () => {
+  it("scores a method with no decision points as 0", async () => {
+    const src = "class A { int f() { return 1; } }";
+    const { nodes } = await parser.parse(fileInfo("A.java", src));
+    expect(nodes.find(n => n.label === "f")?.cognitiveComplexity).toBe(0);
+  });
+
+  it("gives nested ifs a higher cognitive score than sequential ifs, unlike cyclomatic", async () => {
+    const seq = "class A { void seq(int x) { if (x == 1) {} if (x == 2) {} if (x == 3) {} } }";
+    const nested = "class B { void nested(int x) { if (x == 1) { if (x == 2) { if (x == 3) {} } } } }";
+    const seqNode = (await parser.parse(fileInfo("A.java", seq))).nodes.find(n => n.label === "seq");
+    const nestedNode = (await parser.parse(fileInfo("B.java", nested))).nodes.find(n => n.label === "nested");
+    expect(seqNode?.complexity).toBe(nestedNode?.complexity);
+    expect(seqNode?.cognitiveComplexity).toBe(3);
+    expect(nestedNode?.cognitiveComplexity).toBe(6);
+  });
+
+  it("collapses a boolean-operator chain to +1", async () => {
+    const src = "class A { void f(boolean a, boolean b, boolean c) { if (a && b && c) {} } }";
+    const { nodes } = await parser.parse(fileInfo("A.java", src));
+    expect(nodes.find(n => n.label === "f")?.cognitiveComplexity).toBe(2);
+  });
+
+  it("scores a self-recursive call as +1", async () => {
+    const src = "class A { int fact(int n) { if (n <= 1) return 1; return n * fact(n - 1); } }";
+    const { nodes } = await parser.parse(fileInfo("A.java", src));
+    expect(nodes.find(n => n.label === "fact")?.cognitiveComplexity).toBe(2);
+  });
+
+  it("rolls a lambda's branches into the enclosing method, at one deeper nesting level", async () => {
+    const src = "class A { void f() { Runnable r = () -> { if (true) {} }; r.run(); } }";
+    const { nodes } = await parser.parse(fileInfo("A.java", src));
+    expect(nodes.find(n => n.label === "f")?.cognitiveComplexity).toBe(2); // the if, at depth 1 inside the lambda
+  });
+
+  it("scores two independent methods' branches separately, no cross-contamination", async () => {
+    const src = "class A { void outer() { if (true) {} } void inner() { if (true) {} if (true) {} } }";
+    const { nodes } = await parser.parse(fileInfo("A.java", src));
+    expect(nodes.find(n => n.label === "outer")?.cognitiveComplexity).toBe(1);
+    expect(nodes.find(n => n.label === "inner")?.cognitiveComplexity).toBe(2);
+  });
+});

@@ -5,6 +5,30 @@ import { resolveJvmImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
 import type { TSNode } from './treesitter/engine.js';
+import { computeCognitiveComplexity, type CognitiveConfig } from './cognitive-complexity.js';
+
+// See cognitive-complexity.ts's CognitiveConfig doc comment.
+const JAVA_COGNITIVE_CONFIG: CognitiveConfig = {
+  nesting: new Set([
+    'if_statement',
+    'for_statement',
+    'enhanced_for_statement',
+    'while_statement',
+    'do_statement',
+    'catch_clause',
+  ]),
+  nestingOnly: new Set(['lambda_expression']),
+  boundary: new Set(['method_declaration', 'constructor_declaration']),
+  isBooleanOp: node => {
+    if (node.type !== 'binary_expression') return false;
+    const op = node.childForFieldName('operator')?.text;
+    return op === '&&' || op === '||';
+  },
+  calleeName: node => {
+    if (node.type !== 'method_invocation' || node.childForFieldName('object')) return null;
+    return node.childForFieldName('name')?.text ?? null;
+  },
+};
 
 // One query covering both — a plain node-type check (`defNode.type`)
 // distinguishes class from interface at capture time.
@@ -138,6 +162,7 @@ export class JavaParser extends TreeSitterParser {
           group: getNodeGroup(file.path),
           line: child.startPosition.row + 1,
           ...(memberBody ? { complexity: computeComplexity(memberBody) } : {}),
+          ...(memberBody ? { cognitiveComplexity: computeCognitiveComplexity(memberBody, JAVA_COGNITIVE_CONFIG, memberName) } : {}),
           ...(duplicateHash ? { duplicateHash } : {}),
         });
         edges.push({ source: typeId, target: methodId, relation: 'defines' });

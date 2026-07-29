@@ -193,3 +193,44 @@ describe("TypeScriptParser calls edges", () => {
     expect(edges).not.toContainEqual({ source: outer.id, target: target.id, relation: "calls" });
   });
 });
+
+describe("TypeScriptParser cognitive complexity (spec 045)", () => {
+  it("scores a function with no decision points as 0", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.ts", "function f() { return 1; }\n"));
+    expect(nodes.find(n => n.label === "f")?.cognitiveComplexity).toBe(0);
+  });
+
+  it("gives nested ifs a higher cognitive score than sequential ifs, unlike cyclomatic", async () => {
+    const seq = "function seq(x) { if (x == 1) {} if (x == 2) {} if (x == 3) {} }\n";
+    const nested = "function nested(x) { if (x == 1) { if (x == 2) { if (x == 3) {} } } }\n";
+    const seqNode = (await parser.parse(fileInfo("a.ts", seq))).nodes.find(n => n.label === "seq");
+    const nestedNode = (await parser.parse(fileInfo("b.ts", nested))).nodes.find(n => n.label === "nested");
+    expect(seqNode?.complexity).toBe(nestedNode?.complexity);
+    expect(seqNode?.cognitiveComplexity).toBe(3);
+    expect(nestedNode?.cognitiveComplexity).toBe(6);
+  });
+
+  it("collapses a boolean-operator chain to +1", async () => {
+    const src = "function f(a, b, c) { if (a && b && c) {} }\n";
+    const { nodes } = await parser.parse(fileInfo("a.ts", src));
+    expect(nodes.find(n => n.label === "f")?.cognitiveComplexity).toBe(2);
+  });
+
+  it("scores a self-recursive call as +1", async () => {
+    const src = "function fact(n) { if (n <= 1) { return 1; } return fact(n - 1) + n; }\n";
+    const { nodes } = await parser.parse(fileInfo("a.ts", src));
+    expect(nodes.find(n => n.label === "fact")?.cognitiveComplexity).toBe(2);
+  });
+
+  it("rolls an arrow function's branches into the enclosing function, at one deeper nesting level", async () => {
+    const src = "function outer() { const fn = () => { if (true) {} }; fn(); }\n";
+    const { nodes } = await parser.parse(fileInfo("a.ts", src));
+    expect(nodes.find(n => n.label === "outer")?.cognitiveComplexity).toBe(2);
+  });
+
+  it("scores a class method's cognitive complexity", async () => {
+    const src = "class Foo { bar(x) { if (x) { if (x) {} } } }\n";
+    const { nodes } = await parser.parse(fileInfo("a.ts", src));
+    expect(nodes.find(n => n.label === "bar")?.cognitiveComplexity).toBe(3);
+  });
+});
