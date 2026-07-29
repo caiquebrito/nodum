@@ -1,5 +1,16 @@
 # @caiquebrito/nodum-cli
 
+## 2.14.0
+
+### Minor Changes
+
+- 674cb57: `nodum sync` failures now print the real underlying stack trace, not just a message — the wrapped error's `.stack` now includes the original error's stack (prefixed `Caused by:`), and the CLI's `sync` command prints it. Directly unblocks investigating the "Maximum call stack size exceeded" bug found in spec 056 without needing another expensive real-project sync just to see where it happened.
+
+### Patch Changes
+
+- @caiquebrito/nodum-core@2.14.0
+- @caiquebrito/nodum-server@2.14.0
+
 ## 2.13.0
 
 ### Patch Changes
