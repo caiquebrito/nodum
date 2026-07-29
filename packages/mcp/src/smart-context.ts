@@ -157,21 +157,37 @@ function expandContext(
 }
 
 /**
- * Format relevant nodes and edges as readable text for Claude
- * v2.0: Shows cluster summaries instead of listing every node individually
+ * One renderable unit of context — a cluster summary or a file's group of
+ * nodes. `nodeCount` is how many of `relevantIds` this section accounts
+ * for, used to report an accurate "included" count when a token budget
+ * (spec 041) cuts the section list short.
  */
-function formatContextText(
+interface ContextSection {
+  text: string;
+  nodeCount: number;
+}
+
+/**
+ * Split relevant nodes/clusters into one section per cluster-or-file, in
+ * the order first encountered while iterating `relevantIds`. Iteration
+ * order there already reflects relevance priority — `expandContext`
+ * (below) adds each seed immediately followed by its own neighbors, in
+ * seed-relevance order, and `Set` iteration in JS follows insertion order
+ * — so this section order doubles as a priority order a budget-limited
+ * caller can truncate against (spec 041). Earlier versions of this
+ * function re-sorted clusters ahead of files after grouping, which broke
+ * that priority ordering for no benefit besides visual grouping — removed.
+ */
+function buildContextSections(
   relevantIds: Set<string>,
   graph: Graph
-): string {
+): ContextSection[] {
   const nodeMap = new Map(graph.nodes.map(n => [n.id, n]));
   const nodeToCluster = graph.nodeToCluster ? new Map(Object.entries(graph.nodeToCluster)) : new Map();
   const clusters = (graph.clusters || []) as any[];
   const clusterMap = new Map(clusters.map(c => [c.id, c]));
 
-  const lines: string[] = [];
-
-  // Group nodes by cluster or file
+  // Group nodes by cluster or file, in first-encountered order.
   const nodesBySection = new Map<string, { type: string; nodes: any[]; clusterId?: string }>();
   const shownClusters = new Set<string>();
 
@@ -203,25 +219,26 @@ function formatContextText(
     nodesBySection.get(file)!.nodes.push(node);
   }
 
-  // Format by section (clusters first, then files)
-  const clusters_first = Array.from(nodesBySection.entries()).sort(([keyA]: [string, any], [keyB]: [string, any]) => {
-    const aIsCluster = keyA.startsWith("cluster_");
-    const bIsCluster = keyB.startsWith("cluster_");
-    return aIsCluster === bIsCluster ? 0 : aIsCluster ? -1 : 1;
-  });
+  const sections: ContextSection[] = [];
 
-  for (const [sectionKey, section] of clusters_first) {
+  for (const [sectionKey, section] of nodesBySection) {
     if (section.type === "cluster") {
       const cluster = section.nodes[0];
-      lines.push(
-        `🔗 ${cluster.label}\n` +
-        `   ${cluster.summary}\n` +
-        `   Types: ${cluster.types.join(", ")}\n` +
-        `   External deps: ${cluster.externalDeps.slice(0, 3).map((id: string) => nodeMap.get(id)?.label || id).join(", ") || "none"}`
-      );
+      // A cluster section "accounts for" every relevant id that collapsed
+      // into it, not just 1 — matters for the included-node count under a
+      // token budget.
+      const clusterNodeCount = Array.from(relevantIds).filter(id => nodeToCluster.get(id) === cluster.id).length;
+      sections.push({
+        nodeCount: clusterNodeCount,
+        text:
+          `🔗 ${cluster.label}\n` +
+          `   ${cluster.summary}\n` +
+          `   Types: ${cluster.types.join(", ")}\n` +
+          `   External deps: ${cluster.externalDeps.slice(0, 3).map((id: string) => nodeMap.get(id)?.label || id).join(", ") || "none"}`,
+      });
     } else {
       // File section
-      lines.push(`📄 ${sectionKey}`);
+      const lines = [`📄 ${sectionKey}`];
       for (const node of section.nodes) {
         const prefix = node.type === "file" ? "├" : "  ├";
         const type = node.type === "file" ? "📁" : "⚙️";
@@ -242,11 +259,62 @@ function formatContextText(
           }${incoming.length > 0 ? ` ← ${incoming.join(", ")}` : ""}`
         );
       }
+      sections.push({ text: lines.join("\n"), nodeCount: section.nodes.length });
     }
-    lines.push("");
   }
 
-  return lines.join("\n");
+  return sections;
+}
+
+/**
+ * Format relevant nodes and edges as readable text for Claude — the
+ * unbudgeted path (no `tokenBudget`), unchanged in output from before
+ * spec 041 besides the ordering fix documented on `buildContextSections`.
+ */
+function formatContextText(
+  relevantIds: Set<string>,
+  graph: Graph
+): string {
+  return buildContextSections(relevantIds, graph)
+    .map(s => s.text)
+    .join("\n\n");
+}
+
+/**
+ * Greedily fills sections into `tokenBudget`, in priority order, stopping
+ * once the next section would exceed it. Cost accounting is per-section
+ * incremental (`countTokens` on each new section only, summed as sections
+ * are added) rather than a full-string recount every iteration — cheap,
+ * and avoids O(n²) cost on a large expanded set. This is an approximation
+ * (consistent with the `approxTokens` naming convention, spec 024): BPE
+ * tokenization isn't perfectly additive across concatenation boundaries,
+ * so the true joined text's token count can differ by a handful of tokens
+ * from the sum of its parts' counts — acceptable for a budget that's
+ * itself approximate.
+ */
+function fillSectionsToBudget(
+  sections: ContextSection[],
+  tokenBudget: number
+): { text: string; includedNodeCount: number; truncated: boolean } {
+  let used = 0;
+  const included: string[] = [];
+  let includedNodeCount = 0;
+
+  for (const section of sections) {
+    const cost = countTokens(section.text) + 2; // +2 for the "\n\n" joiner
+    // The single highest-priority section always gets included, even if it
+    // alone exceeds `tokenBudget` — an empty response is a worse outcome
+    // than a modest overshoot on a budget that's already approximate. Every
+    // section after the first is a hard stop.
+    if (included.length > 0 && used + cost > tokenBudget) {
+      return { text: included.join("\n\n"), includedNodeCount, truncated: true };
+    }
+    included.push(section.text);
+    used += cost;
+    includedNodeCount += section.nodeCount;
+  }
+
+  return { text: included.join("\n\n"), includedNodeCount, truncated: false };
 }
 
 /**
@@ -266,6 +334,40 @@ function buildRawGraphDump(graph: Graph): string {
 }
 
 /**
+ * Options for `buildSmartContext` (spec 041 replaced the old positional
+ * `(query, graph, maxNodes, cache)` signature with this — small enough
+ * call-site count, at the time of the change, to migrate cleanly rather
+ * than keep a positional back-compat overload).
+ */
+export interface SmartContextOptions {
+  /** Pre-filter cap on seed candidates before expansion. Default 25. */
+  maxNodes?: number;
+  /**
+   * If given, sections are greedily included in relevance-priority order
+   * until the next one would exceed this many (approximate) tokens,
+   * instead of the unlimited `maxNodes`/`MAX_EXPANDED_NODES`-only cap.
+   * The single highest-priority section always gets included even if it
+   * alone exceeds the budget — see `fillSectionsToBudget`.
+   */
+  tokenBudget?: number;
+  cache?: ConversationCache;
+  /**
+   * Restricts search *candidates* to nodes of this type before scoring —
+   * previously accepted by `handleSearch` but silently ignored (a dead
+   * parameter, fixed here). Deliberately does **not** restrict
+   * `expandContext`'s neighbor lookup, so a search for `type: "function"`
+   * still shows which file each match lives in — the filter narrows what
+   * counts as a match, not what's allowed to appear as surrounding
+   * context. A `typeFilter` also bypasses the conversation cache: cache
+   * hits are matched by keyword similarity only, with no awareness of
+   * `typeFilter`, so reusing a cached result here could silently ignore
+   * the filter — simplest correct fix is to not consult the cache at all
+   * when a filter is active.
+   */
+  typeFilter?: string;
+}
+
+/**
  * Main function: Build smart context for a query
  * Returns formatted text suitable for Claude's system prompt
  * v2.0: Uses semantic search + caching for best token efficiency
@@ -273,9 +375,10 @@ function buildRawGraphDump(graph: Graph): string {
 export async function buildSmartContext(
   query: string,
   graph: Graph,
-  maxNodes: number = 25,
-  cache?: ConversationCache
+  options: SmartContextOptions = {}
 ): Promise<SmartContextResult> {
+  const { maxNodes = 25, tokenBudget, cache, typeFilter } = options;
+
   // 1. Extract keywords from query
   const keywords = extractKeywords(query);
 
@@ -286,11 +389,12 @@ export async function buildSmartContext(
     );
   }
 
-  // 2. Check cache for related context (if cache enabled)
+  // 2. Check cache for related context (if cache enabled and no type
+  // filter — see SmartContextOptions.typeFilter's doc comment)
   let expandedIds = new Set<string>();
   let cacheHit = false;
 
-  if (cache) {
+  if (cache && !typeFilter) {
     const cachedContext = cache.getRelatedContext(graph.project, keywords);
     if (cachedContext) {
       expandedIds = cachedContext.expandedIds;
@@ -300,21 +404,26 @@ export async function buildSmartContext(
 
   // 3. If no cache hit, find relevant nodes
   if (!cacheHit) {
+    // Restrict candidates to the requested type, if any — narrows what
+    // counts as a *match*; expansion below can still surface nodes of any
+    // type as context around a match.
+    const candidateNodes = typeFilter ? graph.nodes.filter(n => n.type === typeFilter) : graph.nodes;
+
     let relevant: Graph["nodes"];
 
     // Try semantic search if embeddings available (v2.0)
-    if (hasEmbeddings(graph.nodes as any)) {
+    if (hasEmbeddings(candidateNodes as any)) {
       const queryEmbedding = await generateQueryEmbedding(query);
 
       if (queryEmbedding.length > 0) {
         // Semantic search: find similar nodes
         const semanticResults = semanticScoreNodes(
           queryEmbedding,
-          graph.nodes as any
+          candidateNodes as any
         );
 
         // Keyword search for comparison
-        const keywordResults = (findRelevantNodes(keywords, graph.nodes as any, 40) as any) || [];
+        const keywordResults = (findRelevantNodes(keywords, candidateNodes as any, 40) as any) || [];
         const keywordScoreMap = new Map(
           keywordResults.map((n: any, idx: number) => [n.id, 40 - idx])
         );
@@ -329,48 +438,83 @@ export async function buildSmartContext(
 
         // Extend with neighbors if needed
         if (relevant.length < maxNodes / 2) {
-          relevant = findSemanticNeighbors(relevant as any, graph.nodes as any, maxNodes) as any;
+          relevant = findSemanticNeighbors(relevant as any, candidateNodes as any, maxNodes) as any;
         }
       } else {
         // Embedding generation failed, fall back to keyword search
-        relevant = findRelevantNodes(keywords, graph.nodes as any, maxNodes);
+        relevant = findRelevantNodes(keywords, candidateNodes as any, maxNodes);
       }
     } else {
       // No embeddings yet, use keyword search only
-      relevant = findRelevantNodes(keywords, graph.nodes as any, maxNodes);
+      relevant = findRelevantNodes(keywords, candidateNodes as any, maxNodes);
     }
 
     if (relevant.length === 0) {
       return withTokenCount(
-        `No nodes found for: ${keywords.join(", ")}\n\nTry using search_graph tool with different keywords.`
+        `No nodes found for: ${keywords.join(", ")}${typeFilter ? ` (type: ${typeFilter})` : ""}\n\nTry using search_graph tool with different keywords.`
       );
     }
 
-    // Create node map for edge lookups
+    // Create node map for edge lookups — built from the FULL node set, not
+    // `candidateNodes`, so a type-filtered search can still expand into
+    // neighbors of other types.
     const nodeMap = new Map(graph.nodes.map(n => [n.id, n]));
 
     // Expand to include connected nodes
     expandedIds = expandContext(relevant, graph.edges, nodeMap);
 
-    // Store in cache for next related query
-    if (cache) {
+    // Store in cache for next related query (never for a type-filtered
+    // search — see SmartContextOptions.typeFilter's doc comment)
+    if (cache && !typeFilter) {
       cache.cacheContext(graph.project, query, keywords, relevant.map(n => n.id), expandedIds);
     }
   }
 
-  // 4. Format as readable text
-  const contextText = formatContextText(expandedIds, graph);
-
-  // 5. Return with summary (include cache hit indicator)
+  // 4. Format as readable text — budgeted (spec 041) or unlimited
   const cacheIndicator = cacheHit ? " (📦 from cache)" : "";
   const hasSemanticSearch = hasEmbeddings(graph.nodes as any) ? " (🧠 semantic)" : "";
-  const responseBody =
+  const headerText =
     `Knowledge Graph Context (${graph.project})${cacheIndicator}${hasSemanticSearch}\n` +
-    `Found ${expandedIds.size} relevant nodes for: "${query}"\n\n` +
+    `Found ${expandedIds.size} relevant nodes for: "${query}"\n\n`;
+
+  const sections = buildContextSections(expandedIds, graph);
+
+  let contextText: string;
+  let includedNodeCount: number;
+  let truncated: boolean;
+
+  if (tokenBudget !== undefined) {
+    // Reserve the fixed overhead (header + footer + notes line) *before*
+    // greedily filling sections, so the budget governs the TOTAL response,
+    // not just the section text — the footer's own size barely varies with
+    // the included count (a handful of digits either way), so a
+    // worst-case-shaped placeholder is a close enough estimate for this
+    // approximation.
+    const footerEstimate =
+      `\n📊 Summary:\n` +
+      `• Total project: ${graph.stats.files} files, ${graph.stats.functions} functions, ${graph.stats.classes} classes\n` +
+      `• Context includes: ${expandedIds.size} relevant nodes (of ${expandedIds.size} found — cut short by token budget)\n` +
+      `  (100% fewer tokens than a full graph dump, truncated to fit token budget)\n`;
+    const fixedOverhead = countTokens(headerText) + countTokens(footerEstimate);
+    const sectionBudget = Math.max(0, tokenBudget - fixedOverhead);
+
+    const filled = fillSectionsToBudget(sections, sectionBudget);
+    contextText = filled.text;
+    includedNodeCount = filled.includedNodeCount;
+    truncated = filled.truncated;
+  } else {
+    contextText = sections.map(s => s.text).join("\n\n");
+    includedNodeCount = expandedIds.size;
+    truncated = false;
+  }
+
+  // 5. Return with summary
+  const responseBody =
+    headerText +
     contextText +
     `\n📊 Summary:\n` +
     `• Total project: ${graph.stats.files} files, ${graph.stats.functions} functions, ${graph.stats.classes} classes\n` +
-    `• Context includes: ${expandedIds.size} relevant nodes\n`;
+    `• Context includes: ${includedNodeCount} relevant nodes${truncated ? ` (of ${expandedIds.size} found — cut short by token budget)` : ""}\n`;
 
   // Real, measured comparison against a full unfiltered dump of the graph —
   // not an asserted percentage. See spec 026.
@@ -380,6 +524,7 @@ export async function buildSmartContext(
     `${percentage}% fewer tokens than a full graph dump`,
     cacheHit ? "served from cache" : null,
     !cacheHit && hasEmbeddings(graph.nodes as any) ? "semantic search enabled" : null,
+    truncated ? "truncated to fit token budget" : null,
   ].filter((n): n is string => n !== null);
 
   const fullText = responseBody + `  (${notes.join(", ")})\n`;

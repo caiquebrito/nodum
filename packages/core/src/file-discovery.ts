@@ -54,15 +54,67 @@ function supportedExtensions(): Set<string> {
   return new Set(getAvailableParsers().flatMap(p => p.extensions.map(e => e.toLowerCase())));
 }
 
-type FileVisitor = (fullPath: string, relativePath: string, ext: string) => Promise<void>;
+/** Skip (with a warning) rather than read+parse a file bigger than this, by default (spec 042). */
+export const DEFAULT_MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024;
+/** Warn (never truncate) once the discovered file count exceeds this, by default (spec 042). */
+export const DEFAULT_MAX_FILES_WARNING = 20_000;
 
-async function walkFiles(
+export interface DiscoveryOptions {
+  /**
+   * Surfaces guardrail warnings (oversized files skipped, file count over
+   * the configured threshold) back to the caller — same callback-threading
+   * pattern as `SyncHooks`'s `onParseProgress`/`onStep` (spec 042).
+   */
+  onWarning?: (message: string) => void;
+}
+
+/** Entries matched during directory traversal, not yet read. */
+interface FileEntry {
+  fullPath: string;
+  relativePath: string;
+  ext: string;
+}
+
+/**
+ * Bounded-concurrency map: runs `fn` over `items` with at most `concurrency`
+ * calls in flight at once. Hand-rolled rather than a new dependency — file
+ * discovery's per-file work (`readFile`+`stat`+hash) is I/O-bound and
+ * genuinely benefits from overlap, unlike tree-sitter parsing (CPU-bound,
+ * out of scope for this same reason — see spec 042's Design).
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await fn(items[index]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
+/**
+ * Sequential recursive directory walk that only collects the matching file
+ * entries — no file I/O beyond `readdir` itself, so there's no shared
+ * mutable state to worry about parallelizing this half. Per-file
+ * read/stat/hash work happens afterward, with bounded concurrency, in
+ * `discoverFiles`/`discoverChangedFiles`.
+ */
+async function collectFileEntries(
   currentPath: string,
   rootPath: string,
   matcher: FileMatcher,
   extensions: Set<string>,
   ignoredDirs: Set<string>,
-  visit: FileVisitor,
+  out: FileEntry[],
 ): Promise<void> {
   try {
     const entries = await readdir(currentPath, { withFileTypes: true });
@@ -90,15 +142,11 @@ async function walkFiles(
         if (matcher.isExcluded(`${relativePath}/`)) {
           continue;
         }
-        await walkFiles(fullPath, rootPath, matcher, extensions, ignoredDirs, visit);
+        await collectFileEntries(fullPath, rootPath, matcher, extensions, ignoredDirs, out);
       } else if (entry.isFile()) {
         const ext = extname(entry.name);
         if (extensions.has(ext.toLowerCase()) && !matcher.isExcluded(relativePath) && matcher.isIncluded(relativePath)) {
-          try {
-            await visit(fullPath, relativePath, ext);
-          } catch {
-            // Skip files that can't be read
-          }
+          out.push({ fullPath, relativePath, ext });
         }
       }
     }
@@ -107,28 +155,53 @@ async function walkFiles(
   }
 }
 
-export async function discoverFiles(rootPath: string): Promise<FileInfo[]> {
-  const files: FileInfo[] = [];
+function warnIfOverFileCountThreshold(
+  entryCount: number,
+  maxFilesWarning: number,
+  onWarning: ((message: string) => void) | undefined,
+): void {
+  if (entryCount > maxFilesWarning) {
+    onWarning?.(
+      `Discovered ${entryCount} files, over the ${maxFilesWarning}-file guardrail — sync may be slow. ` +
+        `Consider narrowing scope via .nodumrc.json's "exclude"/"include", or raising "maxFilesWarning".`,
+    );
+  }
+}
+
+const DISCOVERY_CONCURRENCY = 8;
+
+export async function discoverFiles(rootPath: string, options: DiscoveryOptions = {}): Promise<FileInfo[]> {
   const config = await loadScanConfig(rootPath);
   const matcher = await buildFileMatcher(rootPath, config);
   const extensions = supportedExtensions();
   const ignoredDirs = buildIgnoredDirs(config.ignoredDirs);
+  const maxFileSizeBytes = config.maxFileSizeBytes ?? DEFAULT_MAX_FILE_SIZE_BYTES;
+  const maxFilesWarning = config.maxFilesWarning ?? DEFAULT_MAX_FILES_WARNING;
 
-  await walkFiles(rootPath, rootPath, matcher, extensions, ignoredDirs, async (fullPath, relativePath, ext) => {
-    const content = await readFile(fullPath, 'utf-8');
-    const stats = await stat(fullPath);
-    const hash = createHash('sha256').update(content).digest('hex');
-    files.push({
-      path: relativePath,
-      ext,
-      content,
-      hash,
-      mtimeMs: stats.mtimeMs,
-      size: stats.size,
-    });
+  const entries: FileEntry[] = [];
+  await collectFileEntries(rootPath, rootPath, matcher, extensions, ignoredDirs, entries);
+  warnIfOverFileCountThreshold(entries.length, maxFilesWarning, options.onWarning);
+
+  const results = await mapWithConcurrency(entries, DISCOVERY_CONCURRENCY, async ({ fullPath, relativePath, ext }) => {
+    try {
+      const stats = await stat(fullPath);
+      if (stats.size > maxFileSizeBytes) {
+        options.onWarning?.(
+          `Skipped ${relativePath} (${stats.size} bytes, over the ${maxFileSizeBytes}-byte guardrail)`,
+        );
+        return null;
+      }
+
+      const content = await readFile(fullPath, 'utf-8');
+      const hash = createHash('sha256').update(content).digest('hex');
+      return { path: relativePath, ext, content, hash, mtimeMs: stats.mtimeMs, size: stats.size } satisfies FileInfo;
+    } catch {
+      // Skip files that can't be read
+      return null;
+    }
   });
 
-  return files;
+  return results.filter((f): f is FileInfo => f !== null);
 }
 
 export interface DiscoveryDiff {
@@ -148,6 +221,7 @@ export interface DiscoveryDiff {
 export async function discoverChangedFiles(
   rootPath: string,
   previousManifest: FileManifest,
+  options: DiscoveryOptions = {},
 ): Promise<DiscoveryDiff> {
   const changed: FileInfo[] = [];
   const unchanged: FileManifest = {};
@@ -156,32 +230,50 @@ export async function discoverChangedFiles(
   const matcher = await buildFileMatcher(rootPath, config);
   const extensions = supportedExtensions();
   const ignoredDirs = buildIgnoredDirs(config.ignoredDirs);
+  const maxFileSizeBytes = config.maxFileSizeBytes ?? DEFAULT_MAX_FILE_SIZE_BYTES;
+  const maxFilesWarning = config.maxFilesWarning ?? DEFAULT_MAX_FILES_WARNING;
 
-  await walkFiles(rootPath, rootPath, matcher, extensions, ignoredDirs, async (fullPath, relativePath, ext) => {
-    seenPaths.add(relativePath);
-    const stats = await stat(fullPath);
-    const prev = previousManifest[relativePath];
+  const entries: FileEntry[] = [];
+  await collectFileEntries(rootPath, rootPath, matcher, extensions, ignoredDirs, entries);
+  warnIfOverFileCountThreshold(entries.length, maxFilesWarning, options.onWarning);
 
-    // Fast path: mtime + size match the last sync — trust it, skip the read.
-    if (prev && prev.mtimeMs === stats.mtimeMs && prev.size === stats.size) {
-      unchanged[relativePath] = prev;
-      return;
+  await mapWithConcurrency(entries, DISCOVERY_CONCURRENCY, async ({ fullPath, relativePath, ext }) => {
+    try {
+      seenPaths.add(relativePath);
+      const stats = await stat(fullPath);
+
+      if (stats.size > maxFileSizeBytes) {
+        options.onWarning?.(
+          `Skipped ${relativePath} (${stats.size} bytes, over the ${maxFileSizeBytes}-byte guardrail)`,
+        );
+        return;
+      }
+
+      const prev = previousManifest[relativePath];
+
+      // Fast path: mtime + size match the last sync — trust it, skip the read.
+      if (prev && prev.mtimeMs === stats.mtimeMs && prev.size === stats.size) {
+        unchanged[relativePath] = prev;
+        return;
+      }
+
+      // Slow path: something differs on disk — read + hash to see if the
+      // content actually changed, or it was just touched (e.g. re-saved
+      // with no edits).
+      const content = await readFile(fullPath, 'utf-8');
+      const hash = createHash('sha256').update(content).digest('hex');
+
+      if (prev && prev.hash === hash) {
+        // Same content, different mtime — not re-parsed, but refresh the
+        // manifest entry so the next sync gets the fast path again.
+        unchanged[relativePath] = { hash, mtimeMs: stats.mtimeMs, size: stats.size };
+        return;
+      }
+
+      changed.push({ path: relativePath, ext, content, hash, mtimeMs: stats.mtimeMs, size: stats.size });
+    } catch {
+      // Skip files that can't be read
     }
-
-    // Slow path: something differs on disk — read + hash to see if the
-    // content actually changed, or it was just touched (e.g. re-saved
-    // with no edits).
-    const content = await readFile(fullPath, 'utf-8');
-    const hash = createHash('sha256').update(content).digest('hex');
-
-    if (prev && prev.hash === hash) {
-      // Same content, different mtime — not re-parsed, but refresh the
-      // manifest entry so the next sync gets the fast path again.
-      unchanged[relativePath] = { hash, mtimeMs: stats.mtimeMs, size: stats.size };
-      return;
-    }
-
-    changed.push({ path: relativePath, ext, content, hash, mtimeMs: stats.mtimeMs, size: stats.size });
   });
 
   // Anything previously known but not seen this walk is treated as deleted —

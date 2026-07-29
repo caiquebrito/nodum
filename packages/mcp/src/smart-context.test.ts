@@ -166,7 +166,7 @@ describe("formatContextText (via buildSmartContext)", () => {
       nodeToCluster: { "auth.ts__login": "cluster-1", "auth.ts__logout": "cluster-1" },
     };
 
-    const { text } = await buildSmartContext("login", clusteredGraph as any, 25);
+    const { text } = await buildSmartContext("login", clusteredGraph as any, { maxNodes: 25 });
     expect(text).toContain("Auth cluster");
     expect(text).toContain("login and logout handlers");
     // The cluster summary appears once; individual member lines (with the
@@ -187,7 +187,7 @@ describe("estimateTokenSavings", () => {
 
 describe("buildSmartContext", () => {
   it("reports a real, non-hardcoded percentage instead of the old 40-60% literal", async () => {
-    const { text } = await buildSmartContext("login", graph as any, 25);
+    const { text } = await buildSmartContext("login", graph as any, { maxNodes: 25 });
 
     expect(text).not.toContain("40-60%");
     expect(text).not.toContain("83% more reduction");
@@ -196,7 +196,7 @@ describe("buildSmartContext", () => {
   });
 
   it("returns approxTokens consistent with the returned text", async () => {
-    const { text, approxTokens } = await buildSmartContext("login", graph as any, 25);
+    const { text, approxTokens } = await buildSmartContext("login", graph as any, { maxNodes: 25 });
     expect(approxTokens).toBeGreaterThan(0);
     expect(text.length).toBeGreaterThan(0);
   });
@@ -226,7 +226,7 @@ describe("buildSmartContext", () => {
       })),
     };
 
-    const { text } = await buildSmartContext("hub", hubGraph as any, 25);
+    const { text } = await buildSmartContext("hub", hubGraph as any, { maxNodes: 25 });
     const match = text.match(/Found (\d+) relevant nodes/);
     const foundCount = match ? parseInt(match[1], 10) : Number.POSITIVE_INFINITY;
 
@@ -234,5 +234,125 @@ describe("buildSmartContext", () => {
     // unbounded by the number of dependents. The hard ceiling is 150.
     expect(foundCount).toBeLessThan(301);
     expect(foundCount).toBeLessThanOrEqual(150);
+  });
+});
+
+describe("buildSmartContext — token budget (spec 041)", () => {
+  // Many distinct, non-clustered file sections so the full expansion is
+  // large enough for a small budget to force real truncation, and each
+  // file's own two nodes give each section enough text to have a real,
+  // non-trivial token cost.
+  function manyFilesGraph() {
+    const nodes: any[] = [];
+    const edges: any[] = [];
+    for (let i = 0; i < 30; i++) {
+      const fileId = `login${i}.ts`;
+      const fnId = `login${i}.ts__login`;
+      nodes.push({ id: fileId, label: `login${i}.ts`, type: "file", file: fileId, group: "service" });
+      nodes.push({ id: fnId, label: "login", type: "function", file: fileId, group: "service" });
+      edges.push({ source: fileId, target: fnId, relation: "defines" });
+    }
+    return {
+      project: "manyfiles",
+      stats: { files: 30, functions: 30, classes: 0, interfaces: 0, edges: 30 },
+      nodes,
+      edges,
+    };
+  }
+
+  it("stays at or reasonably close to a tight token budget instead of returning the full unbounded output", async () => {
+    const full = await buildSmartContext("login", manyFilesGraph() as any, { maxNodes: 30 });
+    const budgeted = await buildSmartContext("login", manyFilesGraph() as any, { maxNodes: 30, tokenBudget: 150 });
+
+    expect(budgeted.approxTokens).toBeLessThan(full.approxTokens);
+    // Fixed overhead (header/footer) is reserved before filling sections,
+    // so this should land close to, not just "roughly under", the budget —
+    // allow modest slack for the approximation (per-section incremental
+    // counting, BPE non-additivity across concatenation), not a wide one.
+    expect(budgeted.approxTokens).toBeLessThanOrEqual(150 * 1.15);
+  });
+
+  it("marks the response as truncated and reports a smaller included-count than found-count when the budget cuts content", async () => {
+    const { text } = await buildSmartContext("login", manyFilesGraph() as any, { maxNodes: 30, tokenBudget: 150 });
+
+    expect(text).toContain("truncated to fit token budget");
+    const foundMatch = text.match(/Found (\d+) relevant nodes/);
+    const includesMatch = text.match(/Context includes: (\d+) relevant nodes/);
+    expect(foundMatch).not.toBeNull();
+    expect(includesMatch).not.toBeNull();
+    expect(Number(includesMatch![1])).toBeLessThan(Number(foundMatch![1]));
+  });
+
+  it("always includes at least the single highest-priority section, even under a budget too small for it alone", async () => {
+    const { text } = await buildSmartContext("login", manyFilesGraph() as any, { maxNodes: 30, tokenBudget: 1 });
+    // login0.ts is the top-scored seed (exact label match on "login" isn't
+    // possible here, but file-path substring scoring favors earlier ids
+    // consistently) — the real assertion is just that *some* real content
+    // survived a budget of 1 token, proving the "never return empty" rule.
+    expect(text).toContain("login");
+    expect(text.length).toBeGreaterThan(20);
+  });
+
+  it("accounts for header/footer overhead, not just section text, when respecting the budget", async () => {
+    // Regression case: an earlier version of this budget accounting only
+    // reserved section text against the budget and appended the header
+    // ("Knowledge Graph Context...") and footer ("📊 Summary...", the
+    // percentage/notes line) afterward, unbudgeted — real end-to-end
+    // verification against a synced project found this overshot a 300-token
+    // budget by ~25%. Fixed by reserving estimated header+footer cost
+    // before filling sections.
+    const { approxTokens } = await buildSmartContext("login", manyFilesGraph() as any, {
+      maxNodes: 30,
+      tokenBudget: 300,
+    });
+    expect(approxTokens).toBeLessThanOrEqual(300 * 1.15);
+  });
+
+  it("does not truncate when the budget comfortably fits the full content", async () => {
+    const { text, approxTokens } = await buildSmartContext("login", manyFilesGraph() as any, {
+      maxNodes: 30,
+      tokenBudget: 100_000,
+    });
+    expect(text).not.toContain("truncated to fit token budget");
+    expect(approxTokens).toBeLessThan(100_000);
+  });
+
+  it("behaves exactly as before spec 041 when no tokenBudget is given", async () => {
+    const withBudgetOmitted = await buildSmartContext("login", graph as any, { maxNodes: 25 });
+    expect(withBudgetOmitted.text).not.toContain("truncated to fit token budget");
+    expect(withBudgetOmitted.text).not.toContain("cut short by token budget");
+  });
+});
+
+describe("buildSmartContext — typeFilter (spec 041 fix — was previously accepted but silently ignored)", () => {
+  const mixedTypeGraph = {
+    project: "mixed",
+    stats: { files: 1, functions: 1, classes: 1, interfaces: 0, edges: 0 },
+    nodes: [
+      { id: "auth.ts", label: "auth.ts", type: "file", file: "auth.ts", group: "service" },
+      { id: "auth.ts__login", label: "login", type: "function", file: "auth.ts", group: "service" },
+      { id: "auth.ts__Login", label: "Login", type: "class", file: "auth.ts", group: "service" },
+    ],
+    edges: [],
+  };
+
+  it("restricts search candidates to the given type", async () => {
+    const { text } = await buildSmartContext("login", mixedTypeGraph as any, {
+      maxNodes: 25,
+      typeFilter: "class",
+    });
+    // The class match should be found; searching should not fall through
+    // to "No nodes found" just because a function of the same keyword also
+    // exists in the graph.
+    expect(text).toContain("Login");
+  });
+
+  it("returns a 'no nodes found' message, not an unfiltered result, when nothing matches the type", async () => {
+    const { text } = await buildSmartContext("login", mixedTypeGraph as any, {
+      maxNodes: 25,
+      typeFilter: "interface",
+    });
+    expect(text).toContain("No nodes found");
+    expect(text).toContain("interface");
   });
 });

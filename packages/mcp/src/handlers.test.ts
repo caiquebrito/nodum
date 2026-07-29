@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { globalGraphCache } from "./graph-cache.js";
 
 const readFileMock = vi.fn();
 vi.mock("fs/promises", () => ({
@@ -22,6 +23,7 @@ const graph = {
 describe("handleGetGraph — spec 036 optional stats lines", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    globalGraphCache.clear();
   });
 
   it("omits struct/enum/protocol/extension lines entirely for a project with none of them", async () => {
@@ -59,9 +61,49 @@ describe("handleGetGraph — spec 036 optional stats lines", () => {
   });
 });
 
+describe("handleSearch — spec 041 typeFilter/tokenBudget wiring", () => {
+  const mixedTypeGraph = {
+    project: "proj",
+    stats: { files: 1, functions: 1, classes: 1, interfaces: 0, edges: 0 },
+    nodes: [
+      { id: "auth.ts", label: "auth.ts", type: "file", file: "auth.ts", group: "service" },
+      { id: "auth.ts__login", label: "login", type: "function", file: "auth.ts", group: "service" },
+      { id: "auth.ts__Login", label: "Login", type: "class", file: "auth.ts", group: "service" },
+    ],
+    edges: [],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    globalGraphCache.clear();
+    readFileMock.mockResolvedValue(JSON.stringify(mixedTypeGraph));
+  });
+
+  it("actually filters by type through the real handler dispatch path (previously a dead, ignored parameter)", async () => {
+    const { handleSearch } = await import("./handlers.js");
+    const result = await handleSearch("proj", "login", "interface");
+
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).toContain("No nodes found");
+  });
+
+  it("threads a token budget through to buildSmartContext", async () => {
+    const { handleSearch } = await import("./handlers.js");
+    const result = await handleSearch("proj", "login", undefined, 1);
+
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    // A budget of 1 token is far too small for the full response — the
+    // single-highest-priority-section-always-included rule still applies,
+    // so this shouldn't error, just produce a short, real response.
+    expect("error" in result).toBe(false);
+    expect(text.length).toBeGreaterThan(0);
+  });
+});
+
 describe("handleTraceImpact", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    globalGraphCache.clear();
     readFileMock.mockResolvedValue(JSON.stringify(graph));
   });
 
@@ -103,6 +145,7 @@ describe("handleFindBottlenecks", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    globalGraphCache.clear();
     readFileMock.mockResolvedValue(JSON.stringify(graphWithScores));
   });
 
@@ -152,6 +195,7 @@ describe("handleExplainArchitecture", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    globalGraphCache.clear();
   });
 
   it("reports layers and dependencies with a 'not configured' message when no rules exist", async () => {
@@ -194,6 +238,7 @@ describe("handleFindSimilarCode", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    globalGraphCache.clear();
     readFileMock.mockResolvedValue(JSON.stringify(graphWithDuplicates));
   });
 
@@ -244,6 +289,7 @@ describe("handleSuggestRefactoring", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    globalGraphCache.clear();
   });
 
   it("returns a formatted, category-grouped suggestion list without architecture rules", async () => {
@@ -288,6 +334,7 @@ describe("handleAnalyzeFile", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    globalGraphCache.clear();
     readFileMock.mockResolvedValue(JSON.stringify(bigFileGraph));
   });
 
@@ -337,6 +384,7 @@ describe("handleExpandCluster", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    globalGraphCache.clear();
     readFileMock.mockResolvedValue(JSON.stringify(bigClusterGraph));
   });
 

@@ -124,6 +124,11 @@ const tools: Tool[] = [
           enum: ["function", "class", "file", "interface", "method", "struct", "enum", "protocol", "extension"],
           description: "Optional: filter results by node type",
         },
+        token_budget: {
+          type: "number",
+          description:
+            "Optional: approximate token budget for the returned context. Sections are included in relevance order until the next one would exceed the budget — the single highest-priority section is always included even if it alone exceeds it. Omit for the default unbounded-by-tokens behavior.",
+        },
       },
       required: ["project_name", "query"],
     },
@@ -333,7 +338,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         result = await handleSearch(
           (args as any).project_name as string,
           (args as any).query as string,
-          (args as any).type_filter as string | undefined
+          (args as any).type_filter as string | undefined,
+          (args as any).token_budget as number | undefined
         );
         break;
       case "get_dependencies":

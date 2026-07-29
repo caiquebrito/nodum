@@ -43,6 +43,28 @@ describe("scan-config", () => {
 
       await rm(join(dir, ".nodumrc.json"));
     });
+
+    it("loads maxFileSizeBytes/maxFilesWarning (spec 042)", async () => {
+      await writeFile(
+        join(dir, ".nodumrc.json"),
+        JSON.stringify({ maxFileSizeBytes: 1_000_000, maxFilesWarning: 5000 }),
+      );
+
+      await expect(loadScanConfig(dir)).resolves.toEqual({ maxFileSizeBytes: 1_000_000, maxFilesWarning: 5000 });
+
+      await rm(join(dir, ".nodumrc.json"));
+    });
+
+    it("ignores non-numeric maxFileSizeBytes/maxFilesWarning", async () => {
+      await writeFile(
+        join(dir, ".nodumrc.json"),
+        JSON.stringify({ maxFileSizeBytes: "big", maxFilesWarning: null }),
+      );
+
+      await expect(loadScanConfig(dir)).resolves.toEqual({});
+
+      await rm(join(dir, ".nodumrc.json"));
+    });
   });
 
   describe("saveScanConfig", () => {
@@ -68,6 +90,19 @@ describe("scan-config", () => {
       await saveScanConfig(dir, { ignoredDirs: [".terraform"] });
 
       await expect(loadScanConfig(dir)).resolves.toEqual({ include: ["src/**"], ignoredDirs: [".terraform"] });
+
+      await rm(join(dir, ".nodumrc.json"));
+    });
+
+    it("saves maxFileSizeBytes/maxFilesWarning alongside other fields (spec 042)", async () => {
+      await saveScanConfig(dir, { include: ["src/**"] });
+      await saveScanConfig(dir, { maxFileSizeBytes: 1_000_000, maxFilesWarning: 5000 });
+
+      await expect(loadScanConfig(dir)).resolves.toEqual({
+        include: ["src/**"],
+        maxFileSizeBytes: 1_000_000,
+        maxFilesWarning: 5000,
+      });
 
       await rm(join(dir, ".nodumrc.json"));
     });

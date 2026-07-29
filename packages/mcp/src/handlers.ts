@@ -16,6 +16,7 @@ import {
 } from "@caiquebrito/nodum-core";
 import { buildSmartContext, buildNodeContext } from "./smart-context.js";
 import { globalConversationCache } from "./conversation-cache.js";
+import { globalGraphCache } from "./graph-cache.js";
 import { generateGraphEmbeddings } from "./embeddings.js";
 
 export const NODUM_DATA_DIR = join(homedir(), ".nodum");
@@ -40,6 +41,10 @@ async function loadProjectIndex(): Promise<ProjectIndex> {
 }
 
 async function loadGraph(projectName: string): Promise<Graph> {
+  return globalGraphCache.get(projectName, () => readGraphFromDisk(projectName));
+}
+
+async function readGraphFromDisk(projectName: string): Promise<Graph> {
   const content = await readFile(
     join(NODUM_DATA_DIR, projectName, "graph", "graph.json"),
     "utf-8"
@@ -58,17 +63,24 @@ export async function handleSync(projectPath: string) {
   try {
     // core.syncProject already discovers, parses, analyzes, clusters, and
     // persists the graph — this handler only needs to add embeddings.
-    const graph = await syncProject(projectPath, NODUM_DATA_DIR);
+    const warnings: string[] = [];
+    const graph = await syncProject(projectPath, NODUM_DATA_DIR, {
+      onWarning: (message) => warnings.push(message),
+    });
 
     // v2.0: Generate embeddings for semantic search
     await generateGraphEmbeddings(graph.nodes);
     await writeGraphFile(NODUM_DATA_DIR, graph.project, graph);
 
-    // Clear conversation cache for this project (graph changed)
+    // Clear conversation cache and graph cache for this project (graph changed)
     globalConversationCache.clearProject(graph.project);
+    globalGraphCache.clearProject(graph.project);
 
     const projects = await loadProjectIndex();
     const project = projects[graph.project];
+    const warningsBlock = warnings.length
+      ? `\n\n⚠️  Warnings:\n${warnings.map((w) => `  • ${w}`).join("\n")}`
+      : "";
 
     return {
       content: [
@@ -80,7 +92,8 @@ export async function handleSync(projectPath: string) {
             `📦 Classes: ${graph.stats.classes}\n` +
             `🔗 Dependencies: ${graph.stats.edges}\n` +
             `🧠 Embeddings: Generated for semantic search (v2.0)\n\n` +
-            `Data saved to: ${project.path}`
+            `Data saved to: ${project.path}` +
+            warningsBlock
         ),
       ],
     };
@@ -205,7 +218,8 @@ export async function handleGetNode(projectName: string, nodeId: string) {
 export async function handleSearch(
   projectName: string,
   query: string,
-  typeFilter?: string
+  typeFilter?: string,
+  tokenBudget?: number
 ) {
   try {
     const graph = await loadGraph(projectName);
@@ -213,7 +227,12 @@ export async function handleSearch(
     // Use smart context with caching + semantic search
     // v1.1.2: 40-60% reduction (300 tokens)
     // v2.0: 83% reduction on cache hits + 20% better selection via semantic search
-    const { text: smartContext } = await buildSmartContext(query, graph, 20, globalConversationCache);
+    const { text: smartContext } = await buildSmartContext(query, graph, {
+      maxNodes: 20,
+      cache: globalConversationCache,
+      typeFilter,
+      tokenBudget,
+    });
 
     return {
       content: [text(smartContext)],
