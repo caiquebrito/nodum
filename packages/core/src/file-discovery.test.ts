@@ -52,6 +52,36 @@ describe("discoverFiles", () => {
   });
 });
 
+describe("discoverFiles — bounded concurrency (spec 042)", () => {
+  let dir: string;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), "nodum-file-discovery-concurrency-"));
+    // More files than the internal concurrency limit, so multiple worker
+    // batches are exercised — proving the concurrent read/stat/hash work
+    // doesn't cross-contaminate results between files.
+    for (let i = 0; i < 30; i++) {
+      await writeFile(join(dir, `file${i}.ts`), `export const v${i} = ${i};\n`, "utf-8");
+    }
+  });
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("discovers every file with content/hash matching its own path, not another file's", async () => {
+    const files = await discoverFiles(dir);
+    expect(files).toHaveLength(30);
+
+    for (let i = 0; i < 30; i++) {
+      const f = files.find(file => file.path === `file${i}.ts`)!;
+      expect(f).toBeDefined();
+      expect(f.content).toBe(`export const v${i} = ${i};\n`);
+      expect(f.hash).toBe(createHash("sha256").update(f.content).digest("hex"));
+    }
+  });
+});
+
 describe("discoverChangedFiles", () => {
   let dir: string;
 
@@ -198,6 +228,51 @@ describe("discoverFiles — scan config integration", () => {
     const files = await discoverFiles(dir);
 
     expect(files.map(f => f.path)).toEqual(["kept.ts"]);
+  });
+});
+
+describe("discoverFiles — guardrails (spec 042)", () => {
+  let dir: string;
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("excludes an oversized file individually (with a warning), not the whole sync", async () => {
+    dir = await mkdtemp(join(tmpdir(), "nodum-file-discovery-oversized-"));
+    await writeFile(join(dir, "normal.ts"), "export const a = 1;\n", "utf-8");
+    await writeFile(join(dir, "huge.ts"), "x".repeat(200), "utf-8");
+    await writeFile(join(dir, ".nodumrc.json"), JSON.stringify({ maxFileSizeBytes: 100 }), "utf-8");
+
+    const warnings: string[] = [];
+    const files = await discoverFiles(dir, { onWarning: (m) => warnings.push(m) });
+
+    expect(files.map(f => f.path).sort()).toEqual(["normal.ts"]);
+    expect(warnings.some(w => w.includes("huge.ts"))).toBe(true);
+  });
+
+  it("does not warn when every file is within the size/count guardrails", async () => {
+    dir = await mkdtemp(join(tmpdir(), "nodum-file-discovery-withinlimits-"));
+    await writeFile(join(dir, "normal.ts"), "export const a = 1;\n", "utf-8");
+
+    const warnings: string[] = [];
+    await discoverFiles(dir, { onWarning: (m) => warnings.push(m) });
+
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("warns (without excluding anything) once the file count exceeds maxFilesWarning", async () => {
+    dir = await mkdtemp(join(tmpdir(), "nodum-file-discovery-filecount-"));
+    for (let i = 0; i < 5; i++) {
+      await writeFile(join(dir, `f${i}.ts`), `export const v${i} = ${i};\n`, "utf-8");
+    }
+    await writeFile(join(dir, ".nodumrc.json"), JSON.stringify({ maxFilesWarning: 3 }), "utf-8");
+
+    const warnings: string[] = [];
+    const files = await discoverFiles(dir, { onWarning: (m) => warnings.push(m) });
+
+    expect(files).toHaveLength(5);
+    expect(warnings.some(w => w.includes("5 files"))).toBe(true);
   });
 });
 

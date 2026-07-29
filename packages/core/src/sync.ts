@@ -14,6 +14,8 @@ export interface SyncHooks {
   onClusterProgress?: (processed: number, total: number) => void;
   /** Fired once before each atomic step (analyze, write summary, etc). */
   onStep?: (label: string) => void;
+  /** Fired for guardrail warnings — an oversized file skipped, or the file count over threshold (spec 042). */
+  onWarning?: (message: string) => void;
   /**
    * Only re-parse files changed since the last sync. Falls back to a full
    * sync silently if no previous graph/manifest exists yet for this project.
@@ -63,6 +65,7 @@ export async function syncProject(
   // 2. Generate graph
   const { graph, files: fileManifest } = await generateGraph(absolutePath, {
     onProgress: hooks.onParseProgress,
+    onWarning: hooks.onWarning,
     previousGraph,
     previousFiles,
   });

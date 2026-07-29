@@ -24,6 +24,7 @@ export async function syncProject(
         stepBarRef.current?.done();
         stepBarRef.current = makeProgressBar(label);
       },
+      onWarning: (message) => console.warn(`⚠️  ${message}`),
       incremental: options.incremental,
     });
 
