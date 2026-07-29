@@ -376,3 +376,74 @@ describe("generateGraph — source-set labeling (spec 049)", () => {
     expect(graph.nodes[0].sourceSet).toBeUndefined();
   });
 });
+
+describe("generateGraph — module labeling (spec 051)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    selectParserMock.mockImplementation((ext: string) => {
+      if (ext !== ".kt") return null;
+      return {
+        parse: (file: FileInfo) => ({
+          nodes: [{ id: file.path, label: file.path, type: "function" as const, file: file.path, group: "other" }],
+          edges: [],
+        }),
+      };
+    });
+  });
+
+  it("stamps module on nodes under a multi-module path in the full-sync path", async () => {
+    discoverFilesMock.mockResolvedValue([
+      { ...fileInfo("forro/feature/src/main/kotlin/Foo.kt"), ext: ".kt" },
+      { ...fileInfo("app/src/main/kotlin/Bar.kt"), ext: ".kt" },
+    ]);
+
+    const { generateGraph } = await import("./graph-gen.js");
+    const { graph } = await generateGraph("/proj", {});
+
+    const feature = graph.nodes.find(n => n.file === "forro/feature/src/main/kotlin/Foo.kt");
+    const app = graph.nodes.find(n => n.file === "app/src/main/kotlin/Bar.kt");
+    expect(feature?.module).toBe("forro/feature");
+    expect(app?.module).toBe("app");
+  });
+
+  it("stamps module on carried-over (unchanged) nodes in the incremental-sync path too", async () => {
+    const previousGraph: Graph = {
+      project: "proj",
+      stats: { files: 1, functions: 1, classes: 0, interfaces: 0, edges: 0 },
+      nodes: [
+        {
+          id: "app/src/main/kotlin/Bar.kt",
+          label: "Bar.kt",
+          type: "function",
+          file: "app/src/main/kotlin/Bar.kt",
+          group: "other",
+          // Deliberately missing module — simulates a node persisted before
+          // spec 051, carried over verbatim by the incremental path.
+        },
+      ],
+      edges: [],
+    };
+    const previousFiles: FileManifest = {
+      "app/src/main/kotlin/Bar.kt": { hash: "h", mtimeMs: 1, size: 1 },
+    };
+    discoverChangedFilesMock.mockResolvedValue({
+      changed: [],
+      unchanged: previousFiles,
+      deletedPaths: [],
+    });
+
+    const { generateGraph } = await import("./graph-gen.js");
+    const { graph } = await generateGraph("/proj", { previousGraph, previousFiles });
+
+    expect(graph.nodes[0].module).toBe("app");
+  });
+
+  it("does not stamp module on a non-matching path", async () => {
+    discoverFilesMock.mockResolvedValue([{ ...fileInfo("src/main.kt"), ext: ".kt" }]);
+
+    const { generateGraph } = await import("./graph-gen.js");
+    const { graph } = await generateGraph("/proj", {});
+
+    expect(graph.nodes[0].module).toBeUndefined();
+  });
+});

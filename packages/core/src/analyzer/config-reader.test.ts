@@ -2,9 +2,9 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, mkdir, writeFile, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import { readBuildGradle, readSettingsGradle, readGradleBuildFiles } from "./config-reader.js";
+import { readBuildGradle, readGradleBuildFiles } from "./config-reader.js";
 
-describe("readBuildGradle / readSettingsGradle (spec 049)", () => {
+describe("readBuildGradle (spec 049)", () => {
   let dir: string;
 
   beforeAll(async () => {
@@ -17,7 +17,6 @@ describe("readBuildGradle / readSettingsGradle (spec 049)", () => {
 
   it("returns null when neither variant is present", async () => {
     await expect(readBuildGradle(dir)).resolves.toBeNull();
-    await expect(readSettingsGradle(dir)).resolves.toBeNull();
   });
 
   it("reads the plain .gradle (Groovy) variant when present", async () => {
@@ -30,12 +29,6 @@ describe("readBuildGradle / readSettingsGradle (spec 049)", () => {
     await writeFile(join(dir, "build.gradle.kts"), "plugins.withId(\"com.android.application\") {}");
     await expect(readBuildGradle(dir)).resolves.toContain("com.android.application");
     await rm(join(dir, "build.gradle.kts"));
-  });
-
-  it("reads settings.gradle.kts when settings.gradle is absent", async () => {
-    await writeFile(join(dir, "settings.gradle.kts"), "include(\":app\")");
-    await expect(readSettingsGradle(dir)).resolves.toContain(":app");
-    await rm(join(dir, "settings.gradle.kts"));
   });
 
   it("prefers the plain .gradle variant when both are present", async () => {
