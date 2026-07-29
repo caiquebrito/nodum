@@ -10,9 +10,12 @@ function fileNode(id: string, file: string, group = "other"): Node {
   return { id, label: file, type: "file", file, group };
 }
 
-function funcNode(id: string, file: string, opts: { complexity?: number; duplicateHash?: string } = {}): Node {
+function funcNode(id: string, file: string, opts: { complexity?: number; duplicateHash?: string; similaritySignature?: string } = {}): Node {
   return { id, label: id, type: "function", file, group: "other", ...opts };
 }
+
+const sig = (values: number[]) => values.map(v => v.toString(16).padStart(4, "0")).join("");
+const IDENTICAL_SIG = sig(Array.from({ length: 32 }, (_, i) => 1000 + i));
 
 function imports(source: string, target: string): Edge {
   return { source, target, relation: "imports" };
@@ -94,6 +97,26 @@ describe("suggestRefactoring", () => {
     expect(dupSuggestions[0].files.sort()).toEqual(["a.ts", "b.ts"]);
   });
 
+  it("produces one near-duplication suggestion per fuzzy group, listing every member file (spec 052)", () => {
+    const graph = graphOf(
+      [
+        fileNode("a", "a.ts"), funcNode("a__f", "a.ts", { similaritySignature: IDENTICAL_SIG }),
+        fileNode("b", "b.ts"), funcNode("b__f", "b.ts", { similaritySignature: IDENTICAL_SIG }),
+      ],
+      [],
+    );
+    const suggestions = suggestRefactoring(graph);
+    const nearDupSuggestions = suggestions.filter(s => s.kind === "near-duplication");
+    expect(nearDupSuggestions).toHaveLength(1);
+    expect(nearDupSuggestions[0].files.sort()).toEqual(["a.ts", "b.ts"]);
+    expect(nearDupSuggestions[0].description).toContain("similar");
+  });
+
+  it("omits near-duplication when no fuzzy groups exist", () => {
+    const graph = graphOf([fileNode("a", "index.ts")], []);
+    expect(suggestRefactoring(graph).some(s => s.kind === "near-duplication")).toBe(false);
+  });
+
   it("produces one dead-code suggestion per unreachable file", () => {
     const graph = graphOf([fileNode("a", "src/orphan.ts")], []);
     const suggestions = suggestRefactoring(graph);
@@ -112,7 +135,7 @@ describe("suggestRefactoring", () => {
       [imports("a", "b"), imports("b", "a")],
     );
     const kinds = suggestRefactoring(graph).map(s => s.kind);
-    const order = ["cycle", "architecture-violation", "high-complexity", "duplication", "dead-code"];
+    const order = ["cycle", "architecture-violation", "high-complexity", "duplication", "near-duplication", "dead-code"];
     const seenOrder = [...new Set(kinds)];
     expect(seenOrder).toEqual(order.filter(k => seenOrder.includes(k as any)));
   });

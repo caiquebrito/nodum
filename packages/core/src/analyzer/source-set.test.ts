@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectSourceSet, applySourceSets } from "./source-set.js";
+import { detectSourceSet, applySourceSets, detectModule, applyModules } from "./source-set.js";
 import type { Node } from "../types.js";
 
 describe("detectSourceSet", () => {
@@ -71,5 +71,71 @@ describe("applySourceSets", () => {
     applySourceSets(nodes);
     expect(nodes[0].sourceSet).toBeUndefined();
     expect("sourceSet" in nodes[0]).toBe(false);
+  });
+});
+
+describe("detectModule", () => {
+  it("detects a top-level module", () => {
+    expect(detectModule("app/src/main/kotlin/com/example/Main.kt")).toBe("app");
+  });
+
+  it("detects a nested module path", () => {
+    expect(detectModule("forro/feature/src/androidMain/kotlin/Foo.kt")).toBe("forro/feature");
+  });
+
+  it("returns undefined for a single-module project with no path segment before src/", () => {
+    expect(detectModule("src/main/kotlin/Foo.kt")).toBeUndefined();
+  });
+
+  it("returns undefined for a path with no src/ segment at all", () => {
+    expect(detectModule("app/build.gradle.kts")).toBeUndefined();
+  });
+
+  it("normalizes a Windows-style backslash path", () => {
+    expect(detectModule("app\\src\\main\\kotlin\\Foo.kt")).toBe("app");
+  });
+
+  it("stops at the first /src/ occurrence, not a later one", () => {
+    expect(detectModule("app/src/main/kotlin/com/example/src/Foo.kt")).toBe("app");
+  });
+
+  it("returns undefined for a non-Gradle TypeScript monorepo's own packages/<name>/src/ layout", () => {
+    // Regression: a bare `/src/` split would false-positive on this exact
+    // repo's own package layout — module must be gated on the Kotlin/Java
+    // source-set convention, not any `/src/` occurrence.
+    expect(detectModule("packages/core/src/graph-gen.ts")).toBeUndefined();
+  });
+});
+
+describe("applyModules", () => {
+  function node(file: string, module?: string): Node {
+    return { id: file, label: file, type: "file", file, group: "other", ...(module ? { module } : {}) };
+  }
+
+  it("stamps module on nodes whose file matches the convention", () => {
+    const nodes = [node("forro/feature/src/main/kotlin/Foo.kt"), node("app.ts")];
+    applyModules(nodes);
+    expect(nodes[0].module).toBe("forro/feature");
+    expect(nodes[1].module).toBeUndefined();
+  });
+
+  it("is idempotent — running it twice produces the same result", () => {
+    const nodes = [node("app/src/main/kotlin/Foo.kt")];
+    applyModules(nodes);
+    applyModules(nodes);
+    expect(nodes[0].module).toBe("app");
+  });
+
+  it("clears a stale module when the node's file no longer matches", () => {
+    const nodes = [node("app/src/main/kotlin/Foo.kt", "stale-module")];
+    applyModules(nodes);
+    expect(nodes[0].module).toBe("app");
+  });
+
+  it("removes module entirely for a node whose file doesn't match the convention", () => {
+    const nodes = [node("app.ts", "stale-module")];
+    applyModules(nodes);
+    expect(nodes[0].module).toBeUndefined();
+    expect("module" in nodes[0]).toBe(false);
   });
 });

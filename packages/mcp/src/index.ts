@@ -292,7 +292,7 @@ const tools: Tool[] = [
   {
     name: "suggest_refactoring",
     description:
-      "Unified refactoring suggestions synthesized from every analysis capability: circular imports, dead files, architecture-rule violations, overly complex functions, and duplicated code.",
+      "Unified refactoring suggestions synthesized from every analysis capability: circular imports, dead files, architecture-rule violations, overly complex functions, exact-duplicate code, and near-duplicate (fuzzy) code clustered transitively across the whole project.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -319,7 +319,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const startedAt = Date.now();
   const projectName =
     typeof (args as any).project_name === "string" ? (args as any).project_name : undefined;
-  let result: { content: TextContent[] } | { error: string };
+  let result: { content: TextContent[]; isError?: boolean };
 
   try {
     switch (name) {
@@ -404,15 +404,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         );
         break;
       default:
-        result = { error: `Unknown tool: ${name}` };
+        result = { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
     }
   } catch (error) {
-    result = { error: String(error) };
+    result = { content: [{ type: "text", text: String(error) }], isError: true };
   }
 
-  const success = !("error" in result);
-  const responseText =
-    "content" in result ? result.content.map((c) => c.text).join("\n") : undefined;
+  const success = !result.isError;
+  const responseText = result.content.map((c) => c.text).join("\n");
 
   await appendMetricsLog(join(NODUM_DATA_DIR, projectName ?? "_unscoped", "logs"), {
     timestamp: new Date().toISOString(),

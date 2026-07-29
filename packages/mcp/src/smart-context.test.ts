@@ -166,6 +166,31 @@ describe("buildNodeContext", () => {
     const text = buildNodeContext("auth.ts", graph as any);
     expect(text).not.toContain("Source set");
   });
+
+  it("shows a Module line when the node has one (spec 051)", () => {
+    const kotlinGraph = {
+      project: "proj",
+      stats: { files: 1, functions: 0, classes: 0, interfaces: 0, edges: 0 },
+      nodes: [
+        {
+          id: "forro/feature/src/main/kotlin/Foo.kt",
+          label: "Foo.kt",
+          type: "file",
+          file: "forro/feature/src/main/kotlin/Foo.kt",
+          group: "other",
+          module: "forro/feature",
+        },
+      ],
+      edges: [],
+    };
+    const text = buildNodeContext("forro/feature/src/main/kotlin/Foo.kt", kotlinGraph as any);
+    expect(text).toContain("Module: forro/feature");
+  });
+
+  it("omits the Module line entirely for a node with none — byte-identical to pre-spec-051 output", () => {
+    const text = buildNodeContext("auth.ts", graph as any);
+    expect(text).not.toContain("Module");
+  });
 });
 
 describe("formatContextText (via buildSmartContext)", () => {

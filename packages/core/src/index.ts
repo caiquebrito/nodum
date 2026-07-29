@@ -80,6 +80,14 @@ export type { ArchitectureSummary, LayerSummary, LayerDependency } from './analy
 export { findSimilarCode, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_SIMILAR_CODE_LIMIT } from './analyzer/similar-code.js';
 export type { SimilarCodeResult, SimilarCodeMatch, SimilarCodeOptions } from './analyzer/similar-code.js';
 
+export { detectNearDuplicates, DEFAULT_NEAR_DUPLICATE_LIMIT } from './analyzer/near-duplicate.js';
+export type {
+  NearDuplicateGroup,
+  NearDuplicateGroupMember,
+  DetectNearDuplicatesOptions,
+  DetectNearDuplicatesResult,
+} from './analyzer/near-duplicate.js';
+
 export { suggestRefactoring } from './analyzer/suggest-refactoring.js';
 export type {
   RefactoringSuggestion,

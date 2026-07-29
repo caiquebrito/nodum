@@ -59,6 +59,13 @@ function text(content: string): TextContent {
   };
 }
 
+// MCP's CallToolResultSchema requires `content`, with `isError` as a separate
+// optional flag — a bare `{ error: string }` is not a valid tool result and
+// fails schema validation on the client side (spec 050).
+function errorResult(message: string): { content: TextContent[]; isError: true } {
+  return { content: [text(message)], isError: true };
+}
+
 export async function handleSync(projectPath: string) {
   try {
     // core.syncProject already discovers, parses, analyzes, clusters, and
@@ -98,7 +105,7 @@ export async function handleSync(projectPath: string) {
       ],
     };
   } catch (error) {
-    return { error: `Failed to sync project: ${String(error)}` };
+    return errorResult(`Failed to sync project: ${String(error)}`);
   }
 }
 
@@ -143,7 +150,7 @@ export async function handleStatus() {
       ],
     };
   } catch (error) {
-    return { error: `Failed to get project status: ${String(error)}` };
+    return errorResult(`Failed to get project status: ${String(error)}`);
   }
 }
 
@@ -199,7 +206,7 @@ export async function handleGetGraph(projectName: string) {
       content: [text(summary)],
     };
   } catch (error) {
-    return { error: `Failed to get graph: ${String(error)}` };
+    return errorResult(`Failed to get graph: ${String(error)}`);
   }
 }
 
@@ -211,7 +218,7 @@ export async function handleGetNode(projectName: string, nodeId: string) {
       content: [text(nodeContext)],
     };
   } catch (error) {
-    return { error: `Failed to get node: ${String(error)}` };
+    return errorResult(`Failed to get node: ${String(error)}`);
   }
 }
 
@@ -238,7 +245,7 @@ export async function handleSearch(
       content: [text(smartContext)],
     };
   } catch (error) {
-    return { error: `Search failed: ${String(error)}` };
+    return errorResult(`Search failed: ${String(error)}`);
   }
 }
 
@@ -252,7 +259,7 @@ export async function handleGetDeps(
     const node = graph.nodes.find((n) => n.id === nodeId);
 
     if (!node) {
-      return { error: `Node not found: ${nodeId}` };
+      return errorResult(`Node not found: ${nodeId}`);
     }
 
     const nodeMap: { [key: string]: any } = Object.fromEntries(
@@ -306,7 +313,7 @@ export async function handleGetDeps(
       content: [text(lines.join("\n"))],
     };
   } catch (error) {
-    return { error: `Failed to get dependencies: ${String(error)}` };
+    return errorResult(`Failed to get dependencies: ${String(error)}`);
   }
 }
 
@@ -321,7 +328,7 @@ export async function handleAnalyzeFile(
     );
 
     if (!fileNode) {
-      return { error: `File not found: ${filePath}` };
+      return errorResult(`File not found: ${filePath}`);
     }
 
     const nodesInFile = graph.nodes.filter((n) => n.file === filePath);
@@ -368,7 +375,7 @@ export async function handleAnalyzeFile(
       content: [text(summary)],
     };
   } catch (error) {
-    return { error: `Failed to analyze file: ${String(error)}` };
+    return errorResult(`Failed to analyze file: ${String(error)}`);
   }
 }
 
@@ -382,7 +389,7 @@ export async function handleExpandCluster(
     const cluster = clusters.find((c) => c.id === clusterId);
 
     if (!cluster) {
-      return { error: `Cluster not found: ${clusterId}` };
+      return errorResult(`Cluster not found: ${clusterId}`);
     }
 
     const nodeMap: { [key: string]: any } = Object.fromEntries(
@@ -436,7 +443,7 @@ export async function handleExpandCluster(
       content: [text(summary)],
     };
   } catch (error) {
-    return { error: `Failed to expand cluster: ${String(error)}` };
+    return errorResult(`Failed to expand cluster: ${String(error)}`);
   }
 }
 
@@ -450,7 +457,7 @@ export async function handleTraceImpact(
     const node = graph.nodes.find((n) => n.id === nodeId);
 
     if (!node) {
-      return { error: `Node not found: ${nodeId}` };
+      return errorResult(`Node not found: ${nodeId}`);
     }
 
     const impacted = traceImpact(graph, nodeId, { maxDepth });
@@ -484,7 +491,7 @@ export async function handleTraceImpact(
       content: [text(lines.join("\n"))],
     };
   } catch (error) {
-    return { error: `Failed to trace impact: ${String(error)}` };
+    return errorResult(`Failed to trace impact: ${String(error)}`);
   }
 }
 
@@ -511,7 +518,7 @@ export async function handleFindBottlenecks(projectName: string, limit?: number)
       content: [text(lines.join("\n"))],
     };
   } catch (error) {
-    return { error: `Failed to find bottlenecks: ${String(error)}` };
+    return errorResult(`Failed to find bottlenecks: ${String(error)}`);
   }
 }
 
@@ -555,7 +562,7 @@ export async function handleExplainArchitecture(projectName: string) {
       content: [text(lines.join("\n"))],
     };
   } catch (error) {
-    return { error: `Failed to explain architecture: ${String(error)}` };
+    return errorResult(`Failed to explain architecture: ${String(error)}`);
   }
 }
 
@@ -582,7 +589,7 @@ export async function handleFindSimilarCode(projectName: string, nodeId: string,
       content: [text(lines.join("\n"))],
     };
   } catch (error) {
-    return { error: `Failed to find similar code: ${String(error)}` };
+    return errorResult(`Failed to find similar code: ${String(error)}`);
   }
 }
 
@@ -626,6 +633,6 @@ export async function handleSuggestRefactoring(
       content: [text(lines.join("\n"))],
     };
   } catch (error) {
-    return { error: `Failed to suggest refactoring: ${String(error)}` };
+    return errorResult(`Failed to suggest refactoring: ${String(error)}`);
   }
 }
