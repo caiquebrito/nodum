@@ -1,5 +1,36 @@
 # @caiquebrito/nodum-mcp
 
+## 2.8.0
+
+### Minor Changes
+
+- 8985542: Adds an in-process cache for each project's parsed `graph.json`, avoiding a full disk-read + re-parse on every single MCP tool call. Some real projects' graphs are tens of MB — this previously meant re-parsing the whole file for two tool calls seconds apart in the same conversation turn.
+
+  The cache is invalidated automatically right after `sync_project` writes a fresh graph, mirroring the existing conversation-cache invalidation. A 5-minute TTL exists as a safety net for the (uncommon) case of an external `nodum sync` run from a separate terminal while the MCP server stays open.
+
+  First spec in the v2.8.0 "adaptive context budgeting" batch.
+
+- 4134bf4: File discovery (`discoverFiles`/`discoverChangedFiles`) now reads/hashes files with bounded concurrency instead of sequentially — a real wall-clock win on larger projects, with byte-identical output (verified against a frozen real-project snapshot, including cluster assignment).
+
+  Adds file-size and file-count sync guardrails, configurable via `.nodumrc.json`: `maxFileSizeBytes` (default 2 MB) excludes an oversized file individually with a warning rather than reading/parsing it; `maxFilesWarning` (default 20,000) warns once a project's file count crosses the threshold, without truncating the sync. Warnings surface through the CLI (`console.warn`) and the MCP server's `sync_project` response text.
+
+  Also fixes a latent tree-sitter parser safety issue: `TreeSitterParser` no longer memoizes a single shared `TSParser` per instance for its whole lifetime — each parse now gets its own `TSParser` bound to the already-shared, genuinely-immutable `Language`, matching what the underlying grammar loader was already doing correctly. WASM-allocated parse trees are now freed (`tree.delete()`) once node/edge extraction completes, across all 5 tree-sitter-backed languages (Python, Java, JavaScript, Swift, Objective-C).
+
+  Third and final spec in the v2.8.0 "adaptive context budgeting" batch.
+
+- a16e3b2: `search_graph` accepts an optional `token_budget` parameter — context is filled greedily by relevance until the budget is spent, instead of a fixed node-count truncation. The single highest-priority section is always included even if it alone exceeds the budget.
+
+  Also fixes `type_filter` on `search_graph`, which was previously accepted but silently ignored — it now actually restricts search candidates to the given node type, while still allowing expansion into neighbors of other types for surrounding context.
+
+  `buildSmartContext`'s signature changed from positional `(query, graph, maxNodes, cache)` to `(query, graph, options)` with an `options: { maxNodes?, tokenBudget?, cache?, typeFilter? }` object — a breaking change for any direct caller of this exported function, though it's an internal MCP-package API, not a published CLI/core surface.
+
+  Second spec in the v2.8.0 "adaptive context budgeting" batch.
+
+### Patch Changes
+
+- Updated dependencies [4134bf4]
+  - @caiquebrito/nodum-core@2.8.0
+
 ## 2.7.0
 
 ### Minor Changes
