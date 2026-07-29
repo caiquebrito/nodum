@@ -1,6 +1,14 @@
 # 050 — MCP isError protocol fix
 
-## Status: in progress
+## Status: done
+
+Implemented and tested. `handlers.test.ts`'s existing error-shape assertions updated to the new
+`{ content: [...], isError: true }` shape, plus a new test parsing a real error result through the
+SDK's own imported `CallToolResultSchema`. Full mcp package suite green (81 tests). Real check:
+spawned the actual built MCP server as a child process, sent a real `tools/call` request for
+`get_node` against a nonexistent project, and confirmed the raw JSON-RPC stdout is now
+protocol-valid (`{"content":[...],"isError":true}`) where it was previously schema-invalid
+(`{"error":"..."}`). First spec in the v2.11.0 batch.
 
 ## Goal
 
