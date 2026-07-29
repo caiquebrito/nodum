@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { globalGraphCache } from "./graph-cache.js";
 
 const readFileMock = vi.fn();
@@ -95,7 +96,7 @@ describe("handleSearch — spec 041 typeFilter/tokenBudget wiring", () => {
     // A budget of 1 token is far too small for the full response — the
     // single-highest-priority-section-always-included rule still applies,
     // so this shouldn't error, just produce a short, real response.
-    expect("error" in result).toBe(false);
+    expect((result as any).isError).toBeFalsy();
     expect(text.length).toBeGreaterThan(0);
   });
 });
@@ -111,7 +112,7 @@ describe("handleTraceImpact", () => {
     const { handleTraceImpact } = await import("./handlers.js");
     const result = await handleTraceImpact("proj", "c");
 
-    expect("error" in result).toBe(false);
+    expect((result as any).isError).toBeFalsy();
     const text = (result as { content: { text: string }[] }).content[0].text;
     expect(text).toContain("2 files");
     expect(text).toContain("b.ts");
@@ -130,7 +131,14 @@ describe("handleTraceImpact", () => {
     const { handleTraceImpact } = await import("./handlers.js");
     const result = await handleTraceImpact("proj", "nonexistent");
 
-    expect(result).toEqual({ error: "Node not found: nonexistent" });
+    expect(result).toEqual({ content: [{ type: "text", text: "Node not found: nonexistent" }], isError: true });
+  });
+
+  it("returns a protocol-valid CallToolResult on error (spec 050)", async () => {
+    const { handleTraceImpact } = await import("./handlers.js");
+    const result = await handleTraceImpact("proj", "nonexistent");
+
+    expect(() => CallToolResultSchema.parse(result)).not.toThrow();
   });
 });
 
@@ -153,7 +161,7 @@ describe("handleFindBottlenecks", () => {
     const { handleFindBottlenecks } = await import("./handlers.js");
     const result = await handleFindBottlenecks("proj");
 
-    expect("error" in result).toBe(false);
+    expect((result as any).isError).toBeFalsy();
     const text = (result as { content: { text: string }[] }).content[0].text;
     expect(text).toContain("Bottlenecks");
     expect(text).toContain("c.ts");
