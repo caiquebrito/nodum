@@ -40,4 +40,20 @@ describe("cli syncProject wrapper", () => {
       cause: original,
     });
   });
+
+  it("appends the original error's real stack onto the wrapped error's own stack — not just .cause", async () => {
+    const original = new Error("stack overflow somewhere deep");
+    original.stack = "Error: stack overflow somewhere deep\n    at deeplyNestedRecursiveVisit (kotlin.ts:284:7)";
+    coreSyncProjectMock.mockRejectedValue(original);
+
+    const { syncProject } = await import("./sync.js");
+
+    try {
+      await syncProject("/tmp/project", "/tmp/.nodum");
+      expect.unreachable("expected syncProject to throw");
+    } catch (error) {
+      expect((error as Error).stack).toContain("Caused by:");
+      expect((error as Error).stack).toContain("deeplyNestedRecursiveVisit (kotlin.ts:284:7)");
+    }
+  });
 });
