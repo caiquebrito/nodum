@@ -1,5 +1,14 @@
 # @caiquebrito/nodum-mcp
 
+## 2.9.0
+
+### Patch Changes
+
+- Updated dependencies [88c2842]
+- Updated dependencies [9864c49]
+- Updated dependencies [1a65311]
+  - @caiquebrito/nodum-core@2.9.0
+
 ## 2.8.0
 
 ### Minor Changes
