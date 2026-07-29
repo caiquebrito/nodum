@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-07-28 · **Current release:** v2.9.0 (all four packages, lockstep) · **Specs shipped:** 46 (`docs/development/completed/`)
+**Last updated:** 2026-07-29 · **Current release:** v2.10.0 (all four packages, lockstep) · **Specs shipped:** 50 (`docs/development/completed/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -176,25 +176,59 @@ below and each spec's own Design section for the full reasoning.
   explicitly deferred it), then a separate cross-language similarity layer on top: 2–3 specs
   stacked on an unbuilt prerequisite, dropped from this batch rather than restated as imminent.
 
+### Housekeeping, server hardening, near-duplicate detection, Kotlin source-sets — shipped as real npm v2.10.0 (specs `046`–`049`)
+A smaller batch than v2.9.0, deliberately: this closed out the same-language near-duplicate
+prerequisite named below, fixed a real security bug and a real stack-detection bug found during
+scoping (not hypothetical issues), and did a bit of repo cleanup — no new language, no risky
+research bets.
+- Housekeeping (spec 046) — deleted the stale, diverged root-level `/viewer/` fork and the
+  abandoned `claude skills/sync-rag/` v0 artifact; reconciled the cosmetic root `package.json`
+  version.
+- `packages/server` security hardening (spec 047) — a real path-traversal bug, confirmed by
+  reproducing it live against the unpatched server before writing any fix: a URL-encoded `..%2F`
+  project name could read `graph.json` files outside `~/.nodum`. Also fixed an unauthenticated
+  `0.0.0.0` bind — `nodum serve` now binds `127.0.0.1` by default (`NODUM_HOST` to opt into wider
+  binding, with a printed warning). First real test suite `packages/server` has ever had.
+- Near-duplicate code detection (spec 048) — `find_similar_code`/`nodum similar-code` is now
+  genuinely fuzzy via a MinHash-style similarity signature over the same normalized token stream
+  every parser already produced for `duplicateHash` (no new dependency — hand-rolled FNV-1a
+  measured ~4.4x faster than `crypto.createHash` for this workload). The default threshold (0.65)
+  was calibrated against real data: a ~370-pair sweep across nodum's own codebase (zero false
+  positives observed down to 0.5) plus a polyglot 8-language fixture that determined the actual
+  number (a naive 0.7 would have missed the near-duplicate case in the lowest-scoring language,
+  TypeScript at 0.688). Scoped to single-node fuzzy lookup only — see Housekeeping section below
+  for what stays deferred.
+- Kotlin module/source-set labeling (spec 049) — fixed a real, confirmed stack-detection gap:
+  `readBuildGradle`/`readSettingsGradle` never read the `.gradle.kts`/`settings.gradle.kts` (Kotlin
+  DSL) variants. Four real Kotlin/Android projects already synced on this machine all showed
+  completely empty `languages`/`frameworks` before this fix — not a contrived example. New
+  path-convention `Node.sourceSet` field (`commonMain`/`androidMain`/`test`/...) — the small,
+  standalone-value slice of the still-deferred KMP initiative (see below), not that initiative
+  itself.
+
 ---
 
 ## Next
 
-### KMP, Dart/Flutter, and same-language near-duplicate detection — each its own future initiative
+### KMP and Dart/Flutter — each its own future initiative
 Not "next release" bullets — each needs real prerequisite work scoped as its own batch before it's
-a one-release-away item again (see the v2.9.0 entry above for why each was deferred rather than
-attempted):
-- **Kotlin Multiplatform**: a real module/source-set model (parsing `settings.gradle`, a
-  `sourceSet` field on `Node`) is the genuine prerequisite, not a nice-to-have — `expect`/`actual`
-  edges are symbol-to-symbol, not file-to-file, and need a resolution mechanism this codebase
-  doesn't have yet.
+a one-release-away item again (see the v2.9.0 entry for why each was deferred rather than
+attempted; v2.10.0 shipped source-set *labeling*, spec 049, which is real progress but not the
+whole prerequisite):
+- **Kotlin Multiplatform**: a real module map (parsing `settings.gradle`'s `include(...)`) and the
+  source-set *dependency* graph (`commonMain ← iosMain`) are the remaining genuine prerequisites —
+  `expect`/`actual` edges are symbol-to-symbol, not file-to-file, and need a resolution mechanism
+  this codebase doesn't have yet.
 - **Dart/Flutter**: needs `pubspec.yaml` resolution — this codebase's first build-file reader —
   plus a decision on how to widen `Parser.resolveImport()`'s currently project-config-blind
   interface.
-- **Same-language near-duplicate/fuzzy code detection**: the real prerequisite for the
-  cross-language duplication goal this roadmap has carried since v2.1.0 — needs a similarity metric
-  (winnowing/MinHash/LSH or embeddings) replacing `duplicateHash`'s exact equality, plus a
-  candidate-pair strategy and a false-positive story spec 015 never had to solve.
+
+### Cross-language duplication detection — still blocked on a bigger lift than v2.10.0 delivered
+Spec 048 (v2.10.0) built the same-language near-duplicate prerequisite this roadmap named since
+v2.1.0, but scoped to single-node fuzzy *lookup* only. All-pairs near-duplicate *grouping* (needed
+before a cross-language layer would even be useful) needs LSH banding to stay sub-quadratic, breaks
+`DuplicateGroup`'s single-hash shape, and needs its own false-positive calibration at a different
+scale — deferred as its own future spec, not restated as imminent.
 
 ### v3.0.0 — MCP-native, semantically deep
 
@@ -214,8 +248,10 @@ actually writes in.
 - Verify against multiple real MCP clients (Claude Code, Cursor, Zed, Continue) — same server, no
   per-provider code, as the actual proof this reframe is real rather than aspirational.
 - Type inference and data-flow edges — real accuracy headroom that isn't just "read more files."
-- Harden `packages/server`: currently unsanitized `:projectName` path interpolation, no auth, a
-  hardcoded port, and zero tests.
+- **Real authentication for `packages/server`** — spec 047 (v2.10.0) already fixed the confirmed
+  path-traversal bug and the unauthenticated `0.0.0.0` default bind (now loopback-only by default,
+  with a warned opt-in), and gave the package its first real test suite. A token/session auth
+  scheme for anyone who deliberately opts into a non-loopback bind is what's left here.
 
 **Success metrics change accordingly** — not GitHub stars or provider count, but **tokens spent
 per correct agent answer**, tracked per release against real repositories, per the v2.5.0
@@ -225,23 +261,22 @@ measurement harness.
 
 ## Housekeeping — fold into whichever release touches the area
 
-- **Delete the orphaned root `/viewer/`.** `packages/viewer` is the real, maintained source;
-  `packages/server`'s build step already copies from it fresh on every build
-  (`rm -rf viewer && cp -R ../viewer viewer`). The root-level `/viewer/` is a stale, tracked
-  duplicate that nothing reads.
-- **Delete `claude skills/sync-rag/`** — an abandoned v0 Python artifact with hardcoded personal
-  paths, referenced by nothing in the current codebase.
-- **Reconcile the root `package.json` version** (currently `2.4.0`) against the real, lockstep
-  package version (`2.9.0` as of this writing) — it's a private/`workspaces`-only manifest, not
-  published, but a stale number here is confusing for anyone reading it directly.
-- Reconcile `CHANGELOG.md` — verify it reflects the real per-package Changesets-generated
-  changelogs (`packages/*/CHANGELOG.md`) rather than drifting as a separate hand-maintained file.
+Nothing currently open — the four items previously listed here were resolved in spec 046 (v2.10.0)
+and are recorded below alongside this roadmap's other already-resolved items, rather than left
+implied by their absence.
 
 **Already resolved, despite earlier drafts of this roadmap listing them as open:**
 - ~~Link all four packages in Changesets so a release is real and taggable~~ — done in spec 023
   (`.changeset/config.json`'s `fixed` group).
 - ~~Move `benchmarks/` into CI~~ — done in spec 028 (`.github/workflows/benchmark-accuracy.yml`).
 - ~~Stop committing compiled `dist/`~~ — already gitignored; not present in the tree.
+- ~~Delete the orphaned root `/viewer/`~~ — done in spec 046; `packages/viewer` was already the
+  real, maintained source.
+- ~~Delete `claude skills/sync-rag/`~~ — done in spec 046.
+- ~~Reconcile the root `package.json` version~~ — done in spec 046 (now `2.9.0` as of that spec;
+  update again if this cosmetic field drifts).
+- ~~Reconcile `CHANGELOG.md`~~ — checked in spec 046 and found already correctly scoped to
+  pre-v2.1.0 history, deferring to `packages/*/CHANGELOG.md` from v2.1.0 on; no change needed.
 
 ---
 
@@ -262,7 +297,13 @@ measurement harness.
    language (Go), finally migrated Kotlin off regex, and used that to unlock a real second
    complexity metric — while being honest that KMP/Dart/Flutter needed more prerequisite work than
    originally scoped, rather than shipping them half-right.
-5. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
+5. **A smaller, cleanup-and-fix release (v2.10.0):** rather than force another language or a risky
+   research bet, this batch closed out the same-language near-duplicate prerequisite the roadmap
+   had carried since v2.1.0, fixed a real security bug and a real stack-detection bug both found
+   during scoping (not invented for the release), and cleared the small housekeeping backlog —
+   proof this project ships the right-sized thing for what a batch's own research actually finds,
+   not always another feature.
+6. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
    validated by real numbers instead of asserted ones.
 
 ---
