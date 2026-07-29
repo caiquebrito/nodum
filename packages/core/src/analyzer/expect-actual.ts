@@ -55,9 +55,20 @@ function actualSourceSetFulfillsExpect(actualSourceSet: string | undefined, expe
  * re-running this is idempotent and self-correcting rather than additive.
  */
 export function applyExpectActual(nodes: Node[], edges: Edge[]): void {
-  const preserved = edges.filter(e => e.relation !== 'actualizes');
-  edges.length = 0;
-  edges.push(...preserved);
+  // In-place filter, not `edges.push(...preserved)` — spreading a large
+  // array as individual call arguments overflows V8's call stack once the
+  // array is big enough (confirmed via a real ~21,447-file project's actual
+  // stack trace: this exact line, with a real ~200,000+-edge array). Same
+  // class of bug spec 052 already found and fixed once (`Math.min(...arr)`
+  // in the near-duplicate grouping code) — a lesson that didn't carry over
+  // to this file, written in the same batch.
+  let writeIndex = 0;
+  for (let i = 0; i < edges.length; i++) {
+    if (edges[i].relation !== 'actualizes') {
+      edges[writeIndex++] = edges[i];
+    }
+  }
+  edges.length = writeIndex;
 
   const expects = nodes.filter(n => n.platformModifier === 'expect');
   const actuals = nodes.filter(n => n.platformModifier === 'actual');
