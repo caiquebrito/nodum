@@ -447,3 +447,93 @@ describe("generateGraph — module labeling (spec 051)", () => {
     expect(graph.nodes[0].module).toBeUndefined();
   });
 });
+
+describe("generateGraph — expect/actual edges (spec 055)", () => {
+  // Mock parser: a file under commonMain emits an 'expect'-tagged node, a
+  // file under iosMain emits an 'actual'-tagged node — both labeled
+  // "getPlatform", standing in for kotlin.ts's own (separately tested)
+  // platform-modifier extraction. This block only verifies applyExpectActual
+  // is correctly wired into both sync paths over the full node array.
+  beforeEach(() => {
+    vi.clearAllMocks();
+    selectParserMock.mockImplementation((ext: string) => {
+      if (ext !== ".kt") return null;
+      return {
+        parse: (file: FileInfo) => {
+          const platformModifier = file.path.includes("iosMain") ? "actual" : file.path.includes("commonMain") ? "expect" : undefined;
+          return {
+            nodes: [{
+              id: file.path,
+              label: "getPlatform",
+              type: "function" as const,
+              file: file.path,
+              group: "other",
+              ...(platformModifier ? { platformModifier } : {}),
+            }],
+            edges: [],
+          };
+        },
+      };
+    });
+  });
+
+  it("links a real expect/actual pair in the full-sync path", async () => {
+    discoverFilesMock.mockResolvedValue([
+      { ...fileInfo("app/src/commonMain/kotlin/Platform.kt"), ext: ".kt" },
+      { ...fileInfo("app/src/iosMain/kotlin/Platform.kt"), ext: ".kt" },
+    ]);
+
+    const { generateGraph } = await import("./graph-gen.js");
+    const { graph } = await generateGraph("/proj", {});
+
+    const actualizesEdges = graph.edges.filter(e => e.relation === "actualizes");
+    expect(actualizesEdges).toEqual([
+      { source: "app/src/iosMain/kotlin/Platform.kt", target: "app/src/commonMain/kotlin/Platform.kt", relation: "actualizes" },
+    ]);
+  });
+
+  it("links a newly-added actual to a pre-existing expect in the incremental-sync path, even though only the actual's file changed", async () => {
+    const previousGraph: Graph = {
+      project: "proj",
+      stats: { files: 1, functions: 1, classes: 0, interfaces: 0, edges: 0 },
+      nodes: [
+        {
+          id: "app/src/commonMain/kotlin/Platform.kt",
+          label: "getPlatform",
+          type: "function",
+          file: "app/src/commonMain/kotlin/Platform.kt",
+          group: "other",
+          module: "app",
+          sourceSet: "commonMain",
+          platformModifier: "expect",
+        },
+      ],
+      edges: [],
+    };
+    const previousFiles: FileManifest = {
+      "app/src/commonMain/kotlin/Platform.kt": { hash: "h", mtimeMs: 1, size: 1 },
+    };
+    discoverChangedFilesMock.mockResolvedValue({
+      changed: [{ ...fileInfo("app/src/iosMain/kotlin/Platform.kt"), ext: ".kt" }],
+      unchanged: previousFiles,
+      deletedPaths: [],
+    });
+
+    const { generateGraph } = await import("./graph-gen.js");
+    const { graph } = await generateGraph("/proj", { previousGraph, previousFiles });
+
+    const actualizesEdges = graph.edges.filter(e => e.relation === "actualizes");
+    expect(actualizesEdges).toEqual([
+      { source: "app/src/iosMain/kotlin/Platform.kt", target: "app/src/commonMain/kotlin/Platform.kt", relation: "actualizes" },
+    ]);
+  });
+
+  it("produces no actualizes edges for a project with no expect/actual declarations", async () => {
+    discoverFilesMock.mockResolvedValue([{ ...fileInfo("app/src/main/kotlin/Foo.kt"), ext: ".kt" }]);
+
+    const { generateGraph } = await import("./graph-gen.js");
+    const { graph } = await generateGraph("/proj", {});
+
+    expect(graph.edges.filter(e => e.relation === "actualizes")).toEqual([]);
+  });
+});
