@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-07-28 · **Current release:** v2.8.0 (all four packages, lockstep) · **Specs shipped:** 43 (`docs/development/completed/`)
+**Last updated:** 2026-07-28 · **Current release:** v2.9.0 (all four packages, lockstep) · **Specs shipped:** 46 (`docs/development/completed/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -131,21 +131,70 @@ section for the full reasoning.
   parallelize it, it just reorders microtasks on the same thread with zero wall-clock benefit; real
   throughput needs actual OS threads, deferred to its own future spec once justified by profiling.
 
+### Go, Kotlin tree-sitter migration, cognitive complexity — shipped as real npm v2.9.0 (specs `043`–`045`)
+Originally planned as "Cross-platform mobile: KMP, Flutter, Go." Research at the start of this
+batch found two of that plan's four bullets significantly more complicated than their one-line
+descriptions implied — both deferred out of the batch entirely rather than shipped half-right; see
+below and each spec's own Design section for the full reasoning.
+- Go parser (spec 043) — first-class Go support via tree-sitter: structs, interfaces, functions,
+  methods (attributed to their receiver's struct, including across files when a type and its
+  method live in different files of the same package), real complexity, `duplicateHash`, same-file
+  `calls` edges, package-path import resolution. **Zero changes to `graph-gen.ts`/
+  `file-discovery.ts`** — the parser plugin architecture (spec 030) generalizes cleanly yet again.
+- Kotlin tree-sitter migration (spec 044) — Kotlin finally off line-regex extraction (deferred at
+  v2.6.0 pending a better grammar, revisited and found workable via careful empirical probing of
+  the real shipped grammar, not reliant on a newer upstream release). Gains real `method` nodes
+  (previously flat, colliding file-attached `function` nodes whenever two classes shared a method
+  name), same-file `calls` edges, a dedicated `enum` node type, and fixes a real bug found during
+  this spec's own real-CLI verification: extension functions (`fun String.slugify()`) were silently
+  never extracted at all by the old regex parser. `resolveJvmImport`/import specifier format
+  unchanged — every pre-existing import test passes unmodified, this migration's explicit contract.
+- Cognitive complexity (spec 045) — a second, nesting-depth-aware complexity metric (SonarSource-
+  inspired) alongside the existing cyclomatic one, across all 8 languages this project now parses.
+  `nodum complexity --cognitive`. Verified via a real polyglot fixture (the same deliberately-shaped
+  function written in all 8 languages) producing identical `(cyclomatic, cognitive)` pairs across
+  every language — the real check that caught a genuine bug unit tests alone had missed: a
+  boolean-operator-chain-collapsing heuristic assumed universally left-associative grammar nesting,
+  overcounting on Swift's right-associative grammar until fixed to check the parent node instead
+  (associativity-agnostic).
+- **Deliberately deferred, not shipped half-right:** KMP support (`expect`/`actual` edges,
+  source-set awareness) turned out to need a real module/source-set model (parsing
+  `settings.gradle`, a `sourceSet` field on nodes) plus a brand-new symbol-to-symbol cross-file
+  resolution pass — structurally unlike every existing `imports`-edge mechanism (file-to-file,
+  specifier-driven) and incompatible with the current incremental-sync edge model (edges carried
+  over keyed by source file only). The v2.7.0 roadmap's claim that this "needs the Gradle-aware
+  module roots the iOS release builds" was itself wrong — v2.7.0 explicitly declined
+  Gradle/`Package.swift` parsing in favor of directory-suffix matching. Realistically 2–3 specs on
+  its own; tracked as its own future initiative, not restated here as one release away.
+  Dart/Flutter support needs a 3-way import scheme (`package:`/`dart:`/relative) and would be this
+  codebase's *first* build-file reader (`pubspec.yaml` resolution — no YAML dependency exists yet,
+  and `Parser.resolveImport()`'s signature is currently project-config-blind) — materially harder
+  than Go was, deferred to its own future release rather than bundled in alongside it.
+  Cross-language duplication detection cannot be built as an extension of today's exact-hash
+  `duplicateHash` at all — different languages produce disjoint token vocabularies by construction.
+  It needs same-language *near*-duplicate/fuzzy detection first (itself never built — spec 015
+  explicitly deferred it), then a separate cross-language similarity layer on top: 2–3 specs
+  stacked on an unbuilt prerequisite, dropped from this batch rather than restated as imminent.
+
 ---
 
 ## Next
 
-### v2.9.0 — Cross-platform mobile: KMP, Flutter, Go
-**Goal:** reuse the machinery the iOS work forces into existence.
-- Kotlin Multiplatform: `expect`/`actual` edges, source-set awareness — needs the Gradle-aware
-  module roots the iOS release (v2.7.0) builds.
-- Dart/Flutter grammar + `pubspec.yaml` resolution.
-- Go — highest-value non-mobile addition, cheap to add once the multi-grammar plumbing exists.
-- Cognitive complexity and cross-language duplication detection, both explicitly deferred in the
-  v2.1.0 specs.
-- This is also the natural point to finally migrate Kotlin's still-regex parser to tree-sitter,
-  once a better grammar exists or vendoring `tree-sitter-grammars/tree-sitter-kotlin` becomes
-  worth the maintenance cost.
+### KMP, Dart/Flutter, and same-language near-duplicate detection — each its own future initiative
+Not "next release" bullets — each needs real prerequisite work scoped as its own batch before it's
+a one-release-away item again (see the v2.9.0 entry above for why each was deferred rather than
+attempted):
+- **Kotlin Multiplatform**: a real module/source-set model (parsing `settings.gradle`, a
+  `sourceSet` field on `Node`) is the genuine prerequisite, not a nice-to-have — `expect`/`actual`
+  edges are symbol-to-symbol, not file-to-file, and need a resolution mechanism this codebase
+  doesn't have yet.
+- **Dart/Flutter**: needs `pubspec.yaml` resolution — this codebase's first build-file reader —
+  plus a decision on how to widen `Parser.resolveImport()`'s currently project-config-blind
+  interface.
+- **Same-language near-duplicate/fuzzy code detection**: the real prerequisite for the
+  cross-language duplication goal this roadmap has carried since v2.1.0 — needs a similarity metric
+  (winnowing/MinHash/LSH or embeddings) replacing `duplicateHash`'s exact equality, plus a
+  candidate-pair strategy and a false-positive story spec 015 never had to solve.
 
 ### v3.0.0 — MCP-native, semantically deep
 
@@ -183,7 +232,7 @@ measurement harness.
 - **Delete `claude skills/sync-rag/`** — an abandoned v0 Python artifact with hardcoded personal
   paths, referenced by nothing in the current codebase.
 - **Reconcile the root `package.json` version** (currently `2.4.0`) against the real, lockstep
-  package version (`2.8.0` as of this writing) — it's a private/`workspaces`-only manifest, not
+  package version (`2.9.0` as of this writing) — it's a private/`workspaces`-only manifest, not
   published, but a stale number here is confusing for anyone reading it directly.
 - Reconcile `CHANGELOG.md` — verify it reflects the real per-package Changesets-generated
   changelogs (`packages/*/CHANGELOG.md`) rather than drifting as a separate hand-maintained file.
@@ -203,14 +252,16 @@ measurement harness.
 2. **Truth & measurement (v2.5.0):** a hard gate — every efficiency claim had to become real and
    measured before any new feature shipped on top of it, so future work has something honest to
    compare against.
-3. **Tree-sitter (v2.6.0):** the parser foundation every subsequent language (iOS, KMP, Flutter,
-   Go) needs — adding a language should mean writing a grammar and a query file, not a new
-   hand-rolled parser.
-4. **iOS → adaptive budgeting → cross-platform mobile:** iOS proved the plugin architecture holds
-   under a genuinely different language family; budgeting (v2.8.0) spends the resulting token
-   savings deliberately instead of accidentally, and made the underlying discovery/parsing
-   pipeline faster and safer while doing it; cross-platform mobile reuses everything iOS forced
-   into existence.
+3. **Tree-sitter (v2.6.0):** the parser foundation every subsequent language (iOS, Go, Kotlin's own
+   eventual migration) needs — adding a language should mean writing a grammar and a query file,
+   not a new hand-rolled parser.
+4. **iOS → adaptive budgeting → Go/Kotlin/cognitive complexity:** iOS proved the plugin
+   architecture holds under a genuinely different language family; budgeting (v2.8.0) spends the
+   resulting token savings deliberately instead of accidentally, and made the underlying
+   discovery/parsing pipeline faster and safer while doing it; v2.9.0 added the cheapest remaining
+   language (Go), finally migrated Kotlin off regex, and used that to unlock a real second
+   complexity metric — while being honest that KMP/Dart/Flutter needed more prerequisite work than
+   originally scoped, rather than shipping them half-right.
 5. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
    validated by real numbers instead of asserted ones.
 

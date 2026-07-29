@@ -122,9 +122,8 @@ and can give accurate, context-aware answers. ✨
 
 ### 📊 Scans Your Code
 - **TypeScript** (.ts, .tsx) — via the TypeScript compiler API (real resolved-type data)
-- **Python, Java, JavaScript, Swift, Objective-C** (.py, .java, .js/.jsx, .swift, .m/.h) — via [tree-sitter](https://tree-sitter.github.io/tree-sitter/) (real AST, not regex)
-- **Kotlin** (.kt) — line-regex for now, tree-sitter migration planned (see [ROADMAP.md](./docs/development/ROADMAP.md))
-- **More coming** (KMP, Flutter, Go)
+- **Python, Java, JavaScript, Swift, Objective-C, Go, Kotlin** (.py, .java, .js/.jsx, .swift, .m/.h, .go, .kt) — via [tree-sitter](https://tree-sitter.github.io/tree-sitter/) (real AST, not regex)
+- **More coming** (KMP, Flutter)
 
 Extracts: files, functions, classes, interfaces, methods, imports, and same-file `calls` edges
 
@@ -342,14 +341,15 @@ Saves to `~/.nodum/projectname/`:
 | JavaScript | .js, .jsx | tree-sitter | imports, functions, classes, methods, same-file `calls` |
 | Swift | .swift | tree-sitter | imports, classes, structs, enums, actors, extensions, protocols, methods, same-file `calls` |
 | Objective-C | .m, .h | tree-sitter | imports, classes, categories/extensions, protocols, methods, C functions, same-file `calls` (incl. `self`/`super` message sends) |
-| Kotlin | .kt | line-regex | imports, functions, classes, objects (no `calls` edges yet) |
+| Go | .go | tree-sitter | imports, structs, interfaces, functions, methods (incl. cross-file receiver attribution), same-file `calls` |
+| Kotlin | .kt | tree-sitter | imports, functions, classes, interfaces, enums, methods, same-file `calls` |
 
 Python, Java, and JavaScript migrated from line-regex to tree-sitter in v2.6.0; Swift and
 Objective-C support shipped in v2.7.0, including cross-language import resolution — a Swift
 `import Foo` resolves to `Foo`'s Objective-C files and vice versa, so a mixed project renders as
-one connected graph. See [ROADMAP.md](./docs/development/ROADMAP.md) for details. Kotlin's
-tree-sitter grammar isn't accurate enough yet (~61% structural fidelity in its own upstream
-benchmark), so it stays on regex until a better one exists.
+one connected graph. Go shipped in v2.9.0. Kotlin also migrated off line-regex in v2.9.0, gaining
+real `method` nodes and `calls` edges it never had before. See [ROADMAP.md](./docs/development/ROADMAP.md)
+for details.
 
 ---
 
@@ -422,9 +422,19 @@ npm install -g .
 
 ## Roadmap
 
-43 specs shipped so far, each with real end-to-end verification against synced projects — see
+46 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.8.0** across all four packages (lockstep).
+**v2.9.0** across all four packages (lockstep).
+
+### ✅ Go, Kotlin tree-sitter migration, cognitive complexity (shipped as v2.9.0)
+- First-class Go support via tree-sitter — structs, interfaces, functions, methods (including
+  cross-file receiver attribution), real complexity, `duplicateHash`, same-file `calls` edges
+- Kotlin finally migrated off line-regex extraction — real `method` nodes, same-file `calls`
+  edges, a dedicated `enum` type, and a real extension-function-extraction bug fixed along the way
+- A second, nesting-depth-aware complexity metric (cognitive complexity) alongside the existing
+  cyclomatic one, across all 8 languages — `nodum complexity --cognitive`
+- KMP and Dart/Flutter support were deliberately deferred, not shipped half-right — see
+  [ROADMAP.md](./docs/development/ROADMAP.md) for why
 
 ### ✅ Adaptive context budgeting (shipped as v2.8.0)
 - `search_graph` accepts an optional `token_budget` — context fills greedily by relevance until
@@ -471,7 +481,7 @@ npm install -g .
 - **expand_cluster tool** — on-demand cluster expansion
 - TypeScript/Node.js monorepo, 5 language parsers, MCP integration, 3D graph viewer, benchmark suite
 
-### 🔜 Next: cross-platform mobile (KMP, Flutter, Go)
+### 🔜 Next: cross-platform mobile (KMP, Dart/Flutter) — each its own future initiative, see ROADMAP.md
 ### 🔮 v3.0.0 — reframed as MCP-native, not a multi-AI adapter hub
 
 The original v3.0 vision was per-provider adapters (OpenAI, Gemini, Ollama). MCP already gives
@@ -519,12 +529,11 @@ A: ~5 MB per 1000 files. Completely depends on project size.
 A: Yes. It's safe to delete anytime. Just rescan with `nodum sync` to rebuild.
 
 **Q: What languages does it support?**
-A: TypeScript, Python, Java, JavaScript, Swift, and Objective-C (all real AST-based parsing —
-TypeScript via the compiler API, the rest via tree-sitter), and Kotlin (still line-regex, pending
-its own tree-sitter migration).
+A: TypeScript, Python, Java, JavaScript, Swift, Objective-C, Go, and Kotlin — all real AST-based
+parsing (TypeScript via the compiler API, the rest via tree-sitter).
 
 **Q: Is this production-ready?**
-A: Yes — v2.8.0 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.9.0 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.
@@ -576,4 +585,4 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 **[Get Started Now →](./SETUP-GUIDE.md)**
 
-**Version 2.8.0** · MIT License · No cloud, no subscriptions, no BS.
+**Version 2.9.0** · MIT License · No cloud, no subscriptions, no BS.
