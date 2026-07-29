@@ -566,6 +566,10 @@ export function buildNodeContext(
     `   Type: ${node.type}`,
     `   File: ${node.file || "unknown"}`,
     `   Group: ${node.group || "other"}`,
+    // Only rendered when present (spec 049) — a non-Gradle/Kotlin project's
+    // output stays byte-identical to before, same posture as spec 036's
+    // optional Swift/ObjC stat lines.
+    ...(node.sourceSet ? [`   Source set: ${node.sourceSet}`] : []),
     ""
   ];
 

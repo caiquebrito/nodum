@@ -56,6 +56,12 @@ export interface Node {
    * strictly higher token-count floor than `duplicateHash`'s — a node can
    * carry one, both, or neither field. See `similarity-signature.ts`. */
   similaritySignature?: string;
+  /** Gradle/Android source set (`commonMain`, `androidMain`, `test`, ...),
+   * derived purely from `file`'s path via `analyzer/source-set.ts`'s
+   * `detectSourceSet()` — same path-convention precedent as `group` above.
+   * Set for any file under a `src/<name>/kotlin|java/` path, not only
+   * Kotlin files (a plain Java/Gradle project uses the same convention). */
+  sourceSet?: string;
 }
 
 export interface Edge {
