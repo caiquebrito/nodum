@@ -197,6 +197,8 @@ export class ObjCParser extends TreeSitterParser {
 
     const imports = extractImports(root);
 
+    tree!.delete();
+
     return { nodes, edges, imports };
   }
 }

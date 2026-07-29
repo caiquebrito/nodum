@@ -5,6 +5,8 @@ import type { Graph, Node, Edge, FileInfo, FileManifest } from './types.js';
 
 export interface GenerateGraphOptions {
   onProgress?: (processed: number, total: number) => void;
+  /** Surfaces file-discovery guardrail warnings (oversized files skipped, file count over threshold) — see `DiscoveryOptions` (spec 042). */
+  onWarning?: (message: string) => void;
   /** Previous graph to diff against — supplying both this and `previousFiles` enables incremental generation. */
   previousGraph?: Graph;
   /** Previous file manifest to diff against. */
@@ -15,20 +17,21 @@ export async function generateGraph(
   projectPath: string,
   options: GenerateGraphOptions = {},
 ): Promise<{ graph: Graph; files: FileManifest }> {
-  const { onProgress, previousGraph, previousFiles } = options;
+  const { onProgress, onWarning, previousGraph, previousFiles } = options;
 
   if (previousGraph && previousFiles) {
-    return generateGraphIncremental(projectPath, previousGraph, previousFiles, onProgress);
+    return generateGraphIncremental(projectPath, previousGraph, previousFiles, onProgress, onWarning);
   }
 
-  return generateGraphFull(projectPath, onProgress);
+  return generateGraphFull(projectPath, onProgress, onWarning);
 }
 
 async function generateGraphFull(
   projectPath: string,
   onProgress?: (processed: number, total: number) => void,
+  onWarning?: (message: string) => void,
 ): Promise<{ graph: Graph; files: FileManifest }> {
-  const files = await discoverFiles(projectPath);
+  const files = await discoverFiles(projectPath, { onWarning });
 
   const nodeMap = new Map<string, Node>();
   const edgesSet = new Set<string>();
@@ -79,8 +82,9 @@ async function generateGraphIncremental(
   previousGraph: Graph,
   previousFiles: FileManifest,
   onProgress?: (processed: number, total: number) => void,
+  onWarning?: (message: string) => void,
 ): Promise<{ graph: Graph; files: FileManifest }> {
-  const diff = await discoverChangedFiles(projectPath, previousFiles);
+  const diff = await discoverChangedFiles(projectPath, previousFiles, { onWarning });
   const touchedPaths = new Set<string>([...diff.deletedPaths, ...diff.changed.map(f => f.path)]);
 
   // Phase 1: keep only nodes belonging to untouched files.

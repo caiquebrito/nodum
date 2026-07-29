@@ -14,6 +14,18 @@ export interface ScanConfig {
    * `.gitignore` — this never replaces the built-in set.
    */
   ignoredDirs?: string[];
+  /**
+   * Files larger than this are excluded individually, with a warning,
+   * rather than read and parsed (spec 042). Overrides
+   * `file-discovery.ts`'s `DEFAULT_MAX_FILE_SIZE_BYTES` default.
+   */
+  maxFileSizeBytes?: number;
+  /**
+   * Warn (never truncate — this project's "no silent caps" practice) once
+   * the total discovered file count exceeds this (spec 042). Overrides
+   * `file-discovery.ts`'s `DEFAULT_MAX_FILES_WARNING` default.
+   */
+  maxFilesWarning?: number;
 }
 
 const CONFIG_FILENAME = '.nodumrc.json';
@@ -26,6 +38,8 @@ export async function loadScanConfig(rootPath: string): Promise<ScanConfig> {
       include: Array.isArray(parsed.include) ? parsed.include : undefined,
       exclude: Array.isArray(parsed.exclude) ? parsed.exclude : undefined,
       ignoredDirs: Array.isArray(parsed.ignoredDirs) ? parsed.ignoredDirs : undefined,
+      maxFileSizeBytes: typeof parsed.maxFileSizeBytes === 'number' ? parsed.maxFileSizeBytes : undefined,
+      maxFilesWarning: typeof parsed.maxFilesWarning === 'number' ? parsed.maxFilesWarning : undefined,
     };
   } catch {
     return {};
@@ -48,6 +62,8 @@ export async function saveScanConfig(rootPath: string, update: ScanConfig): Prom
   if (update.include !== undefined) raw.include = update.include;
   if (update.exclude !== undefined) raw.exclude = update.exclude;
   if (update.ignoredDirs !== undefined) raw.ignoredDirs = update.ignoredDirs;
+  if (update.maxFileSizeBytes !== undefined) raw.maxFileSizeBytes = update.maxFileSizeBytes;
+  if (update.maxFilesWarning !== undefined) raw.maxFilesWarning = update.maxFilesWarning;
   await writeFile(path, JSON.stringify(raw, null, 2), 'utf-8');
 }
 

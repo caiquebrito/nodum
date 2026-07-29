@@ -63,7 +63,10 @@ export async function handleSync(projectPath: string) {
   try {
     // core.syncProject already discovers, parses, analyzes, clusters, and
     // persists the graph — this handler only needs to add embeddings.
-    const graph = await syncProject(projectPath, NODUM_DATA_DIR);
+    const warnings: string[] = [];
+    const graph = await syncProject(projectPath, NODUM_DATA_DIR, {
+      onWarning: (message) => warnings.push(message),
+    });
 
     // v2.0: Generate embeddings for semantic search
     await generateGraphEmbeddings(graph.nodes);
@@ -75,6 +78,9 @@ export async function handleSync(projectPath: string) {
 
     const projects = await loadProjectIndex();
     const project = projects[graph.project];
+    const warningsBlock = warnings.length
+      ? `\n\n⚠️  Warnings:\n${warnings.map((w) => `  • ${w}`).join("\n")}`
+      : "";
 
     return {
       content: [
@@ -86,7 +92,8 @@ export async function handleSync(projectPath: string) {
             `📦 Classes: ${graph.stats.classes}\n` +
             `🔗 Dependencies: ${graph.stats.edges}\n` +
             `🧠 Embeddings: Generated for semantic search (v2.0)\n\n` +
-            `Data saved to: ${project.path}`
+            `Data saved to: ${project.path}` +
+            warningsBlock
         ),
       ],
     };
