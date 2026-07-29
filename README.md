@@ -422,9 +422,17 @@ npm install -g .
 
 ## Roadmap
 
-40 specs shipped so far, each with real end-to-end verification against synced projects — see
+43 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.7.0** across all four packages (lockstep).
+**v2.8.0** across all four packages (lockstep).
+
+### ✅ Adaptive context budgeting (shipped as v2.8.0)
+- `search_graph` accepts an optional `token_budget` — context fills greedily by relevance until
+  the budget is spent, instead of a fixed node-count truncation
+- In-process graph cache — MCP handlers no longer re-parse `graph.json` from disk on every tool
+  call; some real projects' graphs run tens of MB
+- Bounded-concurrency file discovery (real wall-clock win, verified byte-identical output) plus a
+  tree-sitter parser safety fix and new `.nodumrc.json` file-size/file-count sync guardrails
 
 ### ✅ iOS: Swift + Objective-C (shipped as v2.7.0)
 - Full Swift and Objective-C parsers via tree-sitter — classes, structs, enums, protocols,
@@ -463,7 +471,7 @@ npm install -g .
 - **expand_cluster tool** — on-demand cluster expansion
 - TypeScript/Node.js monorepo, 5 language parsers, MCP integration, 3D graph viewer, benchmark suite
 
-### 🔜 Next: adaptive context budgeting, then cross-platform mobile (KMP, Flutter, Go)
+### 🔜 Next: cross-platform mobile (KMP, Flutter, Go)
 ### 🔮 v3.0.0 — reframed as MCP-native, not a multi-AI adapter hub
 
 The original v3.0 vision was per-provider adapters (OpenAI, Gemini, Ollama). MCP already gives
@@ -516,7 +524,7 @@ TypeScript via the compiler API, the rest via tree-sitter), and Kotlin (still li
 its own tree-sitter migration).
 
 **Q: Is this production-ready?**
-A: Yes — v2.7.0 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.8.0 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.
@@ -568,4 +576,4 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 **[Get Started Now →](./SETUP-GUIDE.md)**
 
-**Version 2.7.0** · MIT License · No cloud, no subscriptions, no BS.
+**Version 2.8.0** · MIT License · No cloud, no subscriptions, no BS.
