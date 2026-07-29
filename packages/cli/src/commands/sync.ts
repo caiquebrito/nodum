@@ -45,6 +45,16 @@ export async function syncProject(
     // Assigned rather than passed via the ErrorOptions constructor overload,
     // which requires the ES2022.Error lib (repo tsconfig is locked to ES2020).
     (wrapped as Error & { cause?: unknown }).cause = error;
+    // Appended directly onto `wrapped.stack` (not just `.cause`) so a plain
+    // `console.error(error.stack)` at the CLI's top level shows the real
+    // failure site without the caller needing to know to check `.cause`
+    // separately — this is what was silently losing the original stack
+    // trace before (see the "known issue" a real crash investigation ran
+    // into: the wrapper's own message-only `Error` swallowed exactly the
+    // stack needed to find which recursive call overflowed).
+    if (error instanceof Error && error.stack) {
+      wrapped.stack = `${wrapped.stack}\nCaused by: ${error.stack}`;
+    }
     throw wrapped;
   }
 }
