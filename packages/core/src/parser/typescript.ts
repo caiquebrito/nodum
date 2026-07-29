@@ -2,7 +2,7 @@ import ts from 'typescript';
 import { Parser } from './base.js';
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
-import { hashTokens } from './duplicate-hash.js';
+import { buildDuplicateSignals, type DuplicateSignals } from './duplicate-hash.js';
 import { resolveRelativeImport } from './import-resolver.js';
 import { computeCognitiveComplexityTs } from './cognitive-complexity-ts.js';
 
@@ -71,7 +71,7 @@ export class TypeScriptParser extends Parser {
         group: getNodeGroup(filePath),
         ...(node.body ? { complexity: this.computeComplexity(node.body) } : {}),
         ...(node.body ? { cognitiveComplexity: computeCognitiveComplexityTs(node.body, name) } : {}),
-        ...(node.body ? this.duplicateHashField(node.body) : {}),
+        ...(node.body ? this.duplicateSignalsField(node.body) : {}),
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
       if (node.body) callables.push({ nodeId: funcId, name, body: node.body });
@@ -102,7 +102,7 @@ export class TypeScriptParser extends Parser {
               group: getNodeGroup(filePath),
               ...(member.body ? { complexity: this.computeComplexity(member.body) } : {}),
               ...(member.body ? { cognitiveComplexity: computeCognitiveComplexityTs(member.body, methodName) } : {}),
-              ...(member.body ? this.duplicateHashField(member.body) : {}),
+              ...(member.body ? this.duplicateSignalsField(member.body) : {}),
             });
             edges.push({ source: classId, target: methodId, relation: 'defines' });
             if (member.body) callables.push({ nodeId: methodId, name: methodName, body: member.body });
@@ -169,9 +169,8 @@ export class TypeScriptParser extends Parser {
     return complexity;
   }
 
-  private duplicateHashField(bodyNode: ts.Node): { duplicateHash: string } | Record<string, never> {
-    const hash = hashTokens(this.collectNormalizedTokens(bodyNode));
-    return hash !== null ? { duplicateHash: hash } : {};
+  private duplicateSignalsField(bodyNode: ts.Node): DuplicateSignals {
+    return buildDuplicateSignals(this.collectNormalizedTokens(bodyNode));
   }
 
   /**

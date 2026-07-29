@@ -559,24 +559,24 @@ export async function handleExplainArchitecture(projectName: string) {
   }
 }
 
-export async function handleFindSimilarCode(projectName: string, nodeId: string) {
+export async function handleFindSimilarCode(projectName: string, nodeId: string, threshold?: number) {
   try {
     const graph = await loadGraph(projectName);
     const node = graph.nodes.find((n) => n.id === nodeId);
 
-    const result = findSimilarCode(graph, nodeId);
+    const result = findSimilarCode(graph, nodeId, { threshold });
 
     if (result.matches.length === 0) {
       return {
-        content: [text(`✅ No similar code found for ${node?.label ?? nodeId}`)],
+        content: [text(`✅ No similar code found for ${node?.label ?? nodeId} (threshold ${result.threshold})`)],
       };
     }
 
     const lines: string[] = [
-      `🧬 Code similar to ${node?.label ?? nodeId}: ${result.matches.length} match${result.matches.length === 1 ? "" : "es"}`,
+      `🧬 Code similar to ${node?.label ?? nodeId}: ${result.matches.length} match${result.matches.length === 1 ? "" : "es"} (threshold ${result.threshold})`,
       "",
     ];
-    result.matches.forEach((m) => lines.push(`  • ${m.label} (${m.file})`));
+    result.matches.forEach((m) => lines.push(`  • ${m.label} (${m.file})  ${Math.round(m.similarity * 100)}% (${m.kind})`));
 
     return {
       content: [text(lines.join("\n"))],

@@ -141,6 +141,31 @@ describe("buildNodeContext", () => {
     const text = buildNodeContext("hub", manyDeps as any);
     expect(text).toContain("... and 5 more");
   });
+
+  it("shows a Source set line when the node has one (spec 049)", () => {
+    const kotlinGraph = {
+      project: "proj",
+      stats: { files: 1, functions: 0, classes: 0, interfaces: 0, edges: 0 },
+      nodes: [
+        {
+          id: "shared/src/commonMain/kotlin/Greeting.kt",
+          label: "Greeting.kt",
+          type: "file",
+          file: "shared/src/commonMain/kotlin/Greeting.kt",
+          group: "other",
+          sourceSet: "commonMain",
+        },
+      ],
+      edges: [],
+    };
+    const text = buildNodeContext("shared/src/commonMain/kotlin/Greeting.kt", kotlinGraph as any);
+    expect(text).toContain("Source set: commonMain");
+  });
+
+  it("omits the Source set line entirely for a node with none — byte-identical to pre-spec-049 output", () => {
+    const text = buildNodeContext("auth.ts", graph as any);
+    expect(text).not.toContain("Source set");
+  });
 });
 
 describe("formatContextText (via buildSmartContext)", () => {

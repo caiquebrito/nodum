@@ -259,6 +259,14 @@ describe("handleFindSimilarCode", () => {
     const text = (result as { content: { text: string }[] }).content[0].text;
     expect(text).toContain("No similar code found");
   });
+
+  it("threads an optional threshold through to findSimilarCode (spec 048)", async () => {
+    const { handleFindSimilarCode } = await import("./handlers.js");
+    const result = await handleFindSimilarCode("proj", "a", 0.5);
+
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).toContain("threshold 0.5");
+  });
 });
 
 describe("handleSuggestRefactoring", () => {

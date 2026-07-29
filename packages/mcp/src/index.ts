@@ -269,7 +269,7 @@ const tools: Tool[] = [
   {
     name: "find_similar_code",
     description:
-      "Find other functions/methods structurally near-identical to a given node (same control-flow shape, robust to renaming).",
+      "Find other functions/methods structurally near-identical to a given node — exact structural duplicates (same normalized shape, robust to renaming) plus fuzzy near-duplicates (a MinHash-estimated structural similarity above a threshold, e.g. the same logic with a branch added or removed).",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -280,6 +280,10 @@ const tools: Tool[] = [
         node_id: {
           type: "string",
           description: "Node ID to find similar code for",
+        },
+        threshold: {
+          type: "number",
+          description: "Optional: minimum fuzzy-match similarity, 0-1 (default 0.8). Exact matches are always included regardless of this value.",
         },
       },
       required: ["project_name", "node_id"],
@@ -389,7 +393,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "find_similar_code":
         result = await handleFindSimilarCode(
           (args as any).project_name as string,
-          (args as any).node_id as string
+          (args as any).node_id as string,
+          (args as any).threshold as number | undefined
         );
         break;
       case "suggest_refactoring":

@@ -304,3 +304,75 @@ describe("generateGraph — stats (spec 036: struct/enum/protocol/extension)", (
     expect(graph.stats.interfaces).toBe(0);
   });
 });
+
+describe("generateGraph — source-set labeling (spec 049)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    selectParserMock.mockImplementation((ext: string) => {
+      if (ext !== ".kt") return null;
+      return {
+        parse: (file: FileInfo) => ({
+          nodes: [{ id: file.path, label: file.path, type: "function" as const, file: file.path, group: "other" }],
+          edges: [],
+        }),
+      };
+    });
+  });
+
+  it("stamps sourceSet on nodes under a KMP source-set path in the full-sync path", async () => {
+    discoverFilesMock.mockResolvedValue([
+      { ...fileInfo("shared/src/commonMain/kotlin/Greeting.kt"), ext: ".kt" },
+      { ...fileInfo("shared/src/androidMain/kotlin/Platform.kt"), ext: ".kt" },
+    ]);
+
+    const { generateGraph } = await import("./graph-gen.js");
+    const { graph } = await generateGraph("/proj", {});
+
+    const common = graph.nodes.find(n => n.file === "shared/src/commonMain/kotlin/Greeting.kt");
+    const android = graph.nodes.find(n => n.file === "shared/src/androidMain/kotlin/Platform.kt");
+    expect(common?.sourceSet).toBe("commonMain");
+    expect(android?.sourceSet).toBe("androidMain");
+  });
+
+  it("stamps sourceSet on carried-over (unchanged) nodes in the incremental-sync path too", async () => {
+    const previousGraph: Graph = {
+      project: "proj",
+      stats: { files: 1, functions: 1, classes: 0, interfaces: 0, edges: 0 },
+      nodes: [
+        {
+          id: "shared/src/commonMain/kotlin/Greeting.kt",
+          label: "Greeting.kt",
+          type: "function",
+          file: "shared/src/commonMain/kotlin/Greeting.kt",
+          group: "other",
+          // Deliberately missing sourceSet — simulates a node persisted by
+          // a pre-spec-049 sync, carried over verbatim by the incremental
+          // path (unchanged file). applySourceSets must still stamp it.
+        },
+      ],
+      edges: [],
+    };
+    const previousFiles: FileManifest = {
+      "shared/src/commonMain/kotlin/Greeting.kt": { hash: "h", mtimeMs: 1, size: 1 },
+    };
+    discoverChangedFilesMock.mockResolvedValue({
+      changed: [],
+      unchanged: previousFiles,
+      deletedPaths: [],
+    });
+
+    const { generateGraph } = await import("./graph-gen.js");
+    const { graph } = await generateGraph("/proj", { previousGraph, previousFiles });
+
+    expect(graph.nodes[0].sourceSet).toBe("commonMain");
+  });
+
+  it("does not stamp sourceSet on a non-matching path", async () => {
+    discoverFilesMock.mockResolvedValue([{ ...fileInfo("src/main.kt"), ext: ".kt" }]);
+
+    const { generateGraph } = await import("./graph-gen.js");
+    const { graph } = await generateGraph("/proj", {});
+
+    expect(graph.nodes[0].sourceSet).toBeUndefined();
+  });
+});
