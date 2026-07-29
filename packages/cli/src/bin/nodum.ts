@@ -192,11 +192,19 @@ program
   .command('duplicates [projectPath]')
   .description('Find structurally near-identical functions/methods')
   .option('--json', 'Output machine-readable JSON instead of a formatted summary')
-  .action(async (projectPath: string | undefined, options: { json?: boolean }) => {
+  .option('--fuzzy', 'Group near-duplicates (MinHash-estimated fuzzy similarity) instead of exact matches, transitively closed across the whole project (spec 052)')
+  .option('--threshold <n>', 'Fuzzy mode only: minimum pairwise similarity, 0-1 (default 0.65)')
+  .option('--limit <n>', 'Fuzzy mode only: cap the number of groups returned (default 20)')
+  .action(async (projectPath: string | undefined, options: { json?: boolean; fuzzy?: boolean; threshold?: string; limit?: string }) => {
     try {
       const nodumDataDir = getNodeumDataDir();
       const { duplicatesCommand } = await import('../commands/duplicates.js');
-      await duplicatesCommand(projectPath || process.cwd(), nodumDataDir, options);
+      await duplicatesCommand(projectPath || process.cwd(), nodumDataDir, {
+        json: options.json,
+        fuzzy: options.fuzzy,
+        threshold: options.threshold ? parseFloat(options.threshold) : undefined,
+        limit: options.limit ? parseInt(options.limit, 10) : undefined,
+      });
     } catch (error) {
       console.error('❌ Error:', error instanceof Error ? error.message : String(error));
       process.exit(1);

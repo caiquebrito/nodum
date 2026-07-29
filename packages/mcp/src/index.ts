@@ -292,7 +292,7 @@ const tools: Tool[] = [
   {
     name: "suggest_refactoring",
     description:
-      "Unified refactoring suggestions synthesized from every analysis capability: circular imports, dead files, architecture-rule violations, overly complex functions, and duplicated code.",
+      "Unified refactoring suggestions synthesized from every analysis capability: circular imports, dead files, architecture-rule violations, overly complex functions, exact-duplicate code, and near-duplicate (fuzzy) code clustered transitively across the whole project.",
     inputSchema: {
       type: "object" as const,
       properties: {

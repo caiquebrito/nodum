@@ -5,12 +5,14 @@ import { detectArchitectureViolations } from './architecture.js';
 import type { ArchitectureRule } from './architecture-config.js';
 import { rankByComplexity } from './complexity.js';
 import { detectDuplicates } from './duplication.js';
+import { detectNearDuplicates } from './near-duplicate.js';
 
 export type RefactoringSuggestionKind =
   | 'cycle'
   | 'architecture-violation'
   | 'high-complexity'
   | 'duplication'
+  | 'near-duplication'
   | 'dead-code';
 
 export interface RefactoringSuggestion {
@@ -67,6 +69,18 @@ export function suggestRefactoring(graph: Graph, options: SuggestRefactoringOpti
     suggestions.push({
       kind: 'duplication',
       description: `${group.nodes.length} structurally identical functions — consider extracting a shared implementation`,
+      files: group.nodes.map(n => n.file),
+    });
+  }
+
+  // Every other category here is uncapped — pass an unbounded limit so this
+  // one doesn't silently truncate the unified feed (detectNearDuplicates
+  // defaults to a much smaller cap for its own standalone CLI/MCP surface).
+  for (const group of detectNearDuplicates(graph, { limit: Infinity }).groups) {
+    const avgPct = Math.round(group.avgSimilarity * 100);
+    suggestions.push({
+      kind: 'near-duplication',
+      description: `${group.nodes.length} structurally near-identical functions (avg ${avgPct}% similar) — consider extracting a shared implementation`,
       files: group.nodes.map(n => n.file),
     });
   }

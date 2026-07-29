@@ -112,16 +112,41 @@ export function buildSimilaritySignature(tokens: string[]): string | null {
   return out;
 }
 
-function decodeSimilaritySignature(sig: string): number[] | null {
+/**
+ * Decodes a hex-encoded signature into its per-lane values, exported
+ * specifically so bulk/pairwise callers (spec 052's `detectNearDuplicates`)
+ * can decode every signature once up front rather than paying this parse
+ * cost on every pairwise comparison — the real perf hazard at all-pairs
+ * scale, not the O(n²) comparison count itself (measured: ~39,000
+ * signatures full-pairwise-compare in 1-3s once decoded once each).
+ * `Uint16Array` (not `number[]`) since each lane is already truncated to 16
+ * bits — avoids both the parse-per-call cost and `number[]`'s per-element
+ * boxing overhead for the large signature sets this is built for.
+ */
+export function decodeSimilaritySignature(sig: string): Uint16Array | null {
   if (sig.length !== SIMILARITY_LANES * LANE_HEX_CHARS) return null;
-  const lanes: number[] = [];
+  const lanes = new Uint16Array(SIMILARITY_LANES);
   for (let lane = 0; lane < SIMILARITY_LANES; lane++) {
     const chunk = sig.slice(lane * LANE_HEX_CHARS, (lane + 1) * LANE_HEX_CHARS);
     const value = parseInt(chunk, 16);
     if (Number.isNaN(value)) return null;
-    lanes.push(value);
+    lanes[lane] = value;
   }
   return lanes;
+}
+
+/**
+ * Fraction of agreeing MinHash lanes between two already-decoded signatures
+ * — the same estimator `estimateSimilarity` uses, split out so a bulk
+ * caller that already decoded both sides via `decodeSimilaritySignature`
+ * doesn't pay the parse cost again per pair.
+ */
+export function estimateSimilarityFromLanes(a: Uint16Array, b: Uint16Array): number {
+  let agree = 0;
+  for (let lane = 0; lane < SIMILARITY_LANES; lane++) {
+    if (a[lane] === b[lane]) agree++;
+  }
+  return agree / SIMILARITY_LANES;
 }
 
 /**
@@ -133,10 +158,5 @@ export function estimateSimilarity(a: string, b: string): number {
   const lanesA = decodeSimilaritySignature(a);
   const lanesB = decodeSimilaritySignature(b);
   if (!lanesA || !lanesB) return 0;
-
-  let agree = 0;
-  for (let lane = 0; lane < SIMILARITY_LANES; lane++) {
-    if (lanesA[lane] === lanesB[lane]) agree++;
-  }
-  return agree / SIMILARITY_LANES;
+  return estimateSimilarityFromLanes(lanesA, lanesB);
 }
