@@ -1,10 +1,20 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { Parser as TSParser } from "web-tree-sitter";
 import parser from "./kotlin.js";
 import type { FileInfo } from "../types.js";
 
 function fileInfo(path: string, content: string): FileInfo {
   return { path, ext: ".kt", content, hash: "h", mtimeMs: 1, size: content.length };
 }
+
+describe("KotlinParser resource cleanup (spec 056)", () => {
+  it("deletes the per-call TSParser instance after parsing, not just the tree", async () => {
+    const deleteSpy = vi.spyOn(TSParser.prototype, "delete");
+    await parser.parse(fileInfo("a.kt", `fun foo(): Int = 1\n`));
+    expect(deleteSpy).toHaveBeenCalled();
+    deleteSpy.mockRestore();
+  });
+});
 
 describe("KotlinParser imports", () => {
   it("extracts a fully-qualified class import", async () => {

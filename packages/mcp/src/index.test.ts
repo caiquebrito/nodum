@@ -1,27 +1,30 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// index.ts registers its two request handlers on a real `Server` instance and
-// calls `main()` (which connects a real stdio transport) at module load —
-// this is the codebase's only completely untested file (spec 054), so this
-// test captures the handlers it registers via a mocked `Server`/transport
-// instead of spawning a real process (that's covered separately by this
-// spec's real end-to-end verification).
-const { registeredHandlers, connectMock } = vi.hoisted(() => ({
-  registeredHandlers: new Map<unknown, (...args: any[]) => any>(),
+// index.ts registers 14 tools on a real `McpServer` instance via
+// `registerTool()` and calls `main()` (which connects a real stdio
+// transport) at module load. This test captures each tool's registered
+// callback via a mocked `McpServer`/transport instead of spawning a real
+// process (that's covered separately by this spec's real end-to-end
+// verification) — mirroring spec 054's approach, adapted for spec 057's
+// registerTool migration (there's no longer a single pair of request
+// handlers to capture; each tool gets its own callback instead).
+const { registeredTools, connectMock } = vi.hoisted(() => ({
+  registeredTools: new Map<string, { config: Record<string, unknown>; callback: (...args: any[]) => any }>(),
   connectMock: vi.fn(async (_transport?: unknown) => {}),
 }));
 
-vi.mock("@modelcontextprotocol/sdk/server/index.js", () => {
-  class Server {
+vi.mock("@modelcontextprotocol/sdk/server/mcp.js", () => {
+  class McpServer {
     constructor(_info: unknown, _options: unknown) {}
-    setRequestHandler(schema: unknown, handler: (...args: any[]) => any) {
-      registeredHandlers.set(schema, handler);
+    registerTool(name: string, config: Record<string, unknown>, cb: (...args: any[]) => any) {
+      registeredTools.set(name, { config, callback: cb });
+      return { name };
     }
     connect(transport: unknown) {
       return connectMock(transport);
     }
   }
-  return { Server };
+  return { McpServer };
 });
 
 vi.mock("@modelcontextprotocol/sdk/server/stdio.js", () => {
@@ -87,92 +90,79 @@ vi.mock("@caiquebrito/nodum-core", () => ({
 
 const OK_RESULT = { content: [{ type: "text" as const, text: "ok" }] };
 
+const EXPECTED_TOOL_NAMES = [
+  "sync_project",
+  "project_status",
+  "get_graph",
+  "get_node",
+  "search_graph",
+  "get_dependencies",
+  "get_dependents",
+  "analyze_file",
+  "expand_cluster",
+  "trace_impact",
+  "find_bottlenecks",
+  "explain_architecture",
+  "find_similar_code",
+  "suggest_refactoring",
+];
+
 async function loadIndex() {
   vi.resetModules();
-  registeredHandlers.clear();
-  const { CallToolRequestSchema, ListToolsRequestSchema } = await import(
-    "@modelcontextprotocol/sdk/types.js"
-  );
+  registeredTools.clear();
   await import("./index.js");
-  return {
-    listHandler: registeredHandlers.get(ListToolsRequestSchema)!,
-    callHandler: registeredHandlers.get(CallToolRequestSchema)!,
-  };
+  return registeredTools;
 }
 
-describe("mcp index.ts (spec 054)", () => {
+describe("mcp index.ts (spec 057 — registerTool migration)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("registers a ListToolsRequestSchema handler exposing all 14 tools", async () => {
-    const { listHandler } = await loadIndex();
-    const result = await listHandler();
-    expect(result.tools).toHaveLength(14);
-    expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
-      "sync_project",
-      "project_status",
-      "get_graph",
-      "get_node",
-      "search_graph",
-      "get_dependencies",
-      "get_dependents",
-      "analyze_file",
-      "expand_cluster",
-      "trace_impact",
-      "find_bottlenecks",
-      "explain_architecture",
-      "find_similar_code",
-      "suggest_refactoring",
-    ]);
+  it("registers all 14 tools with zod inputSchemas", async () => {
+    const tools = await loadIndex();
+    expect([...tools.keys()]).toEqual(EXPECTED_TOOL_NAMES);
+    for (const name of EXPECTED_TOOL_NAMES) {
+      expect(tools.get(name)!.config.inputSchema).toBeTypeOf("object");
+      expect(tools.get(name)!.config.description).toBeTypeOf("string");
+    }
   });
 
   it("dispatches get_node to handleGetNode with the right arguments", async () => {
-    const { callHandler } = await loadIndex();
+    const tools = await loadIndex();
     handleGetNodeMock.mockResolvedValue(OK_RESULT);
 
-    await callHandler({ params: { name: "get_node", arguments: { project_name: "proj", node_id: "n1" } } });
+    await tools.get("get_node")!.callback({ project_name: "proj", node_id: "n1" });
 
     expect(handleGetNodeMock).toHaveBeenCalledWith("proj", "n1");
   });
 
   it("dispatches get_dependencies/get_dependents to handleGetDeps with the right direction", async () => {
-    const { callHandler } = await loadIndex();
+    const tools = await loadIndex();
     handleGetDepsMock.mockResolvedValue(OK_RESULT);
 
-    await callHandler({ params: { name: "get_dependencies", arguments: { project_name: "proj", node_id: "n1" } } });
+    await tools.get("get_dependencies")!.callback({ project_name: "proj", node_id: "n1" });
     expect(handleGetDepsMock).toHaveBeenLastCalledWith("proj", "n1", "outgoing");
 
-    await callHandler({ params: { name: "get_dependents", arguments: { project_name: "proj", node_id: "n1" } } });
+    await tools.get("get_dependents")!.callback({ project_name: "proj", node_id: "n1" });
     expect(handleGetDepsMock).toHaveBeenLastCalledWith("proj", "n1", "incoming");
   });
 
-  it("returns a protocol-valid isError result for an unknown tool", async () => {
-    const { callHandler } = await loadIndex();
-
-    const result = await callHandler({ params: { name: "nonexistent_tool", arguments: {} } });
-
-    expect(result).toEqual({
-      content: [{ type: "text", text: "Unknown tool: nonexistent_tool" }],
-      isError: true,
-    });
-  });
-
   it("catches a thrown handler error and returns isError with the error text", async () => {
-    const { callHandler } = await loadIndex();
+    const tools = await loadIndex();
     handleStatusMock.mockRejectedValue(new Error("boom"));
 
-    const result = await callHandler({ params: { name: "project_status", arguments: {} } });
+    const result = await tools.get("project_status")!.callback({});
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("boom");
   });
 
   it("logs success:true for a non-error handler result", async () => {
-    const { callHandler } = await loadIndex();
+    const tools = await loadIndex();
     handleStatusMock.mockResolvedValue(OK_RESULT);
 
-    await callHandler({ params: { name: "project_status", arguments: {} } });
+    await tools.get("project_status")!.callback({});
 
     expect(appendMetricsLogMock).toHaveBeenCalledWith(
       expect.any(String),
@@ -181,10 +171,10 @@ describe("mcp index.ts (spec 054)", () => {
   });
 
   it("logs success:false for an isError handler result, without throwing", async () => {
-    const { callHandler } = await loadIndex();
+    const tools = await loadIndex();
     handleStatusMock.mockResolvedValue({ content: [{ type: "text", text: "nope" }], isError: true });
 
-    await callHandler({ params: { name: "project_status", arguments: {} } });
+    await tools.get("project_status")!.callback({});
 
     expect(appendMetricsLogMock).toHaveBeenCalledWith(
       expect.any(String),
@@ -193,21 +183,15 @@ describe("mcp index.ts (spec 054)", () => {
   });
 
   it("scopes the metrics log path by project_name when present, and to _unscoped otherwise", async () => {
-    const { callHandler } = await loadIndex();
+    const tools = await loadIndex();
     handleStatusMock.mockResolvedValue(OK_RESULT);
     handleGetNodeMock.mockResolvedValue(OK_RESULT);
 
-    await callHandler({ params: { name: "project_status", arguments: {} } });
-    expect(appendMetricsLogMock).toHaveBeenLastCalledWith(
-      expect.stringContaining("_unscoped"),
-      expect.anything()
-    );
+    await tools.get("project_status")!.callback({});
+    expect(appendMetricsLogMock).toHaveBeenLastCalledWith(expect.stringContaining("_unscoped"), expect.anything());
 
-    await callHandler({ params: { name: "get_node", arguments: { project_name: "proj", node_id: "n1" } } });
-    expect(appendMetricsLogMock).toHaveBeenLastCalledWith(
-      expect.stringContaining("proj"),
-      expect.anything()
-    );
+    await tools.get("get_node")!.callback({ project_name: "proj", node_id: "n1" });
+    expect(appendMetricsLogMock).toHaveBeenLastCalledWith(expect.stringContaining("proj"), expect.anything());
   });
 
   it("connects a real transport via server.connect() on load", async () => {

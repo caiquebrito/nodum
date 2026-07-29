@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-07-29 · **Current release:** v2.11.0 (all four packages, lockstep) · **Specs shipped:** 53 (`docs/development/completed/`)
+**Last updated:** 2026-07-29 · **Current release:** v2.12.0 (all four packages, lockstep) · **Specs shipped:** 56 (`docs/development/completed/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -241,23 +241,45 @@ caught genuine bugs before they shipped, not just confirmed correctness.
   boilerplate. New `nodum duplicates --fuzzy` and a `near-duplication` category in
   `suggest_refactoring`.
 
+### Viewer Sync fix, MCP SDK version bump, KMP expect/actual edges — shipped as real npm v2.12.0 (specs `053`–`055`)
+Batch-scoping research for this release again found every one of its three candidates smaller or
+more concretely scoped than the prior roadmap framing implied — the KMP entry below turned out to
+be the clearest example yet of this project's "research before trusting the roadmap's own framing"
+practice paying off.
+- Fixed the viewer's broken Sync button (spec 053) — found while researching `packages/server`
+  auth: `packages/viewer/app.js` called a `POST /api/sync` endpoint that has never existed
+  (`app.ts` even already carried a comment confirming this was deliberate). Removed the dead
+  button rather than building the endpoint, since `packages/server` has been read-only by design
+  since spec 047 and adding a write endpoint would reopen exactly the surface that hardening
+  closed.
+- MCP SDK version bump (spec 054) — bumped `@modelcontextprotocol/sdk` from `^0.7.0` to `^1.30.0`,
+  scoped to keep the deprecated-but-still-supported low-level `Server`/`setRequestHandler` API this
+  codebase already uses (confirmed unchanged in 1.30.0, not removed) rather than the riskier
+  `McpServer`/`registerTool` rewrite, which stays deferred. Added `zod` as an explicit dependency
+  (now a non-optional SDK peer dependency) and `index.ts`'s first-ever test coverage. Verified by
+  spawning the real built server on the bumped SDK and dispatching real tool calls end-to-end.
+- KMP `expect`/`actual` edges (spec 055) — the real remaining KMP prerequisite this roadmap had
+  named since v2.9.0. Research found the roadmap's own framing partly stale: Kotlin's *default
+  hierarchy template* means the "source-set dependency graph" is almost never explicitly declared
+  in a real project's Gradle files at all (confirmed by grepping a real KMP project's actual build
+  files for `dependsOn`: zero occurrences) — parsing it would have found nothing. New
+  `Node.platformModifier` field and `actualizes` edge, pairing `expect`/`actual` declarations by
+  Gradle module + declaration kind + name, validated against Kotlin's default hierarchy convention
+  internally rather than exposed as a separate graph artifact. Real verification against a genuine
+  local KMP project found and worked around a real, unrelated environmental Node/V8 crash during
+  full-monorepo parsing, then confirmed all 18 real `actual` declarations correctly paired to their
+  9 real `expect` counterparts.
+
 ---
 
 ## Next
 
-### KMP and Dart/Flutter — each its own future initiative
-Not "next release" bullets — each needs real prerequisite work scoped as its own batch before it's
-a one-release-away item again (see the v2.9.0 entry for why each was deferred rather than
-attempted; v2.10.0/v2.11.0 shipped source-set/module *labeling* — specs 049 and 051 — which is real
-progress but not the whole prerequisite):
-- **Kotlin Multiplatform**: the source-set *dependency* graph (`commonMain ← iosMain`) is the
-  remaining genuine prerequisite — `expect`/`actual` edges are symbol-to-symbol, not file-to-file,
-  and need a resolution mechanism this codebase doesn't have yet. `settings.gradle` module-map
-  parsing itself is no longer on this list — spec 051's research found pure path-derivation is not
-  just simpler but *more* robust on real projects than parsing `settings.gradle` would have been.
-- **Dart/Flutter**: needs `pubspec.yaml` resolution — this codebase's first build-file reader —
-  plus a decision on how to widen `Parser.resolveImport()`'s currently project-config-blind
-  interface.
+### Dart/Flutter — still its own future initiative
+KMP's own remaining prerequisite shipped in spec 055 (v2.12.0) — see above. Dart/Flutter is a
+separate initiative with its own real prerequisite: `pubspec.yaml` resolution — this codebase's
+first build-file reader — plus a decision on how to widen `Parser.resolveImport()`'s currently
+project-config-blind interface. Not a one-release-away item; needs its own scoped batch, same
+posture the v2.9.0 entry originally set for both KMP and Dart/Flutter together.
 
 ### Cross-language duplication detection — still blocked on an unbuilt prerequisite
 Specs 048 and 052 (v2.10.0/v2.11.0) built the same-language near-duplicate *lookup* and *grouping*
@@ -266,21 +288,74 @@ as an extension of either — different languages produce disjoint token vocabul
 construction, so it needs its own similarity mechanism entirely, deferred as its own future spec,
 not restated as imminent.
 
-### MCP SDK major-version upgrade — deliberately not bundled with the v2.11.0 protocol fix
-Spec 050 (v2.11.0) fixed a real, mechanical, low-risk protocol bug (`isError`/`content` shape) that
-needed no SDK version change at all. The SDK itself is still pinned `^0.7.0` against a current
-`1.30.0` — a real breaking-change risk (`Server`/`setRequestHandler` → `McpServer`/`registerTool`,
-transport rework, zod v4) that this batch's research explicitly declined to bundle in, deferring it
-to its own future investigation spike. Runtime `inputSchema` validation via zod (replacing today's
-`as any` casts) is deferred alongside it, to avoid redoing the work once SDK 1.x's `registerTool`
-would natively consume zod schemas.
+### MCP SDK `registerTool`/native validation rewrite — deliberately not bundled with the v2.12.0 version bump
+Spec 054 (v2.12.0) shipped the scoped version bump (`^0.7.0` → `^1.30.0`) while deliberately keeping
+the deprecated low-level `Server`/`setRequestHandler` API. The bigger rewrite — migrating to
+`McpServer`/`registerTool` and validating `inputSchema`s at runtime via zod instead of today's
+`as any` casts — reshapes `index.ts`'s shared metrics/error-handling infra non-mechanically and
+stays deferred to its own future investigation, not bundled with the version bump that made it
+possible.
 
-### `packages/server` real authentication — considered and declined for v2.11.0
-This batch's scoping research found spec 047's fix (v2.10.0: loopback-only default bind, path-
-traversal sanitization, first real test suite) already essentially sufficient — the residual risk
-requires a deliberate `NODUM_HOST` opt-in to a non-loopback bind, and the package remains read-only/
-metadata-only. A token/session auth scheme for that specific opt-in case remains a real future item,
-not urgent enough to force into this batch.
+### `packages/server` real authentication — considered and declined again for v2.12.0
+Re-considered during this batch's `packages/server`-adjacent research (which instead found and
+fixed the broken viewer Sync button, spec 053) and still judged not worth building: the residual
+risk requires a deliberate `NODUM_HOST` opt-in to a non-loopback bind, and the package remains
+read-only/metadata-only. A token/session auth scheme for that specific opt-in case remains a real
+future item, not urgent enough to force into a batch twice in a row now.
+
+### Kotlin `expect`/`actual` — real refinements found during spec 055, deliberately not expanded on
+Spec 055 (v2.12.0) scoped `expect`/`actual` edge detection to top-level functions and types
+(`class`/`interface`/`enum`/`object`). Real end-to-end verification against a genuine KMP project
+found two further real gaps — documented here rather than left implied by their absence, since
+neither was a hypothetical concern:
+- **`expect class` members are not walked.** A nested declaration inside an `expect`/`actual class`
+  body (the real verification project's own `HttpClientEngineProvider.provideEngine` case) gets no
+  `platformModifier` at all today. Extending the existing class-body member walk to also check each
+  member for a platform modifier is a real, likely-small follow-up, but wasn't attempted alongside
+  the top-level case.
+- **`expect`/`actual` on top-level properties (`val`/`var`) can't be detected**, because this parser
+  has never extracted Kotlin top-level properties as graph nodes *at all* — a pre-existing
+  limitation, not introduced by spec 055. A real `expect val platformModule: Module` declaration in
+  the verification project was confirmed correctly left untagged (there is no node to tag). Fixing
+  this for real would mean adding top-level-property node extraction as its own parser feature
+  first, not a small addition to the pairing logic.
+- **Matching is module + declaration kind + label only, with no package-path awareness** — this
+  parser has never extracted Kotlin `package` declarations either. Verified sufficient against the
+  one real project used for spec 055's verification (a same-name collision across two different
+  modules was already disambiguated by module-scoping alone), but this is a verified-sufficient-once
+  finding, not a proof that every real project's naming can't collide within a single module. Worth
+  re-checking against a second real KMP project before treating it as fully settled.
+
+None of these three are scoped to any release yet.
+
+### Known issue: full-project sync can crash on some Node/V8 builds at large real-project scale
+Discovered (not induced) during spec 055's real end-to-end verification, unrelated to that spec's
+own logic: syncing a real, genuine Kotlin Multiplatform monorepo (~21,447 files, well over the
+20,000-file `.nodumrc.json` guardrail) reproducibly crashed this machine's Node `v25.9.0` with a
+`Fatal process out of memory: Zone` error during concurrent tree-sitter WASM compilation — a V8
+background-compilation job (`WasmLoweringPhase`/Turboshaft), not this project's own JS heap.
+Confirmed unrelated to spec 055's own code: the crash happens during file parsing itself (spec
+055's post-pass runs after parsing completes and never got the chance to run), reproduced
+identically with `--no-wasm-tier-up` and a reduced V8/libuv worker-pool size (ruling out simple
+JIT-tiering or thread-count fixes), and did **not** occur syncing a comparably-sized real non-KMP
+project (`vv-viaunica-android`, 6,432 files) on the same machine — so file *count* alone isn't
+sufficient to reproduce it; something about this specific ~3.3x-larger real project's scale crosses
+a real threshold. Worked around for spec 055's own verification by scoping to a smaller, real,
+representative subset of the same project rather than skipping real verification — but the
+underlying limitation is real and would affect any user syncing a similarly large real project on a
+similar Node/V8 build.
+
+Not scoped to any release yet — flagged here so it isn't lost, not silently dropped. Worth
+investigating as its own future item:
+- Whether this is Node-version-specific (worth documenting a known-good Node version range, or
+  pinning CI/recommended versions away from whatever specifically triggers it).
+- Whether `.nodumrc.json`'s existing `maxFilesWarning` guardrail (spec 042) should gain a hard,
+  user-configurable *parsing* concurrency cap distinct from its current file-discovery-concurrency
+  role, specifically to reduce simultaneous WASM JIT pressure at this scale — a real, scoped
+  mitigation if the Node-version angle doesn't pan out.
+- Whether this is better understood as an upstream `tree-sitter-wasms`/V8 issue outside this
+  project's control, in which case the right action is documenting the limitation for users (e.g. a
+  README/troubleshooting note) rather than attempting a code fix at all.
 
 ### v3.0.0 — MCP-native, semantically deep
 
@@ -295,14 +370,15 @@ truth for a codebase. **What doesn't:** that the moat is provider breadth. The m
 quality — call edges, type flow, and numbers an agent can trust, across the languages a team
 actually writes in.
 
-- Upgrade the MCP SDK off `^0.7.0`; validate `inputSchema`s at runtime instead of `as any` casts —
-  see the "MCP SDK major-version upgrade" entry above for why this stayed deferred past v2.11.0.
-  (Protocol-valid `isError` responses already shipped in spec 050, independent of the SDK version.)
+- `McpServer`/`registerTool` migration and runtime `inputSchema` validation via zod — the SDK
+  version bump itself already shipped in spec 054 (v2.12.0); see the dedicated "Next" entry above
+  for why the rewrite this would enable stays deferred past it. (Protocol-valid `isError` responses
+  already shipped in spec 050, independent of the SDK version.)
 - Verify against multiple real MCP clients (Claude Code, Cursor, Zed, Continue) — same server, no
   per-provider code, as the actual proof this reframe is real rather than aspirational.
 - Type inference and data-flow edges — real accuracy headroom that isn't just "read more files."
 - **Real authentication for `packages/server`** — see the dedicated "Next" entry above; considered
-  and declined for v2.11.0 as not yet urgent enough to force in.
+  and declined twice now (v2.11.0 and v2.12.0) as not yet urgent enough to force in.
 
 **Success metrics change accordingly** — not GitHub stars or provider count, but **tokens spent
 per correct agent answer**, tracked per release against real repositories, per the v2.5.0
@@ -360,7 +436,13 @@ implied by their absence.
    originally planned semantic) that was wrong in a way no synthetic test at small scale would have
    surfaced, only a real project's actual data. Proof this project's "verify against real data
    before trusting a design" practice catches correctness bugs, not just performance ones.
-7. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
+7. **Viewer fix, SDK bump, KMP expect/actual edges (v2.12.0):** closed out the real remaining KMP
+   prerequisite this roadmap had carried since v2.9.0 — and found, in the process, that its own
+   framing of that prerequisite (Gradle-parsed source-set dependencies) was itself stale, the same
+   class of correction v2.7.0's roadmap claim about KMP received back in v2.9.0. Real verification
+   against a genuine local KMP project also caught a real environmental limitation (a Node/V8 crash
+   unrelated to this project's own logic) and worked around it rather than skipping the check.
+8. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
    validated by real numbers instead of asserted ones.
 
 ---
