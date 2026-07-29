@@ -422,9 +422,18 @@ npm install -g .
 
 ## Roadmap
 
-53 specs shipped so far, each with real end-to-end verification against synced projects — see
+56 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.11.0** across all four packages (lockstep).
+**v2.12.0** across all four packages (lockstep).
+
+### ✅ Viewer Sync fix, MCP SDK version bump, KMP expect/actual edges (shipped as v2.12.0)
+- Removed the viewer's Sync button, which called a `POST /api/sync` endpoint that has never
+  existed — `packages/server` stays read-only by design
+- Bumped the MCP SDK from `^0.7.0` to `^1.30.0` (scoped: kept the still-supported low-level
+  `Server` API, added `zod` as an explicit dependency, added `index.ts`'s first-ever tests)
+- New Kotlin `expect`/`actual` edge detection (`Node.platformModifier`, a new `actualizes`
+  relation) — the real remaining KMP prerequisite, verified against a genuine local
+  multiplatform project
 
 ### ✅ MCP protocol fix, Kotlin module labeling, near-duplicate grouping (shipped as v2.11.0)
 - Fixed a real MCP protocol bug: every tool-call error response was schema-invalid per the SDK's
@@ -501,7 +510,7 @@ npm install -g .
 - **expand_cluster tool** — on-demand cluster expansion
 - TypeScript/Node.js monorepo, 5 language parsers, MCP integration, 3D graph viewer, benchmark suite
 
-### 🔜 Next: KMP/Dart/Flutter (each its own future initiative), MCP SDK upgrade, `packages/server` auth — see ROADMAP.md
+### 🔜 Next: Dart/Flutter (own future initiative), MCP `registerTool` rewrite, `packages/server` auth — see ROADMAP.md
 ### 🔮 v3.0.0 — reframed as MCP-native, not a multi-AI adapter hub
 
 The original v3.0 vision was per-provider adapters (OpenAI, Gemini, Ollama). MCP already gives
@@ -553,7 +562,7 @@ A: TypeScript, Python, Java, JavaScript, Swift, Objective-C, Go, and Kotlin — 
 parsing (TypeScript via the compiler API, the rest via tree-sitter).
 
 **Q: Is this production-ready?**
-A: Yes — v2.11.0 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.12.0 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.
@@ -605,4 +614,4 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 **[Get Started Now →](./SETUP-GUIDE.md)**
 
-**Version 2.11.0** · MIT License · No cloud, no subscriptions, no BS.
+**Version 2.12.0** · MIT License · No cloud, no subscriptions, no BS.
