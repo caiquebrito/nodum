@@ -285,3 +285,39 @@ describe("ObjCParser calls edges", () => {
     expect(edges).toContainEqual({ source: fact.id, target: fact.id, relation: "calls" });
   });
 });
+
+describe("ObjCParser cognitive complexity (spec 045)", () => {
+  it("scores a method with no decision points as 0", async () => {
+    const src = "@implementation Foo\n- (void)bar {\n}\n@end\n";
+    const { nodes } = await parser.parse(fileInfo("a.m", src));
+    expect(nodes.find(n => n.type === "method")?.cognitiveComplexity).toBe(0);
+  });
+
+  it("gives nested ifs a higher cognitive score than sequential ifs, unlike cyclomatic", async () => {
+    const seq = "@implementation Foo\n- (void)seq:(int)x {\n  if (x == 1) {}\n  if (x == 2) {}\n  if (x == 3) {}\n}\n@end\n";
+    const nested = "@implementation Bar\n- (void)nested:(int)x {\n  if (x == 1) {\n    if (x == 2) {\n      if (x == 3) {}\n    }\n  }\n}\n@end\n";
+    const seqNode = (await parser.parse(fileInfo("a.m", seq))).nodes.find(n => n.type === "method");
+    const nestedNode = (await parser.parse(fileInfo("b.m", nested))).nodes.find(n => n.type === "method");
+    expect(seqNode?.complexity).toBe(nestedNode?.complexity);
+    expect(seqNode?.cognitiveComplexity).toBe(3);
+    expect(nestedNode?.cognitiveComplexity).toBe(6);
+  });
+
+  it("collapses a boolean-operator chain to +1", async () => {
+    const src = "@implementation Foo\n- (void)bar:(int)x {\n  if (x > 0 && x < 10 && x != 5) {}\n}\n@end\n";
+    const { nodes } = await parser.parse(fileInfo("a.m", src));
+    expect(nodes.find(n => n.type === "method")?.cognitiveComplexity).toBe(2);
+  });
+
+  it("counts a @try/@catch as a decision point", async () => {
+    const src = "@implementation Foo\n- (void)bar {\n  @try {\n    int x = 1;\n  } @catch (NSException *e) {\n    int y = 0;\n  }\n}\n@end\n";
+    const { nodes } = await parser.parse(fileInfo("a.m", src));
+    expect(nodes.find(n => n.type === "method")?.cognitiveComplexity).toBe(1);
+  });
+
+  it("scores a self-recursive bare C function call as +1", async () => {
+    const src = "int fact(int n) {\n  if (n <= 1) {\n    return 1;\n  }\n  return fact(n - 1) + n;\n}\n";
+    const { nodes } = await parser.parse(fileInfo("a.m", src));
+    expect(nodes.find(n => n.label === "fact")?.cognitiveComplexity).toBe(2);
+  });
+});

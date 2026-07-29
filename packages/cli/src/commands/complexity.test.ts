@@ -54,9 +54,26 @@ describe("complexityCommand", () => {
 
     const parsed = JSON.parse((console.log as any).mock.calls[0][0]);
     expect(parsed).toEqual([
-      { nodeId: "a", label: "foo", file: "a.ts", complexity: 8 },
-      { nodeId: "b", label: "bar", file: "a.ts", complexity: 2 },
+      { nodeId: "a", label: "foo", file: "a.ts", complexity: 8, metric: "cyclomatic" },
+      { nodeId: "b", label: "bar", file: "a.ts", complexity: 2, metric: "cyclomatic" },
     ]);
+  });
+
+  it("--cognitive ranks by cognitiveComplexity instead", async () => {
+    const cogGraph = {
+      ...graph,
+      nodes: [
+        { id: "a", label: "foo", type: "function", file: "a.ts", group: "other", complexity: 8, cognitiveComplexity: 1 },
+        { id: "b", label: "bar", type: "function", file: "a.ts", group: "other", complexity: 2, cognitiveComplexity: 6 },
+      ],
+    };
+    readFileMock.mockResolvedValue(JSON.stringify(cogGraph));
+    const { complexityCommand } = await import("./complexity.js");
+    await complexityCommand("proj", "/tmp/.nodum", { json: true, cognitive: true });
+
+    const parsed = JSON.parse((console.log as any).mock.calls[0][0]);
+    expect(parsed.map((r: any) => r.nodeId)).toEqual(["b", "a"]);
+    expect(parsed.every((r: any) => r.metric === "cognitive")).toBe(true);
   });
 
   it("prints a clear 'none found' message when no node has a complexity score", async () => {

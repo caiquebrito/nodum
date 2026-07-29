@@ -172,13 +172,15 @@ program
   .description('Rank functions/methods by cyclomatic complexity')
   .option('--json', 'Output machine-readable JSON instead of a formatted summary')
   .option('--threshold <n>', 'Only show functions with complexity >= n')
-  .action(async (projectPath: string | undefined, options: { json?: boolean; threshold?: string }) => {
+  .option('--cognitive', 'Rank by cognitive complexity instead — nesting-depth-aware, rewards flat code over deeply nested code (spec 045)')
+  .action(async (projectPath: string | undefined, options: { json?: boolean; threshold?: string; cognitive?: boolean }) => {
     try {
       const nodumDataDir = getNodeumDataDir();
       const { complexityCommand } = await import('../commands/complexity.js');
       await complexityCommand(projectPath || process.cwd(), nodumDataDir, {
         json: options.json,
         threshold: options.threshold ? parseInt(options.threshold, 10) : undefined,
+        cognitive: options.cognitive,
       });
     } catch (error) {
       console.error('❌ Error:', error instanceof Error ? error.message : String(error));

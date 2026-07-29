@@ -5,6 +5,22 @@ import { resolvePythonImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
 import type { TSNode } from './treesitter/engine.js';
+import { computeCognitiveComplexity, type CognitiveConfig } from './cognitive-complexity.js';
+
+// See cognitive-complexity.ts's CognitiveConfig doc comment. `elif_clause`
+// is a real, distinct node type in this grammar (a direct child of the
+// `if_statement`, not a re-nested `if_statement` the way most other
+// grammars this codebase covers represent `else if`) — see spec 045's
+// Design for what that does and doesn't buy this implementation.
+const PYTHON_COGNITIVE_CONFIG: CognitiveConfig = {
+  nesting: new Set(['if_statement', 'elif_clause', 'for_statement', 'while_statement', 'except_clause']),
+  nestingOnly: new Set(['lambda']),
+  boundary: new Set(['function_definition']),
+  isBooleanOp: node => node.type === 'boolean_operator',
+  calleeName: node => (node.type === 'call' && node.childForFieldName('function')?.type === 'identifier'
+    ? (node.childForFieldName('function') as TSNode).text
+    : null),
+};
 
 const FUNCTION_QUERY = '(function_definition name: (identifier) @name) @def';
 const CLASS_QUERY = '(class_definition name: (identifier) @name) @def';
@@ -125,6 +141,7 @@ export class PythonParser extends TreeSitterParser {
           group: getNodeGroup(file.path),
           line: methodDef.startPosition.row + 1,
           ...(methodBody ? { complexity: computeComplexity(methodBody) } : {}),
+          ...(methodBody ? { cognitiveComplexity: computeCognitiveComplexity(methodBody, PYTHON_COGNITIVE_CONFIG, methodName) } : {}),
           ...(duplicateHash ? { duplicateHash } : {}),
         });
         edges.push({ source: classId, target: methodId, relation: 'defines' });
@@ -158,6 +175,7 @@ export class PythonParser extends TreeSitterParser {
         group: getNodeGroup(file.path),
         line: defNode.startPosition.row + 1,
         ...(body ? { complexity: computeComplexity(body) } : {}),
+        ...(body ? { cognitiveComplexity: computeCognitiveComplexity(body, PYTHON_COGNITIVE_CONFIG, name) } : {}),
         ...(duplicateHash ? { duplicateHash } : {}),
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });

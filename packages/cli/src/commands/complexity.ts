@@ -6,6 +6,7 @@ import { rankByComplexity } from '@caiquebrito/nodum-core';
 export interface ComplexityOptions {
   json?: boolean;
   threshold?: number;
+  cognitive?: boolean;
 }
 
 export async function complexityCommand(
@@ -23,7 +24,8 @@ export async function complexityCommand(
     throw new Error(`No synced graph found for "${projectName}". Run \`nodum sync\` first.`);
   }
 
-  const ranking = rankByComplexity(graph, { threshold: options.threshold });
+  const metric = options.cognitive ? 'cognitive' : 'cyclomatic';
+  const ranking = rankByComplexity(graph, { threshold: options.threshold, metric });
 
   if (options.json) {
     console.log(JSON.stringify(ranking, null, 2));
@@ -35,7 +37,7 @@ export async function complexityCommand(
     return;
   }
 
-  console.log('🧮 Complexity ranking\n');
+  console.log(`🧮 Complexity ranking (${metric})\n`);
   ranking.forEach(r => {
     console.log(`  ${String(r.complexity).padStart(3)}  ${r.label} (${r.file})`);
   });

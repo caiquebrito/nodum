@@ -4,6 +4,7 @@ import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
 import { hashTokens } from './duplicate-hash.js';
 import { resolveRelativeImport } from './import-resolver.js';
+import { computeCognitiveComplexityTs } from './cognitive-complexity-ts.js';
 
 interface CallableUnit {
   nodeId: string;
@@ -69,6 +70,7 @@ export class TypeScriptParser extends Parser {
         file: filePath,
         group: getNodeGroup(filePath),
         ...(node.body ? { complexity: this.computeComplexity(node.body) } : {}),
+        ...(node.body ? { cognitiveComplexity: computeCognitiveComplexityTs(node.body, name) } : {}),
         ...(node.body ? this.duplicateHashField(node.body) : {}),
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
@@ -99,6 +101,7 @@ export class TypeScriptParser extends Parser {
               file: filePath,
               group: getNodeGroup(filePath),
               ...(member.body ? { complexity: this.computeComplexity(member.body) } : {}),
+              ...(member.body ? { cognitiveComplexity: computeCognitiveComplexityTs(member.body, methodName) } : {}),
               ...(member.body ? this.duplicateHashField(member.body) : {}),
             });
             edges.push({ source: classId, target: methodId, relation: 'defines' });

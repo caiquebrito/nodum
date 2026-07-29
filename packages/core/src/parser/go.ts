@@ -5,6 +5,27 @@ import { resolveGoImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
 import type { TSNode } from './treesitter/engine.js';
+import { computeCognitiveComplexity, type CognitiveConfig } from './cognitive-complexity.js';
+
+// See cognitive-complexity.ts's CognitiveConfig doc comment. Same
+// switch/type-switch/select-case exclusion as spec 045's design overall
+// (not scored at all in this implementation — see that module's doc
+// comment for why).
+const GO_COGNITIVE_CONFIG: CognitiveConfig = {
+  nesting: new Set(['if_statement', 'for_statement']),
+  nestingOnly: new Set(['func_literal']),
+  boundary: new Set(['function_declaration', 'method_declaration']),
+  isBooleanOp: node => {
+    if (node.type !== 'binary_expression') return false;
+    const op = node.childForFieldName('operator')?.text;
+    return op === '&&' || op === '||';
+  },
+  calleeName: node => {
+    if (node.type !== 'call_expression') return null;
+    const fn = node.childForFieldName('function');
+    return fn?.type === 'identifier' ? fn.text : null;
+  },
+};
 
 const TYPE_QUERY = '(type_declaration (type_spec name: (type_identifier) @name type: (_) @kind)) @def';
 const FUNCTION_QUERY = '(function_declaration name: (identifier) @name body: (block) @body) @def';
@@ -141,6 +162,7 @@ export class GoParser extends TreeSitterParser {
         group: getNodeGroup(file.path),
         line: defNode.startPosition.row + 1,
         ...(bodyNode ? { complexity: computeComplexity(bodyNode) } : {}),
+        ...(bodyNode ? { cognitiveComplexity: computeCognitiveComplexity(bodyNode, GO_COGNITIVE_CONFIG, methodName) } : {}),
         ...(duplicateHash ? { duplicateHash } : {}),
       });
       edges.push({ source: ownerId, target: methodId, relation: 'defines' });
@@ -169,6 +191,7 @@ export class GoParser extends TreeSitterParser {
         group: getNodeGroup(file.path),
         line: defNode.startPosition.row + 1,
         ...(bodyNode ? { complexity: computeComplexity(bodyNode) } : {}),
+        ...(bodyNode ? { cognitiveComplexity: computeCognitiveComplexity(bodyNode, GO_COGNITIVE_CONFIG, name) } : {}),
         ...(duplicateHash ? { duplicateHash } : {}),
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
