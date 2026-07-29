@@ -422,9 +422,19 @@ npm install -g .
 
 ## Roadmap
 
-59 specs shipped so far, each with real end-to-end verification against synced projects — see
+60 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.14.0** across all four packages (lockstep).
+**v2.15.0** across all four packages (lockstep).
+
+### ✅ Fix `applyExpectActual`'s array-spread stack overflow (shipped as v2.15.0)
+- Closed out the investigation started in v2.13.0 and continued in v2.14.0: the real
+  `Maximum call stack size exceeded` bug was `applyExpectActual` spreading a large array into a
+  function call, not any tree-sitter parser's recursive walk as originally suspected
+- Real check: the exact real ~21,447-file Kotlin Multiplatform project that never once fully synced
+  across three prior specs completed end to end for the first time — 246,186 real dependencies, 18
+  correct `expect`/`actual` pairs
+- The original Node `v25.9.0`-specific V8 WASM crash this investigation started from remains a
+  separate, open item — see ROADMAP.md's "Known issue" section
 
 ### ✅ Preserve the real stack trace on sync failures (shipped as v2.14.0)
 - `nodum sync` failures now print the real underlying stack trace, not just a message — directly
@@ -576,7 +586,7 @@ A: TypeScript, Python, Java, JavaScript, Swift, Objective-C, Go, and Kotlin — 
 parsing (TypeScript via the compiler API, the rest via tree-sitter).
 
 **Q: Is this production-ready?**
-A: Yes — v2.14.0 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.15.0 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.
@@ -628,4 +638,4 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 **[Get Started Now →](./SETUP-GUIDE.md)**
 
-**Version 2.14.0** · MIT License · No cloud, no subscriptions, no BS.
+**Version 2.15.0** · MIT License · No cloud, no subscriptions, no BS.

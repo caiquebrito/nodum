@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-07-29 · **Current release:** v2.14.0 (all four packages, lockstep) · **Specs shipped:** 59 (`docs/development/completed/`)
+**Last updated:** 2026-07-29 · **Current release:** v2.15.0 (all four packages, lockstep) · **Specs shipped:** 60 (`docs/development/completed/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -309,6 +309,28 @@ than left to accumulate alongside unrelated work.
   `Maximum call stack size exceeded` bug (see below) without needing another expensive multi-hour
   real-project sync just to see where it happens.
 
+### Fix `applyExpectActual`'s array-spread stack overflow — shipped as real npm v2.15.0 (spec `059`)
+Closes the investigation started in spec 056 and continued in spec 058. Spec 058's stack-trace fix
+paid off immediately: re-running the exact same real ~21,447-file KMP project on Node 22 LTS
+surfaced a real stack trace on the first attempt, pointing directly at `expect-actual.ts`, not any
+tree-sitter parser's recursive AST walk as the roadmap had speculated.
+- `applyExpectActual`'s stale-edge cleanup used `edges.length = 0; edges.push(...preserved);` —
+  spreading a ~200,000+-element array as individual `push()` call arguments, which overflows V8's
+  call-stack argument limit. The same class of bug spec 052 already found and fixed once elsewhere
+  (`Math.min(...similarities)`), recurring independently here because that lesson didn't carry over
+  to code written in a later spec. Fixed with an in-place filter loop; a new regression test
+  reproduces the crash at 300,000 elements and confirms the old code really did throw before
+  trusting the fix.
+- **Real check: the exact real ~21,447-file project that never once fully synced across specs 055,
+  056, and 058 completed end to end for the first time** — 246,186 real dependencies, 131,395 nodes,
+  18 correct `expect`/`actual` pairs, matching spec 055's smaller-fixture result exactly.
+- Confirmed via full grep that no other live instance of the spread-into-call-arguments pattern
+  remains anywhere in the codebase.
+- **Out of scope, deliberately**: the original Node `v25.9.0`-specific V8 WASM out-of-memory crash
+  (see "Known issue" below) — that crash happens during file parsing itself, before
+  `applyExpectActual` ever runs. This spec fixed the second bug the crash was masking, not the
+  crash itself.
+
 ---
 
 ## Next
@@ -359,7 +381,7 @@ neither was a hypothetical concern:
 
 None of these three are scoped to any release yet.
 
-### Known issue: full-project sync doesn't complete on either tested Node version, for two separate real reasons
+### Known issue: full-project sync still doesn't complete on Node `v25.9.0` — the stack-overflow half is now resolved
 Originally discovered during spec 055's real end-to-end verification (a real ~21,447-file Kotlin
 Multiplatform monorepo, well over the 20,000-file `.nodumrc.json` guardrail, crashed this machine's
 Node `v25.9.0` with a `Fatal process out of memory: Zone` V8 WASM-compilation error). Spec 056
@@ -375,30 +397,26 @@ original crash**:
   that specific crash genuinely is Node-version-specific (this machine's `v25.9.0` or that general
   V8 vintage), not something this codebase's own code fully controls.
 - **But after those two-plus hours, Node 22 hit a second, different, real, previously-unknown bug**:
-  `RangeError: Maximum call stack size exceeded` — a genuine JavaScript call-stack overflow inside
-  this codebase's own recursive AST-walking logic (candidates: the `visit()`-shaped recursive walks
-  in each tree-sitter parser's complexity/duplicate-token/call-extraction functions), triggered by
-  some real file elsewhere in this specific project deep/large enough to exceed the default
-  call-stack limit. Not visible before, because the Node 25.9.0 crash happened first and masked it.
+  `RangeError: Maximum call stack size exceeded`. Spec 058's stack-trace fix made this diagnosable,
+  and spec 059 (v2.15.0) found and fixed the real cause on the first real re-run: not a tree-sitter
+  parser's recursive AST walk as originally speculated, but `applyExpectActual`'s
+  `edges.push(...preserved)` spreading a ~200,000+-element array into a function call. **Resolved —
+  the exact same real ~21,447-file project now completes end to end on Node 22 LTS**, for the first
+  time across this entire investigation (246,186 dependencies, 18 correct `expect`/`actual` pairs).
 
-**Neither Node version tested fully syncs this specific real project, for two unrelated reasons.**
-The parser leak fix (spec 056) is real, verified, and worth keeping regardless — but package.json's
-`"engines": ">=18.0.0"` was deliberately **not** narrowed, since neither tested version cleanly
-completes this project; there is no "known-good" range to narrow to with confidence yet.
+**What remains open: the original Node `v25.9.0` V8 WASM crash itself.** The stack-overflow bug that
+was masking it is fixed, but the `v25.9.0`-specific `Fatal process out of memory: Zone` crash was
+never re-tested past that fix on `v25.9.0` — Node 22 LTS is the only version confirmed to complete
+this project end to end. The parser leak fix (spec 056) is real, verified, and worth keeping
+regardless — but package.json's `"engines": ">=18.0.0"` remains deliberately **not** narrowed, since
+`v25.9.0` still isn't confirmed to complete this project.
 
-The stack-overflow bug itself is still not scoped to any release — flagged here so it isn't lost,
-not silently dropped. Worth investigating as its own future item:
-- ~~Get a real stack trace for the `Maximum call stack size exceeded` error without needing another
-  multi-hour real-project sync~~ — done in spec 058 (v2.14.0): `sync.ts` now appends the original
-  error's real stack onto its own, and the CLI prints it. The next real investigation step (re-run
-  against the same real KMP project on Node 22, actually read the now-visible stack) hasn't been
-  done yet — spec 058 only removed the blocker that was making it expensive to attempt.
-- Once a real stack trace identifies which recursive function and which real file trigger the
-  overflow, assess whether an iterative (explicit-stack) rewrite of that walk, or a depth guard, is
-  the right fix — don't guess at a fix blind.
-- Whether the original V8 WASM crash is specific to Node `v25.9.0` particularly (worth documenting a
-  known-good Node version range once the stack-overflow bug is also resolved and a full real
-  end-to-end pass actually succeeds on some version) or a broader vintage-of-V8 issue.
+Worth investigating as its own future item, not scoped to any release yet:
+- Re-test the real ~21,447-file project on Node `v25.9.0` now that the stack-overflow bug (which was
+  never reached on that version, since the WASM crash happens earlier, during parsing) is fixed —
+  confirm whether the original V8 WASM crash still reproduces on its own.
+- If it does, narrow down whether it's specific to Node `v25.9.0` particularly or a broader vintage-
+  of-V8 issue, and document a known-good Node version range once one is confirmed with confidence.
 
 ### v3.0.0 — MCP-native, semantically deep
 
@@ -496,7 +514,14 @@ implied by their absence.
 9. **Sync stack-trace fix (v2.14.0):** a single, small, standalone spec — the concrete first step
    the v2.13.0 entry above named for investigating its own still-open stack-overflow bug — shipped
    on its own immediately rather than left to accumulate alongside unrelated work in a future batch.
-10. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
+10. **Fix the stack-overflow bug (v2.15.0):** a single, small, standalone spec that closed out the
+    investigation v2.13.0 started and v2.14.0 unblocked. Spec 058's stack trace paid off on the very
+    first real re-run: the real cause was one line in a completely different file/spec than either
+    prior investigation had guessed, and the same real project that never once fully synced across
+    three prior specs completed end to end for the first time. The original Node `v25.9.0` V8 crash
+    the investigation started from remains open, tracked honestly rather than assumed fixed by
+    association.
+11. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
     validated by real numbers instead of asserted ones.
 
 ---
