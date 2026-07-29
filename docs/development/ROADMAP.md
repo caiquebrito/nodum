@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-07-29 · **Current release:** v2.10.0 (all four packages, lockstep) · **Specs shipped:** 50 (`docs/development/completed/`)
+**Last updated:** 2026-07-29 · **Current release:** v2.11.0 (all four packages, lockstep) · **Specs shipped:** 53 (`docs/development/completed/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -206,6 +206,41 @@ research bets.
   standalone-value slice of the still-deferred KMP initiative (see below), not that initiative
   itself.
 
+### MCP protocol fix, Kotlin module labeling, near-duplicate grouping — shipped as real npm v2.11.0 (specs `050`–`052`)
+Batch-scoping research for this release found every one of its three candidates smaller or more
+tractable than the prior roadmap/prior specs had assumed — the opposite of v2.9.0's research
+(which found KMP/Dart harder than assumed). All three specs' mandatory real end-to-end verification
+caught genuine bugs before they shipped, not just confirmed correctness.
+- MCP `isError` protocol fix (spec 050) — every one of 17 handler error-return sites returned a
+  bare `{ error: string }`, invalid per the MCP SDK's own `CallToolResultSchema` (`content`
+  required, `isError` a separate optional flag) — verified directly against the SDK's real schema,
+  not assumed. Likely surfaced to a real MCP client as a transport/parse failure rather than the
+  actual error message. Verified by spawning the real built server and dispatching a real invalid
+  tool call end-to-end. Independent of the still-open MCP SDK major-version upgrade (see Next).
+- Kotlin module labeling (spec 051) — new path-derived `Node.module` field (`forro/feature`,
+  `app`, ...), no `settings.gradle` parsing needed — research found path-derivation not just
+  simpler but *more* robust than regex-parsing `settings.gradle` on real projects (some real
+  projects build their module list programmatically, unparseable by any regex). Real verification
+  against `vv-viaunica-android` found all 42 modules the project's own `settings.gradle.kts`
+  declares. Real verification also caught and fixed a genuine false-positive bug: an initial
+  generic `/src/` split wrongly tagged this very repo's own TypeScript `packages/<name>/src/`
+  layout — fixed by gating the module boundary on the same Kotlin/Java convention `sourceSet`
+  (spec 049) already requires. This same re-sync fixed a stale real-data discrepancy left over from
+  spec 049, whose own verification had only ever targeted a temporary data directory.
+- All-pairs near-duplicate grouping (spec 052) — new `detectNearDuplicates()`, the "Spec B" spec
+  048 explicitly deferred. Research found spec 048's own stated blockers (LSH banding, a breaking
+  `DuplicateGroup` change, fresh calibration) were all overstated once measured for real — no LSH
+  needed at real project scale, zero consumers read `DuplicateGroup.hash` so the new type is fully
+  additive, and spec 048's calibration reused as-is. Real-scale verification against a large real
+  project's actual synced graph caught **two** genuine bugs before shipping: a `Math.min(...array)`
+  spread crashing on a huge real group, and — more fundamentally — the originally planned
+  single-linkage transitive-closure semantic merging 7,607 real, unrelated functions into one
+  meaningless group. Fixed by switching to a quasi-clique requirement (every member pairwise
+  similar to every other member, not merely chain-reachable); the same real project's largest group
+  then dropped to a genuine, inspected 312-member cluster of near-identical Android test
+  boilerplate. New `nodum duplicates --fuzzy` and a `near-duplication` category in
+  `suggest_refactoring`.
+
 ---
 
 ## Next
@@ -213,22 +248,39 @@ research bets.
 ### KMP and Dart/Flutter — each its own future initiative
 Not "next release" bullets — each needs real prerequisite work scoped as its own batch before it's
 a one-release-away item again (see the v2.9.0 entry for why each was deferred rather than
-attempted; v2.10.0 shipped source-set *labeling*, spec 049, which is real progress but not the
-whole prerequisite):
-- **Kotlin Multiplatform**: a real module map (parsing `settings.gradle`'s `include(...)`) and the
-  source-set *dependency* graph (`commonMain ← iosMain`) are the remaining genuine prerequisites —
-  `expect`/`actual` edges are symbol-to-symbol, not file-to-file, and need a resolution mechanism
-  this codebase doesn't have yet.
+attempted; v2.10.0/v2.11.0 shipped source-set/module *labeling* — specs 049 and 051 — which is real
+progress but not the whole prerequisite):
+- **Kotlin Multiplatform**: the source-set *dependency* graph (`commonMain ← iosMain`) is the
+  remaining genuine prerequisite — `expect`/`actual` edges are symbol-to-symbol, not file-to-file,
+  and need a resolution mechanism this codebase doesn't have yet. `settings.gradle` module-map
+  parsing itself is no longer on this list — spec 051's research found pure path-derivation is not
+  just simpler but *more* robust on real projects than parsing `settings.gradle` would have been.
 - **Dart/Flutter**: needs `pubspec.yaml` resolution — this codebase's first build-file reader —
   plus a decision on how to widen `Parser.resolveImport()`'s currently project-config-blind
   interface.
 
-### Cross-language duplication detection — still blocked on a bigger lift than v2.10.0 delivered
-Spec 048 (v2.10.0) built the same-language near-duplicate prerequisite this roadmap named since
-v2.1.0, but scoped to single-node fuzzy *lookup* only. All-pairs near-duplicate *grouping* (needed
-before a cross-language layer would even be useful) needs LSH banding to stay sub-quadratic, breaks
-`DuplicateGroup`'s single-hash shape, and needs its own false-positive calibration at a different
-scale — deferred as its own future spec, not restated as imminent.
+### Cross-language duplication detection — still blocked on an unbuilt prerequisite
+Specs 048 and 052 (v2.10.0/v2.11.0) built the same-language near-duplicate *lookup* and *grouping*
+prerequisites this roadmap named since v2.1.0. A cross-language layer on top still cannot be built
+as an extension of either — different languages produce disjoint token vocabularies by
+construction, so it needs its own similarity mechanism entirely, deferred as its own future spec,
+not restated as imminent.
+
+### MCP SDK major-version upgrade — deliberately not bundled with the v2.11.0 protocol fix
+Spec 050 (v2.11.0) fixed a real, mechanical, low-risk protocol bug (`isError`/`content` shape) that
+needed no SDK version change at all. The SDK itself is still pinned `^0.7.0` against a current
+`1.30.0` — a real breaking-change risk (`Server`/`setRequestHandler` → `McpServer`/`registerTool`,
+transport rework, zod v4) that this batch's research explicitly declined to bundle in, deferring it
+to its own future investigation spike. Runtime `inputSchema` validation via zod (replacing today's
+`as any` casts) is deferred alongside it, to avoid redoing the work once SDK 1.x's `registerTool`
+would natively consume zod schemas.
+
+### `packages/server` real authentication — considered and declined for v2.11.0
+This batch's scoping research found spec 047's fix (v2.10.0: loopback-only default bind, path-
+traversal sanitization, first real test suite) already essentially sufficient — the residual risk
+requires a deliberate `NODUM_HOST` opt-in to a non-loopback bind, and the package remains read-only/
+metadata-only. A token/session auth scheme for that specific opt-in case remains a real future item,
+not urgent enough to force into this batch.
 
 ### v3.0.0 — MCP-native, semantically deep
 
@@ -243,15 +295,14 @@ truth for a codebase. **What doesn't:** that the moat is provider breadth. The m
 quality — call edges, type flow, and numbers an agent can trust, across the languages a team
 actually writes in.
 
-- Upgrade the MCP SDK off `^0.7.0`; validate `inputSchema`s at runtime instead of `as any` casts;
-  proper `isError` responses instead of ad hoc error shapes.
+- Upgrade the MCP SDK off `^0.7.0`; validate `inputSchema`s at runtime instead of `as any` casts —
+  see the "MCP SDK major-version upgrade" entry above for why this stayed deferred past v2.11.0.
+  (Protocol-valid `isError` responses already shipped in spec 050, independent of the SDK version.)
 - Verify against multiple real MCP clients (Claude Code, Cursor, Zed, Continue) — same server, no
   per-provider code, as the actual proof this reframe is real rather than aspirational.
 - Type inference and data-flow edges — real accuracy headroom that isn't just "read more files."
-- **Real authentication for `packages/server`** — spec 047 (v2.10.0) already fixed the confirmed
-  path-traversal bug and the unauthenticated `0.0.0.0` default bind (now loopback-only by default,
-  with a warned opt-in), and gave the package its first real test suite. A token/session auth
-  scheme for anyone who deliberately opts into a non-loopback bind is what's left here.
+- **Real authentication for `packages/server`** — see the dedicated "Next" entry above; considered
+  and declined for v2.11.0 as not yet urgent enough to force in.
 
 **Success metrics change accordingly** — not GitHub stars or provider count, but **tokens spent
 per correct agent answer**, tracked per release against real repositories, per the v2.5.0
@@ -303,7 +354,13 @@ implied by their absence.
    during scoping (not invented for the release), and cleared the small housekeeping backlog —
    proof this project ships the right-sized thing for what a batch's own research actually finds,
    not always another feature.
-6. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
+6. **Protocol fix, module labeling, near-duplicate grouping (v2.11.0):** three candidates that
+   scoping research found smaller/more tractable than assumed, each shipped with real end-to-end
+   verification that caught genuine bugs before release — including one (near-duplicate grouping's
+   originally planned semantic) that was wrong in a way no synthetic test at small scale would have
+   surfaced, only a real project's actual data. Proof this project's "verify against real data
+   before trusting a design" practice catches correctness bugs, not just performance ones.
+7. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
    validated by real numbers instead of asserted ones.
 
 ---
