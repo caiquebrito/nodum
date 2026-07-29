@@ -422,9 +422,18 @@ npm install -g .
 
 ## Roadmap
 
-56 specs shipped so far, each with real end-to-end verification against synced projects — see
+58 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.12.0** across all four packages (lockstep).
+**v2.13.0** across all four packages (lockstep).
+
+### ✅ Tree-sitter parser leak fix, MCP registerTool migration (shipped as v2.13.0)
+- Fixed a real resource leak: every tree-sitter parser leaked a `TSParser` instance per file.
+  Real re-verification found this alone does **not** fully resolve a known large-project sync
+  crash — confirmed Node-version-specific, with a second, separate stack-overflow bug also found
+  in the process. Documented honestly rather than overstated — see ROADMAP.md for the full account
+- Migrated the MCP server from the deprecated `Server` API to `McpServer`/`registerTool` — all 14
+  tool schemas rewritten as zod (mechanical, no behavior change); found and fixed a real
+  TypeScript compiler limitation along the way
 
 ### ✅ Viewer Sync fix, MCP SDK version bump, KMP expect/actual edges (shipped as v2.12.0)
 - Removed the viewer's Sync button, which called a `POST /api/sync` endpoint that has never
@@ -510,7 +519,7 @@ npm install -g .
 - **expand_cluster tool** — on-demand cluster expansion
 - TypeScript/Node.js monorepo, 5 language parsers, MCP integration, 3D graph viewer, benchmark suite
 
-### 🔜 Next: Dart/Flutter (own future initiative), MCP `registerTool` rewrite, `packages/server` auth — see ROADMAP.md
+### 🔜 Next: Dart/Flutter (own future initiative), `packages/server` auth, a known large-project sync issue — see ROADMAP.md
 ### 🔮 v3.0.0 — reframed as MCP-native, not a multi-AI adapter hub
 
 The original v3.0 vision was per-provider adapters (OpenAI, Gemini, Ollama). MCP already gives
@@ -562,7 +571,7 @@ A: TypeScript, Python, Java, JavaScript, Swift, Objective-C, Go, and Kotlin — 
 parsing (TypeScript via the compiler API, the rest via tree-sitter).
 
 **Q: Is this production-ready?**
-A: Yes — v2.12.0 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.13.0 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.
@@ -614,4 +623,4 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 **[Get Started Now →](./SETUP-GUIDE.md)**
 
-**Version 2.12.0** · MIT License · No cloud, no subscriptions, no BS.
+**Version 2.13.0** · MIT License · No cloud, no subscriptions, no BS.
