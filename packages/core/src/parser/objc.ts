@@ -1,6 +1,6 @@
 import type { ParseResult, FileInfo, Node, Edge, NodeType } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
-import { hashTokens } from './duplicate-hash.js';
+import { buildDuplicateSignals } from './duplicate-hash.js';
 import { resolveSwiftObjcImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
@@ -164,7 +164,7 @@ export class ObjCParser extends TreeSitterParser {
         // `compound_statement`. Positional, not field-based, unlike every other
         // parser here's member bodies.
         const memberBody = member.namedChildren.find((c): c is TSNode => c?.type === 'compound_statement') ?? null;
-        const duplicateHash = memberBody ? hashTokens(collectNormalizedTokens(memberBody)) : null;
+        const dupSignals = memberBody ? buildDuplicateSignals(collectNormalizedTokens(memberBody)) : {};
         const methodId = normalizeNodeId(file.path, `${idName}#${selector}`, 'method');
         nodes.push({
           id: methodId,
@@ -175,7 +175,7 @@ export class ObjCParser extends TreeSitterParser {
           line: member.startPosition.row + 1,
           ...(memberBody ? { complexity: computeComplexity(memberBody) } : {}),
           ...(memberBody ? { cognitiveComplexity: computeCognitiveComplexity(memberBody, OBJC_COGNITIVE_CONFIG, selector) } : {}),
-          ...(duplicateHash ? { duplicateHash } : {}),
+          ...dupSignals,
         });
         edges.push({ source: typeId, target: methodId, relation: 'defines' });
         if (memberBody) callables.push({ nodeId: methodId, name: selector, body: memberBody });
@@ -202,7 +202,7 @@ export class ObjCParser extends TreeSitterParser {
 
       const funcId = normalizeNodeId(file.path, name, 'function');
       const body = child.childForFieldName('body');
-      const duplicateHash = body ? hashTokens(collectNormalizedTokens(body)) : null;
+      const dupSignals = body ? buildDuplicateSignals(collectNormalizedTokens(body)) : {};
       nodes.push({
         id: funcId,
         label: name,
@@ -212,7 +212,7 @@ export class ObjCParser extends TreeSitterParser {
         line: child.startPosition.row + 1,
         ...(body ? { complexity: computeComplexity(body) } : {}),
         ...(body ? { cognitiveComplexity: computeCognitiveComplexity(body, OBJC_COGNITIVE_CONFIG, name) } : {}),
-        ...(duplicateHash ? { duplicateHash } : {}),
+        ...dupSignals,
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
       if (body) callables.push({ nodeId: funcId, name, body });

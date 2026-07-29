@@ -1,6 +1,6 @@
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
-import { hashTokens } from './duplicate-hash.js';
+import { buildDuplicateSignals } from './duplicate-hash.js';
 import { resolveRelativeImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
@@ -110,7 +110,7 @@ export class JavaScriptParser extends TreeSitterParser {
         seenMethodNames.add(methodName);
 
         const methodBody = child.childForFieldName('body');
-        const duplicateHash = methodBody ? hashTokens(collectNormalizedTokens(methodBody)) : null;
+        const dupSignals = methodBody ? buildDuplicateSignals(collectNormalizedTokens(methodBody)) : {};
         const methodId = normalizeNodeId(file.path, `${className}#${methodName}`, 'method');
         nodes.push({
           id: methodId,
@@ -121,7 +121,7 @@ export class JavaScriptParser extends TreeSitterParser {
           line: child.startPosition.row + 1,
           ...(methodBody ? { complexity: computeComplexity(methodBody) } : {}),
           ...(methodBody ? { cognitiveComplexity: computeCognitiveComplexity(methodBody, JS_COGNITIVE_CONFIG, methodName) } : {}),
-          ...(duplicateHash ? { duplicateHash } : {}),
+          ...dupSignals,
         });
         edges.push({ source: classId, target: methodId, relation: 'defines' });
         if (methodBody) callables.push({ nodeId: methodId, name: methodName, body: methodBody });
@@ -151,7 +151,7 @@ export class JavaScriptParser extends TreeSitterParser {
       // same as the old regex parser's documented behavior (there's no
       // brace-delimited body to walk).
       const hasBlockBody = body?.type === 'statement_block';
-      const duplicateHash = hasBlockBody ? hashTokens(collectNormalizedTokens(body!)) : null;
+      const dupSignals = hasBlockBody ? buildDuplicateSignals(collectNormalizedTokens(body!)) : {};
       nodes.push({
         id: funcId,
         label: name,
@@ -161,7 +161,7 @@ export class JavaScriptParser extends TreeSitterParser {
         line: defNode.startPosition.row + 1,
         ...(hasBlockBody ? { complexity: computeComplexity(body!) } : {}),
         ...(hasBlockBody ? { cognitiveComplexity: computeCognitiveComplexity(body!, JS_COGNITIVE_CONFIG, name) } : {}),
-        ...(duplicateHash ? { duplicateHash } : {}),
+        ...dupSignals,
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
       if (hasBlockBody) callables.push({ nodeId: funcId, name, body: body! });

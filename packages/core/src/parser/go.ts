@@ -1,6 +1,6 @@
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
-import { hashTokens } from './duplicate-hash.js';
+import { buildDuplicateSignals } from './duplicate-hash.js';
 import { resolveGoImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
@@ -153,7 +153,7 @@ export class GoParser extends TreeSitterParser {
       // dropped.
       const ownerId = (recvType && typeIdsByName.get(recvType)) || fileId;
       const methodId = normalizeNodeId(file.path, recvType ? `${recvType}#${methodName}` : methodName, 'method');
-      const duplicateHash = bodyNode ? hashTokens(collectNormalizedTokens(bodyNode)) : null;
+      const dupSignals = bodyNode ? buildDuplicateSignals(collectNormalizedTokens(bodyNode)) : {};
       nodes.push({
         id: methodId,
         label: methodName,
@@ -163,7 +163,7 @@ export class GoParser extends TreeSitterParser {
         line: defNode.startPosition.row + 1,
         ...(bodyNode ? { complexity: computeComplexity(bodyNode) } : {}),
         ...(bodyNode ? { cognitiveComplexity: computeCognitiveComplexity(bodyNode, GO_COGNITIVE_CONFIG, methodName) } : {}),
-        ...(duplicateHash ? { duplicateHash } : {}),
+        ...dupSignals,
       });
       edges.push({ source: ownerId, target: methodId, relation: 'defines' });
       if (bodyNode) callables.push({ nodeId: methodId, name: methodName, body: bodyNode });
@@ -182,7 +182,7 @@ export class GoParser extends TreeSitterParser {
       seenFunctionNames.add(name);
 
       const funcId = normalizeNodeId(file.path, name, 'function');
-      const duplicateHash = bodyNode ? hashTokens(collectNormalizedTokens(bodyNode)) : null;
+      const dupSignals = bodyNode ? buildDuplicateSignals(collectNormalizedTokens(bodyNode)) : {};
       nodes.push({
         id: funcId,
         label: name,
@@ -192,7 +192,7 @@ export class GoParser extends TreeSitterParser {
         line: defNode.startPosition.row + 1,
         ...(bodyNode ? { complexity: computeComplexity(bodyNode) } : {}),
         ...(bodyNode ? { cognitiveComplexity: computeCognitiveComplexity(bodyNode, GO_COGNITIVE_CONFIG, name) } : {}),
-        ...(duplicateHash ? { duplicateHash } : {}),
+        ...dupSignals,
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
       if (bodyNode) callables.push({ nodeId: funcId, name, body: bodyNode });

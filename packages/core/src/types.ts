@@ -49,6 +49,13 @@ export interface Node {
    * placeholders) body token stream. Only set for function/method nodes
    * whose body met the minimum-size threshold; omitted otherwise. */
   duplicateHash?: string;
+  /** MinHash-style structural similarity signature (spec 048) — 32 lanes x
+   * 16 bits, hex-encoded, over 5-gram shingles of the same normalized
+   * token stream that feeds `duplicateHash`. Consumed only by
+   * `findSimilarCode`'s fuzzy-match path. Set only for bodies clearing a
+   * strictly higher token-count floor than `duplicateHash`'s — a node can
+   * carry one, both, or neither field. See `similarity-signature.ts`. */
+  similaritySignature?: string;
 }
 
 export interface Edge {
