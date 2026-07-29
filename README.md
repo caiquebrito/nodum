@@ -422,9 +422,14 @@ npm install -g .
 
 ## Roadmap
 
-58 specs shipped so far, each with real end-to-end verification against synced projects — see
+59 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.13.0** across all four packages (lockstep).
+**v2.14.0** across all four packages (lockstep).
+
+### ✅ Preserve the real stack trace on sync failures (shipped as v2.14.0)
+- `nodum sync` failures now print the real underlying stack trace, not just a message — directly
+  unblocks investigating the known large-project sync crash below without another expensive
+  multi-hour real-project sync just to see where it happens
 
 ### ✅ Tree-sitter parser leak fix, MCP registerTool migration (shipped as v2.13.0)
 - Fixed a real resource leak: every tree-sitter parser leaked a `TSParser` instance per file.
@@ -571,7 +576,7 @@ A: TypeScript, Python, Java, JavaScript, Swift, Objective-C, Go, and Kotlin — 
 parsing (TypeScript via the compiler API, the rest via tree-sitter).
 
 **Q: Is this production-ready?**
-A: Yes — v2.13.0 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.14.0 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.
@@ -623,4 +628,4 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 **[Get Started Now →](./SETUP-GUIDE.md)**
 
-**Version 2.13.0** · MIT License · No cloud, no subscriptions, no BS.
+**Version 2.14.0** · MIT License · No cloud, no subscriptions, no BS.

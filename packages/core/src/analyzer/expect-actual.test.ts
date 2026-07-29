@@ -128,4 +128,20 @@ describe("applyExpectActual", () => {
     expect(edges).toContainEqual({ source: "a", target: "e", relation: "actualizes" });
     expect(edges).toHaveLength(2);
   });
+
+  it("does not overflow the call stack clearing a huge edges array — real regression found on a real ~200,000-edge project", () => {
+    // Real check (not a synthetic worry): a real ~21,447-file KMP project's
+    // actual stack trace pointed at the old `edges.push(...preserved)` line
+    // here — spreading a large array as individual call arguments crashes
+    // once the array is big enough. 300,000 is comfortably past the real
+    // scale that reproduced it.
+    const edges: Edge[] = Array.from({ length: 300_000 }, (_, i) => ({
+      source: `n${i}`,
+      target: `n${i + 1}`,
+      relation: "imports" as const,
+    }));
+
+    expect(() => applyExpectActual([], edges)).not.toThrow();
+    expect(edges).toHaveLength(300_000);
+  });
 });

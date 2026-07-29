@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-07-29 · **Current release:** v2.13.0 (all four packages, lockstep) · **Specs shipped:** 58 (`docs/development/completed/`)
+**Last updated:** 2026-07-29 · **Current release:** v2.14.0 (all four packages, lockstep) · **Specs shipped:** 59 (`docs/development/completed/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -297,6 +297,18 @@ written.
   runs) — a real, disclosed, deliberately-accepted behavior change, verified against actual log
   output rather than assumed from the SDK's types.
 
+### Preserve the real stack trace on sync failures — shipped as real npm v2.14.0 (spec `058`)
+A single, small, standalone spec, released on its own rather than held for a future batch — the
+direct first step named in the "Known issue" entry below, requested and shipped immediately rather
+than left to accumulate alongside unrelated work.
+- `nodum sync` failures now print the real underlying stack trace, not just a message (spec 058).
+  `packages/cli/src/commands/sync.ts` already attached the original error via `.cause`, but nothing
+  ever printed it — `bin/nodum.ts`'s `sync` command's catch block only logged `error.message`. Now
+  appends the original error's real `.stack` onto the wrapped error's own `.stack` and prints it,
+  verified via a real forced failure end-to-end. Directly unblocks investigating the
+  `Maximum call stack size exceeded` bug (see below) without needing another expensive multi-hour
+  real-project sync just to see where it happens.
+
 ---
 
 ## Next
@@ -374,13 +386,14 @@ The parser leak fix (spec 056) is real, verified, and worth keeping regardless �
 `"engines": ">=18.0.0"` was deliberately **not** narrowed, since neither tested version cleanly
 completes this project; there is no "known-good" range to narrow to with confidence yet.
 
-Not scoped to any release yet — flagged here so it isn't lost, not silently dropped. Worth
-investigating as its own future item:
-- **Get a real stack trace for the `Maximum call stack size exceeded` error** without needing
-  another multi-hour real-project sync — `packages/cli/src/commands/sync.ts:43` currently discards
-  the original error's stack, keeping only `error.message`. Fixing that first would make the next
-  investigation step far cheaper.
-- Once the real stack trace identifies which recursive function and which real file trigger the
+The stack-overflow bug itself is still not scoped to any release — flagged here so it isn't lost,
+not silently dropped. Worth investigating as its own future item:
+- ~~Get a real stack trace for the `Maximum call stack size exceeded` error without needing another
+  multi-hour real-project sync~~ — done in spec 058 (v2.14.0): `sync.ts` now appends the original
+  error's real stack onto its own, and the CLI prints it. The next real investigation step (re-run
+  against the same real KMP project on Node 22, actually read the now-visible stack) hasn't been
+  done yet — spec 058 only removed the blocker that was making it expensive to attempt.
+- Once a real stack trace identifies which recursive function and which real file trigger the
   overflow, assess whether an iterative (explicit-stack) rewrite of that walk, or a depth guard, is
   the right fix — don't guess at a fix blind.
 - Whether the original V8 WASM crash is specific to Node `v25.9.0` particularly (worth documenting a
@@ -480,8 +493,11 @@ implied by their absence.
    shipped because it's a real, independently-valuable bug fix, while the roadmap plainly states it
    did not fully resolve the crash that motivated finding it, and a second, new, real bug found in
    the process is tracked openly rather than folded in or hidden.
-9. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
-   validated by real numbers instead of asserted ones.
+9. **Sync stack-trace fix (v2.14.0):** a single, small, standalone spec — the concrete first step
+   the v2.13.0 entry above named for investigating its own still-open stack-overflow bug — shipped
+   on its own immediately rather than left to accumulate alongside unrelated work in a future batch.
+10. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
+    validated by real numbers instead of asserted ones.
 
 ---
 
