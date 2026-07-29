@@ -1,5 +1,27 @@
 # @caiquebrito/nodum-mcp
 
+## 2.11.0
+
+### Minor Changes
+
+- 97f89ab: Labels Gradle modules (`forro/feature`, `app`, ...) on `Node.module`, derived purely from file path convention — no `settings.gradle` parsing needed. `mcp get_node` shows a `Module:` line when present. Also removes the confirmed-dead `readSettingsGradle` from `config-reader.ts`.
+
+  Second of three specs in the v2.11.0 batch.
+
+- 980bbc7: Fixes every MCP tool-call error response to be protocol-valid: handlers previously returned a bare `{ error: string }` object, which fails the MCP SDK's own `CallToolResultSchema` validation (`content` is required, `isError` is a separate optional flag) — likely surfacing to a real MCP client as a transport/parse failure instead of the actual error message. Error responses now return `{ content: [...], isError: true }`.
+
+  First of three specs in the v2.11.0 batch.
+
+- 31d9c86: Adds all-pairs near-duplicate grouping across a whole project: `nodum duplicates --fuzzy` and a new `near-duplication` category in `suggest_refactoring`. Groups are quasi-cliques (every member pairwise-similar to every other member above the threshold), not transitively-chained — real-scale verification found single-linkage transitive closure merges thousands of unrelated functions into one meaningless group on a large real project.
+
+  Third of three specs in the v2.11.0 batch.
+
+### Patch Changes
+
+- Updated dependencies [97f89ab]
+- Updated dependencies [31d9c86]
+  - @caiquebrito/nodum-core@2.11.0
+
 ## 2.10.0
 
 ### Minor Changes
