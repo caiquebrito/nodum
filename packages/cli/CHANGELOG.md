@@ -1,5 +1,14 @@
 # @caiquebrito/nodum-cli
 
+## 2.12.0
+
+### Patch Changes
+
+- Updated dependencies [d949b11]
+- Updated dependencies [32b7093]
+  - @caiquebrito/nodum-core@2.12.0
+  - @caiquebrito/nodum-server@2.12.0
+
 ## 2.11.0
 
 ### Minor Changes
