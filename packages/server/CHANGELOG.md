@@ -1,5 +1,18 @@
 # @caiquebrito/nodum-server
 
+## 2.12.0
+
+### Minor Changes
+
+- 32b7093: Removes the viewer's Sync button, which called a `POST /api/sync` endpoint that has never existed — `packages/server` has been read-only by design since spec 047's hardening, and every click of the old button silently 404'd.
+
+  First of three specs in the v2.12.0 batch.
+
+### Patch Changes
+
+- Updated dependencies [d949b11]
+  - @caiquebrito/nodum-core@2.12.0
+
 ## 2.11.0
 
 ### Patch Changes
