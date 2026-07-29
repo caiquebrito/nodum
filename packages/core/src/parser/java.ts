@@ -1,6 +1,6 @@
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
-import { hashTokens } from './duplicate-hash.js';
+import { buildDuplicateSignals } from './duplicate-hash.js';
 import { resolveJvmImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
@@ -152,7 +152,7 @@ export class JavaParser extends TreeSitterParser {
         seenMemberNames.add(memberName);
 
         const memberBody = child.childForFieldName('body'); // `block` for methods, `constructor_body` for constructors — either walks the same way
-        const duplicateHash = memberBody ? hashTokens(collectNormalizedTokens(memberBody)) : null;
+        const dupSignals = memberBody ? buildDuplicateSignals(collectNormalizedTokens(memberBody)) : {};
         const methodId = normalizeNodeId(file.path, `${typeName}#${memberName}`, 'method');
         nodes.push({
           id: methodId,
@@ -163,7 +163,7 @@ export class JavaParser extends TreeSitterParser {
           line: child.startPosition.row + 1,
           ...(memberBody ? { complexity: computeComplexity(memberBody) } : {}),
           ...(memberBody ? { cognitiveComplexity: computeCognitiveComplexity(memberBody, JAVA_COGNITIVE_CONFIG, memberName) } : {}),
-          ...(duplicateHash ? { duplicateHash } : {}),
+          ...dupSignals,
         });
         edges.push({ source: typeId, target: methodId, relation: 'defines' });
         if (memberBody) callables.push({ nodeId: methodId, name: memberName, body: memberBody });

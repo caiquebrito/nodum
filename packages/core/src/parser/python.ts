@@ -1,6 +1,6 @@
 import type { ParseResult, FileInfo, Node, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
-import { hashTokens } from './duplicate-hash.js';
+import { buildDuplicateSignals } from './duplicate-hash.js';
 import { resolvePythonImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
@@ -132,7 +132,7 @@ export class PythonParser extends TreeSitterParser {
 
         const methodId = normalizeNodeId(file.path, `${className}#${methodName}`, 'method');
         const methodBody = methodDef.childForFieldName('body');
-        const duplicateHash = methodBody ? hashTokens(collectNormalizedTokens(methodBody)) : null;
+        const dupSignals = methodBody ? buildDuplicateSignals(collectNormalizedTokens(methodBody)) : {};
         nodes.push({
           id: methodId,
           label: methodName,
@@ -142,7 +142,7 @@ export class PythonParser extends TreeSitterParser {
           line: methodDef.startPosition.row + 1,
           ...(methodBody ? { complexity: computeComplexity(methodBody) } : {}),
           ...(methodBody ? { cognitiveComplexity: computeCognitiveComplexity(methodBody, PYTHON_COGNITIVE_CONFIG, methodName) } : {}),
-          ...(duplicateHash ? { duplicateHash } : {}),
+          ...dupSignals,
         });
         edges.push({ source: classId, target: methodId, relation: 'defines' });
         if (methodBody) callables.push({ nodeId: methodId, name: methodName, body: methodBody });
@@ -166,7 +166,7 @@ export class PythonParser extends TreeSitterParser {
 
       const funcId = normalizeNodeId(file.path, name, 'function');
       const body = defNode.childForFieldName('body');
-      const duplicateHash = body ? hashTokens(collectNormalizedTokens(body)) : null;
+      const dupSignals = body ? buildDuplicateSignals(collectNormalizedTokens(body)) : {};
       nodes.push({
         id: funcId,
         label: name,
@@ -176,7 +176,7 @@ export class PythonParser extends TreeSitterParser {
         line: defNode.startPosition.row + 1,
         ...(body ? { complexity: computeComplexity(body) } : {}),
         ...(body ? { cognitiveComplexity: computeCognitiveComplexity(body, PYTHON_COGNITIVE_CONFIG, name) } : {}),
-        ...(duplicateHash ? { duplicateHash } : {}),
+        ...dupSignals,
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
       if (body) callables.push({ nodeId: funcId, name, body });

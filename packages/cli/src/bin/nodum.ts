@@ -258,13 +258,19 @@ program
 
 program
   .command('similar-code <projectPath> <nodeId>')
-  .description('Find other functions/methods structurally near-identical to a given node')
+  .description('Find other functions/methods structurally near-identical to a given node (exact or fuzzy match, spec 048)')
   .option('--json', 'Output machine-readable JSON instead of a formatted summary')
-  .action(async (projectPath: string, nodeId: string, options: { json?: boolean }) => {
+  .option('--threshold <n>', 'Minimum fuzzy-match similarity (0-1, default 0.8) — exact matches always included')
+  .option('--limit <n>', 'Maximum number of matches to return (default 20)')
+  .action(async (projectPath: string, nodeId: string, options: { json?: boolean; threshold?: string; limit?: string }) => {
     try {
       const nodumDataDir = getNodeumDataDir();
       const { similarCodeCommand } = await import('../commands/similar-code.js');
-      await similarCodeCommand(projectPath, nodeId, nodumDataDir, options);
+      await similarCodeCommand(projectPath, nodeId, nodumDataDir, {
+        json: options.json,
+        threshold: options.threshold ? parseFloat(options.threshold) : undefined,
+        limit: options.limit ? parseInt(options.limit, 10) : undefined,
+      });
     } catch (error) {
       console.error('❌ Error:', error instanceof Error ? error.message : String(error));
       process.exit(1);

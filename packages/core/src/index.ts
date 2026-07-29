@@ -77,8 +77,8 @@ export type { Bottleneck, FindBottlenecksOptions } from './analyzer/bottlenecks.
 export { explainArchitecture } from './analyzer/architecture-summary.js';
 export type { ArchitectureSummary, LayerSummary, LayerDependency } from './analyzer/architecture-summary.js';
 
-export { findSimilarCode } from './analyzer/similar-code.js';
-export type { SimilarCodeResult, SimilarCodeMatch } from './analyzer/similar-code.js';
+export { findSimilarCode, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_SIMILAR_CODE_LIMIT } from './analyzer/similar-code.js';
+export type { SimilarCodeResult, SimilarCodeMatch, SimilarCodeOptions } from './analyzer/similar-code.js';
 
 export { suggestRefactoring } from './analyzer/suggest-refactoring.js';
 export type {

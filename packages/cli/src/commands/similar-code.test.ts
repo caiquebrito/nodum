@@ -50,7 +50,19 @@ describe("similarCodeCommand", () => {
     await similarCodeCommand("proj", "a", "/tmp/.nodum", { json: true });
 
     const parsed = JSON.parse((console.log as any).mock.calls[0][0]);
-    expect(parsed).toEqual({ nodeId: "a", matches: [{ nodeId: "b", label: "validateOrderInput", file: "b.ts" }] });
+    expect(parsed).toEqual({
+      nodeId: "a",
+      threshold: 0.65,
+      matches: [{ nodeId: "b", label: "validateOrderInput", file: "b.ts", similarity: 1, kind: "exact" }],
+    });
+  });
+
+  it("--threshold and --limit are threaded through to findSimilarCode", async () => {
+    const { similarCodeCommand } = await import("./similar-code.js");
+    await similarCodeCommand("proj", "a", "/tmp/.nodum", { json: true, threshold: 0.5, limit: 1 });
+
+    const parsed = JSON.parse((console.log as any).mock.calls[0][0]);
+    expect(parsed.threshold).toBe(0.5);
   });
 
   it("throws a clear error naming the project when it hasn't been synced", async () => {

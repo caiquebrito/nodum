@@ -5,6 +5,8 @@ import { findSimilarCode } from '@caiquebrito/nodum-core';
 
 export interface SimilarCodeOptions {
   json?: boolean;
+  threshold?: number;
+  limit?: number;
 }
 
 export async function similarCodeCommand(
@@ -24,7 +26,7 @@ export async function similarCodeCommand(
   }
 
   const node = graph.nodes.find(n => n.id === nodeId);
-  const result = findSimilarCode(graph, nodeId);
+  const result = findSimilarCode(graph, nodeId, { threshold: options.threshold, limit: options.limit });
 
   if (options.json) {
     console.log(JSON.stringify(result, null, 2));
@@ -34,10 +36,13 @@ export async function similarCodeCommand(
   const label = node?.label ?? nodeId;
 
   if (result.matches.length === 0) {
-    console.log(`✅ No similar code found for ${label}`);
+    console.log(`✅ No similar code found for ${label} (threshold ${result.threshold})`);
     return;
   }
 
-  console.log(`🧬 Code similar to ${label}: ${result.matches.length} match${result.matches.length === 1 ? '' : 'es'}\n`);
-  result.matches.forEach(m => console.log(`  - ${m.label} (${m.file})`));
+  console.log(`🧬 Code similar to ${label}: ${result.matches.length} match${result.matches.length === 1 ? '' : 'es'} (threshold ${result.threshold})\n`);
+  result.matches.forEach(m => {
+    const pct = Math.round(m.similarity * 100);
+    console.log(`  - ${m.label} (${m.file})  ${pct}% (${m.kind})`);
+  });
 }

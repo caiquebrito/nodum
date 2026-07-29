@@ -1,6 +1,6 @@
 import type { ParseResult, FileInfo, Node, Edge, NodeType } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
-import { hashTokens } from './duplicate-hash.js';
+import { buildDuplicateSignals } from './duplicate-hash.js';
 import { resolveSwiftObjcImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
@@ -179,7 +179,7 @@ export class SwiftParser extends TreeSitterParser {
         if (seenMemberNames.has(memberName)) continue; // first overload wins — same posture as every other parser here
         seenMemberNames.add(memberName);
 
-        const duplicateHash = memberBody ? hashTokens(collectNormalizedTokens(memberBody)) : null;
+        const dupSignals = memberBody ? buildDuplicateSignals(collectNormalizedTokens(memberBody)) : {};
         const methodId = normalizeNodeId(file.path, `${idName}#${memberName}`, 'method');
         nodes.push({
           id: methodId,
@@ -190,7 +190,7 @@ export class SwiftParser extends TreeSitterParser {
           line: child.startPosition.row + 1,
           ...(memberBody ? { complexity: computeComplexity(memberBody) } : {}),
           ...(memberBody ? { cognitiveComplexity: computeCognitiveComplexity(memberBody, SWIFT_COGNITIVE_CONFIG, memberName) } : {}),
-          ...(duplicateHash ? { duplicateHash } : {}),
+          ...dupSignals,
         });
         edges.push({ source: typeId, target: methodId, relation: 'defines' });
         if (memberBody) callables.push({ nodeId: methodId, name: memberName, body: memberBody });
@@ -213,7 +213,7 @@ export class SwiftParser extends TreeSitterParser {
 
       const funcId = normalizeNodeId(file.path, name, 'function');
       const body = child.childForFieldName('body');
-      const duplicateHash = body ? hashTokens(collectNormalizedTokens(body)) : null;
+      const dupSignals = body ? buildDuplicateSignals(collectNormalizedTokens(body)) : {};
       nodes.push({
         id: funcId,
         label: name,
@@ -223,7 +223,7 @@ export class SwiftParser extends TreeSitterParser {
         line: child.startPosition.row + 1,
         ...(body ? { complexity: computeComplexity(body) } : {}),
         ...(body ? { cognitiveComplexity: computeCognitiveComplexity(body, SWIFT_COGNITIVE_CONFIG, name) } : {}),
-        ...(duplicateHash ? { duplicateHash } : {}),
+        ...dupSignals,
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
       if (body) callables.push({ nodeId: funcId, name, body });

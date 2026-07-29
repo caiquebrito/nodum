@@ -1,6 +1,6 @@
 import type { ParseResult, FileInfo, Node, NodeType, Edge } from '../types.js';
 import { getNodeGroup, normalizeNodeId } from '../types.js';
-import { hashTokens } from './duplicate-hash.js';
+import { buildDuplicateSignals } from './duplicate-hash.js';
 import { resolveJvmImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
@@ -166,7 +166,7 @@ export class KotlinParser extends TreeSitterParser {
         // body) — still gets a method node, just no complexity/duplicateHash,
         // matching java.ts's own abstract-method posture.
         const memberBody = child.namedChildren.find(c => c?.type === 'function_body');
-        const duplicateHash = memberBody ? hashTokens(collectNormalizedTokens(memberBody)) : null;
+        const dupSignals = memberBody ? buildDuplicateSignals(collectNormalizedTokens(memberBody)) : {};
         const methodId = normalizeNodeId(file.path, `${typeName}#${memberName}`, 'method');
         nodes.push({
           id: methodId,
@@ -177,7 +177,7 @@ export class KotlinParser extends TreeSitterParser {
           line: child.startPosition.row + 1,
           ...(memberBody ? { complexity: computeComplexity(memberBody) } : {}),
           ...(memberBody ? { cognitiveComplexity: computeCognitiveComplexity(memberBody, KOTLIN_COGNITIVE_CONFIG, memberName) } : {}),
-          ...(duplicateHash ? { duplicateHash } : {}),
+          ...dupSignals,
         });
         edges.push({ source: typeId, target: methodId, relation: 'defines' });
         if (memberBody) callables.push({ nodeId: methodId, name: memberName, body: memberBody });
@@ -203,7 +203,7 @@ export class KotlinParser extends TreeSitterParser {
       seenFunctionNames.add(name);
 
       const body = defNode.namedChildren.find(c => c?.type === 'function_body');
-      const duplicateHash = body ? hashTokens(collectNormalizedTokens(body)) : null;
+      const dupSignals = body ? buildDuplicateSignals(collectNormalizedTokens(body)) : {};
       const funcId = normalizeNodeId(file.path, name, 'function');
       nodes.push({
         id: funcId,
@@ -214,7 +214,7 @@ export class KotlinParser extends TreeSitterParser {
         line: defNode.startPosition.row + 1,
         ...(body ? { complexity: computeComplexity(body) } : {}),
         ...(body ? { cognitiveComplexity: computeCognitiveComplexity(body, KOTLIN_COGNITIVE_CONFIG, name) } : {}),
-        ...(duplicateHash ? { duplicateHash } : {}),
+        ...dupSignals,
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
       if (body) callables.push({ nodeId: funcId, name, body });
