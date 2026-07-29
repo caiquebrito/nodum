@@ -171,6 +171,46 @@ describe("KotlinParser type extraction", () => {
   });
 });
 
+describe("KotlinParser expect/actual platform modifiers (spec 055)", () => {
+  it("tags a top-level expect fun", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.kt", `expect fun platformName(): String\n`));
+    expect(nodes.find(n => n.label === "platformName")?.platformModifier).toBe("expect");
+  });
+
+  it("tags a top-level actual fun", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.kt", `actual fun platformName(): String = "x"\n`));
+    expect(nodes.find(n => n.label === "platformName")?.platformModifier).toBe("actual");
+  });
+
+  it("tags an expect class", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.kt", `expect class Foo\n`));
+    expect(nodes.find(n => n.label === "Foo")?.platformModifier).toBe("expect");
+  });
+
+  it("tags an actual object", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.kt", `actual object Foo {}\n`));
+    expect(nodes.find(n => n.label === "Foo")?.platformModifier).toBe("actual");
+  });
+
+  it("tags an internal expect object — a visibility modifier alongside platform_modifier doesn't break detection", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.kt", `internal expect object Foo\n`));
+    expect(nodes.find(n => n.label === "Foo")?.platformModifier).toBe("expect");
+  });
+
+  it("leaves platformModifier unset for a plain declaration with no platform modifier", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.kt", `fun regular(): Int = 1\nclass Plain {}\n`));
+    expect(nodes.find(n => n.label === "regular")?.platformModifier).toBeUndefined();
+    expect(nodes.find(n => n.label === "Plain")?.platformModifier).toBeUndefined();
+  });
+
+  it("does not tag a nested member inside an actual class body — expect class members are out of scope", async () => {
+    const src = `actual class Foo {\n  actual fun bar(): Int = 42\n}\n`;
+    const { nodes } = await parser.parse(fileInfo("a.kt", src));
+    expect(nodes.find(n => n.label === "Foo")?.platformModifier).toBe("actual");
+    expect(nodes.find(n => n.label === "bar")?.platformModifier).toBeUndefined();
+  });
+});
+
 describe("KotlinParser member extraction", () => {
   it("attributes a class's method to the class, not the file", async () => {
     const src = `class Foo {\n    fun bar() {\n        return\n    }\n}\n`;
