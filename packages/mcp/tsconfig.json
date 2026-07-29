@@ -2,7 +2,15 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    // Override (spec 057): the root config's "node" (classic) moduleResolution
+    // can't resolve @modelcontextprotocol/sdk 1.30.0's deeply conditional
+    // zod-compat types without tripping a real TS2589 "type instantiation
+    // excessively deep" error on every registerTool() call — reproduced with
+    // the SDK's own simplest possible usage, confirmed unrelated to this
+    // codebase's own code. "bundler" resolves it cleanly; scoped to this
+    // package only, since it's the only one depending on the SDK.
+    "moduleResolution": "bundler"
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]
