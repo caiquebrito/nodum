@@ -170,6 +170,43 @@ export function resolveSwiftObjcImport(
   return matches;
 }
 
+/**
+ * Package-path resolution for Go. A specifier (`"github.com/foo/bar"`,
+ * `"myapp/internal/svc"`) names a whole PACKAGE — unlike every other
+ * resolver here, it resolves to every `.go` file in the matching directory,
+ * not at most one file. Tries progressively shorter suffixes of the path
+ * (dropping the module-host/vanity-import-path prefix one segment at a
+ * time), directory-suffix-matching against `knownFilesByPath` — the same
+ * zero-build-system-knowledge posture `resolveJvmImport` takes for
+ * `pom.xml`/`build.gradle` and `resolveSwiftObjcImport` takes for
+ * `Package.swift`/`Podfile` (no `go.mod` parsing). A stdlib import
+ * (`"fmt"`, `"net/http"`) simply matches nothing — no allowlist needed.
+ */
+export function resolveGoImport(
+  specifier: string,
+  _importingFilePath: string,
+  _knownFileIds: Set<string>,
+  knownFilesByPath: Map<string, string>,
+): string[] {
+  const parts = specifier.split('/').filter(Boolean);
+
+  for (let start = 0; start < parts.length; start++) {
+    const dirSuffix = `${parts.slice(start).join('/')}/`.toLowerCase();
+    const matches: string[] = [];
+
+    for (const [path, id] of knownFilesByPath) {
+      const lower = path.toLowerCase();
+      if (!lower.endsWith('.go')) continue;
+      const dir = lower.slice(0, lower.lastIndexOf('/') + 1);
+      if (dir.endsWith(`/${dirSuffix}`) || dir === dirSuffix) matches.push(id);
+    }
+
+    if (matches.length > 0) return matches;
+  }
+
+  return [];
+}
+
 export function resolvePythonImport(
   specifier: string,
   importingFilePath: string,

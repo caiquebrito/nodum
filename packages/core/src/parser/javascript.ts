@@ -5,6 +5,7 @@ import { resolveRelativeImport } from './import-resolver.js';
 import { TreeSitterParser } from './treesitter/base.js';
 import { getQuery } from './treesitter/engine.js';
 import type { TSNode } from './treesitter/engine.js';
+import { computeCognitiveComplexity, type CognitiveConfig } from './cognitive-complexity.js';
 
 // Three named-function shapes: `function foo() {}`, `const foo = function()
 // {}`, `const foo = () => {}` — @def captures the actual function node in
@@ -119,6 +120,7 @@ export class JavaScriptParser extends TreeSitterParser {
           group: getNodeGroup(file.path),
           line: child.startPosition.row + 1,
           ...(methodBody ? { complexity: computeComplexity(methodBody) } : {}),
+          ...(methodBody ? { cognitiveComplexity: computeCognitiveComplexity(methodBody, JS_COGNITIVE_CONFIG, methodName) } : {}),
           ...(duplicateHash ? { duplicateHash } : {}),
         });
         edges.push({ source: classId, target: methodId, relation: 'defines' });
@@ -158,6 +160,7 @@ export class JavaScriptParser extends TreeSitterParser {
         group: getNodeGroup(file.path),
         line: defNode.startPosition.row + 1,
         ...(hasBlockBody ? { complexity: computeComplexity(body!) } : {}),
+        ...(hasBlockBody ? { cognitiveComplexity: computeCognitiveComplexity(body!, JS_COGNITIVE_CONFIG, name) } : {}),
         ...(duplicateHash ? { duplicateHash } : {}),
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
@@ -209,6 +212,27 @@ function extractImports(root: TSNode): string[] {
 }
 
 const FUNCTION_NODE_TYPES = new Set(['function_declaration', 'function_expression', 'arrow_function', 'method_definition']);
+
+// See cognitive-complexity.ts's CognitiveConfig doc comment. Unlike every
+// other parser here, this grammar's `arrow_function`/`function_expression`
+// are already a traversal boundary in `computeComplexity` below (an
+// anonymous callback's branches are never counted at all today, not
+// double-counted) — cognitive complexity mirrors that same boundary rather
+// than quietly changing JS's existing anonymous-function behavior.
+const JS_COGNITIVE_CONFIG: CognitiveConfig = {
+  nesting: new Set(['if_statement', 'for_statement', 'for_in_statement', 'while_statement', 'do_statement', 'catch_clause']),
+  boundary: FUNCTION_NODE_TYPES,
+  isBooleanOp: node => {
+    if (node.type !== 'binary_expression') return false;
+    const op = node.childForFieldName('operator')?.text;
+    return op === '&&' || op === '||';
+  },
+  calleeName: node => {
+    if (node.type !== 'call_expression') return null;
+    const fn = node.childForFieldName('function');
+    return fn?.type === 'identifier' ? fn.text : null;
+  },
+};
 
 /**
  * McCabe cyclomatic complexity. Same traversal boundary as every other

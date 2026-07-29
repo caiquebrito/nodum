@@ -194,9 +194,8 @@ describe("discoverFiles — scan config integration", () => {
     expect(paths).toEqual(["kept.ts"]);
   });
 
-  it("does not discover .go/.rs/.rb files — no parser supports them", async () => {
+  it("does not discover .rs/.rb files — no parser supports them (unlike .go, which spec 043 added)", async () => {
     dir = await mkdtemp(join(tmpdir(), "nodum-file-discovery-phantom-ext-"));
-    await writeFile(join(dir, "main.go"), "package main\n", "utf-8");
     await writeFile(join(dir, "lib.rs"), "fn main() {}\n", "utf-8");
     await writeFile(join(dir, "app.rb"), "puts 'hi'\n", "utf-8");
     await writeFile(join(dir, "kept.ts"), "export const k = 1;\n", "utf-8");

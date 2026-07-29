@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-07-28 · **Current release:** v2.7.0 (all four packages, lockstep) · **Specs shipped:** 40 (`docs/development/completed/`)
+**Last updated:** 2026-07-28 · **Current release:** v2.8.0 (all four packages, lockstep) · **Specs shipped:** 43 (`docs/development/completed/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -97,20 +97,43 @@ shares nothing with the five parsers that existed before it. **Verified: zero ch
   resolve), **not** `Package.swift`/`.xcodeproj`/`Podfile` parsing — a deliberate reduction
   matching the precedent `resolveJvmImport` already set for `pom.xml`/`build.gradle`.
 
+### Adaptive context budgeting — shipped as real npm v2.8.0 (specs `040`–`042`)
+"Stop guessing at output size; spend a token budget deliberately." Two of the four bullets this
+milestone originally planned turned out more complicated than their one-line roadmap description
+implied — both scoped down deliberately rather than shipped half-right; see each spec's own Design
+section for the full reasoning.
+- In-process graph cache (spec 040) — `handlers.ts` used to re-parse `graph.json` from disk on
+  every single MCP tool call; some real projects' graphs are tens of MB. New `GraphCache` mirrors
+  `conversation-cache.ts`'s shape (TTL-based, per-project `Map`, `clearProject()` invalidation),
+  wired into all 11 read-path handlers, invalidated right after `sync_project` writes a fresh
+  graph.
+- Token-budgeted `search_graph` (spec 041) — accepts an optional `token_budget`, filling context
+  greedily by relevance until the budget is spent instead of the old fixed `.slice(0, N)`
+  truncation scattered through `smart-context.ts`. Found and fixed a real 25%-overshoot bug via
+  real-CLI verification (a 300-token budget was producing 375 actual tokens) before landing on
+  287/300 and 570/600 — the kind of bug only real end-to-end checking catches. Also fixed a
+  previously dead `type_filter` parameter that was accepted but silently ignored since before this
+  spec.
+- Parallel file discovery, parser safety fix, sync guardrails (spec 042) — `discoverFiles`/
+  `discoverChangedFiles` now read/hash files with bounded concurrency instead of sequentially, a
+  real wall-clock win verified byte-identical (including cluster assignment) against a frozen
+  real-project snapshot. Fixed a latent tree-sitter safety issue: `TreeSitterParser` no longer
+  memoizes one shared `TSParser` per instance forever — each parse gets its own, bound to the
+  already-shared, genuinely-immutable `Language` — and `tree.delete()` now runs across all 5
+  tree-sitter-backed languages to stop leaking WASM memory. New `.nodumrc.json` guardrails
+  (`maxFileSizeBytes`, `maxFilesWarning`) warn rather than silently truncate.
+- **Deliberately descoped from the original plan:** real modularity clustering (Louvain/Leiden)
+  over `calls`+`imports` together, and `worker_threads`-based parse-time parallelism. Both are
+  real prerequisites-blocked, not preferences — `calls` edges are same-file-only and `imports`
+  edges are file-only, so they share no endpoints and a naive Louvain pass would roughly
+  rediscover today's heuristic at far higher cost; real cross-file `calls` resolution has to exist
+  first. Parsing itself is synchronous, CPU-bound WASM work — wrapping it in `Promise.all` doesn't
+  parallelize it, it just reorders microtasks on the same thread with zero wall-clock benefit; real
+  throughput needs actual OS threads, deferred to its own future spec once justified by profiling.
+
 ---
 
 ## Next
-
-### v2.8.0 — Adaptive context budgeting
-**Goal:** stop guessing at output size; spend a token budget deliberately, provable against the
-v2.5.0 measurement harness.
-- Accept a token budget as an MCP parameter; fill it greedily by relevance instead of truncating
-  at fixed `.slice()` counts.
-- Real modularity clustering (Louvain/Leiden) over `calls` + `imports` edges together — the
-  `calls` edge from v2.6.0 was inert data until something consumes it; this is the first consumer.
-- In-process graph cache — `handlers.ts` currently re-parses `graph.json` from disk on every
-  single MCP tool call.
-- Parallelize file parsing; add file-count/size limits (none exist today).
 
 ### v2.9.0 — Cross-platform mobile: KMP, Flutter, Go
 **Goal:** reuse the machinery the iOS work forces into existence.
@@ -160,7 +183,7 @@ measurement harness.
 - **Delete `claude skills/sync-rag/`** — an abandoned v0 Python artifact with hardcoded personal
   paths, referenced by nothing in the current codebase.
 - **Reconcile the root `package.json` version** (currently `2.4.0`) against the real, lockstep
-  package version (`2.7.0` as of this writing) — it's a private/`workspaces`-only manifest, not
+  package version (`2.8.0` as of this writing) — it's a private/`workspaces`-only manifest, not
   published, but a stale number here is confusing for anyone reading it directly.
 - Reconcile `CHANGELOG.md` — verify it reflects the real per-package Changesets-generated
   changelogs (`packages/*/CHANGELOG.md`) rather than drifting as a separate hand-maintained file.
@@ -183,9 +206,11 @@ measurement harness.
 3. **Tree-sitter (v2.6.0):** the parser foundation every subsequent language (iOS, KMP, Flutter,
    Go) needs — adding a language should mean writing a grammar and a query file, not a new
    hand-rolled parser.
-4. **iOS → adaptive budgeting → cross-platform mobile:** iOS proves the plugin architecture holds
-   under a genuinely different language family; budgeting spends the token savings deliberately
-   instead of accidentally; cross-platform mobile reuses everything iOS forced into existence.
+4. **iOS → adaptive budgeting → cross-platform mobile:** iOS proved the plugin architecture holds
+   under a genuinely different language family; budgeting (v2.8.0) spends the resulting token
+   savings deliberately instead of accidentally, and made the underlying discovery/parsing
+   pipeline faster and safer while doing it; cross-platform mobile reuses everything iOS forced
+   into existence.
 5. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
    validated by real numbers instead of asserted ones.
 

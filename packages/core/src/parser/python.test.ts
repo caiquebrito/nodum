@@ -239,3 +239,46 @@ describe("PythonParser calls edges", () => {
     expect(edges).not.toContainEqual({ source: outer.id, target: target.id, relation: "calls" });
   });
 });
+
+describe("PythonParser cognitive complexity (spec 045)", () => {
+  it("scores a function with no decision points as 0", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.py", "def foo():\n    return 1\n"));
+    expect(nodes.find(n => n.label === "foo")?.cognitiveComplexity).toBe(0);
+  });
+
+  it("gives a nested if a higher cognitive score than sequential ifs, unlike cyclomatic", async () => {
+    const seq = "def seq(x):\n    if x == 1:\n        pass\n    if x == 2:\n        pass\n    if x == 3:\n        pass\n";
+    const nested = "def nested(x):\n    if x == 1:\n        if x == 2:\n            if x == 3:\n                pass\n";
+    const seqNode = (await parser.parse(fileInfo("a.py", seq))).nodes.find(n => n.label === "seq");
+    const nestedNode = (await parser.parse(fileInfo("b.py", nested))).nodes.find(n => n.label === "nested");
+    expect(seqNode?.complexity).toBe(nestedNode?.complexity); // cyclomatic sees them as equal
+    expect(seqNode?.cognitiveComplexity).toBe(3);
+    expect(nestedNode?.cognitiveComplexity).toBe(6); // cognitive does not
+  });
+
+  it("scores 'elif' as one level deeper than its if — the documented simplification vs. strict SonarSource semantics, which keeps else-if chains flat", async () => {
+    const src = "def foo(x):\n    if x == 1:\n        pass\n    elif x == 2:\n        pass\n";
+    const { nodes } = await parser.parse(fileInfo("a.py", src));
+    // if (depth 0: 1+0=1) + elif_clause, a child of if_statement (depth 1: 1+1=2) = 3
+    expect(nodes.find(n => n.label === "foo")?.cognitiveComplexity).toBe(3);
+  });
+
+  it("collapses a boolean-operator chain to +1", async () => {
+    const src = "def foo(a, b, c):\n    if a and b and c:\n        pass\n";
+    const { nodes } = await parser.parse(fileInfo("a.py", src));
+    expect(nodes.find(n => n.label === "foo")?.cognitiveComplexity).toBe(2); // if (1) + bool chain (1)
+  });
+
+  it("scores a self-recursive call as +1", async () => {
+    const src = "def fact(n):\n    return 1 if n <= 1 else n * fact(n - 1)\n";
+    const { nodes } = await parser.parse(fileInfo("a.py", src));
+    expect(nodes.find(n => n.label === "fact")?.cognitiveComplexity).toBe(1);
+  });
+
+  it("does not descend into a nested function's branches", async () => {
+    const src = "def outer():\n    if True:\n        pass\n    def inner():\n        if True:\n            pass\n        if True:\n            pass\n    return inner\n";
+    const { nodes } = await parser.parse(fileInfo("a.py", src));
+    expect(nodes.find(n => n.label === "outer")?.cognitiveComplexity).toBe(1);
+    expect(nodes.find(n => n.label === "inner")?.cognitiveComplexity).toBe(2);
+  });
+});

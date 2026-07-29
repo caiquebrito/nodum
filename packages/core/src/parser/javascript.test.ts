@@ -210,3 +210,45 @@ describe("JavaScriptParser calls edges", () => {
     expect(edges).not.toContainEqual({ source: outer.id, target: target.id, relation: "calls" });
   });
 });
+
+describe("JavaScriptParser cognitive complexity (spec 045)", () => {
+  it("scores a function with no decision points as 0", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.js", "function f() { return 1; }\n"));
+    expect(nodes.find(n => n.label === "f")?.cognitiveComplexity).toBe(0);
+  });
+
+  it("gives nested ifs a higher cognitive score than sequential ifs, unlike cyclomatic", async () => {
+    const seq = "function seq(x) { if (x == 1) {} if (x == 2) {} if (x == 3) {} }\n";
+    const nested = "function nested(x) { if (x == 1) { if (x == 2) { if (x == 3) {} } } }\n";
+    const seqNode = (await parser.parse(fileInfo("a.js", seq))).nodes.find(n => n.label === "seq");
+    const nestedNode = (await parser.parse(fileInfo("b.js", nested))).nodes.find(n => n.label === "nested");
+    expect(seqNode?.complexity).toBe(nestedNode?.complexity);
+    expect(seqNode?.cognitiveComplexity).toBe(3);
+    expect(nestedNode?.cognitiveComplexity).toBe(6);
+  });
+
+  it("collapses a boolean-operator chain to +1", async () => {
+    const src = "function f(a, b, c) { if (a && b && c) {} }\n";
+    const { nodes } = await parser.parse(fileInfo("a.js", src));
+    expect(nodes.find(n => n.label === "f")?.cognitiveComplexity).toBe(2);
+  });
+
+  it("scores a self-recursive call as +1", async () => {
+    const src = "function fact(n) { if (n <= 1) { return 1; } return n * fact(n - 1); }\n";
+    const { nodes } = await parser.parse(fileInfo("a.js", src));
+    expect(nodes.find(n => n.label === "fact")?.cognitiveComplexity).toBe(2);
+  });
+
+  it("does not roll an anonymous arrow function's branches into the enclosing function — matches this grammar's own existing cyclomatic boundary, not 'improved' inconsistently", async () => {
+    const src = "function outer() { const fn = () => { if (true) {} }; fn(); }\n";
+    const { nodes } = await parser.parse(fileInfo("a.js", src));
+    expect(nodes.find(n => n.label === "outer")?.cognitiveComplexity).toBe(0);
+  });
+
+  it("scores two independent top-level functions separately, no cross-contamination", async () => {
+    const src = "function outer() { if (true) {} }\nfunction inner() { if (true) {} if (true) {} }\n";
+    const { nodes } = await parser.parse(fileInfo("a.js", src));
+    expect(nodes.find(n => n.label === "outer")?.cognitiveComplexity).toBe(1);
+    expect(nodes.find(n => n.label === "inner")?.cognitiveComplexity).toBe(2);
+  });
+});

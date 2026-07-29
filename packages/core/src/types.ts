@@ -40,6 +40,11 @@ export interface Node {
   /** Cyclomatic complexity (McCabe). Only set for function/method nodes whose
    * parser could determine a body; omitted (not zero) when unknown. */
   complexity?: number;
+  /** Cognitive complexity (SonarSource-inspired, spec 045) — nesting-depth-
+   * aware, unlike `complexity` above. Set alongside `complexity` whenever a
+   * parser could determine a body, never replacing it. See
+   * `cognitive-complexity.ts`'s doc comment for the exact rule set. */
+  cognitiveComplexity?: number;
   /** sha256 of the normalized (identifiers/literals replaced with
    * placeholders) body token stream. Only set for function/method nodes
    * whose body met the minimum-size threshold; omitted otherwise. */
