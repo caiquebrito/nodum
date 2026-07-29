@@ -422,9 +422,19 @@ npm install -g .
 
 ## Roadmap
 
-50 specs shipped so far, each with real end-to-end verification against synced projects — see
+53 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.10.0** across all four packages (lockstep).
+**v2.11.0** across all four packages (lockstep).
+
+### ✅ MCP protocol fix, Kotlin module labeling, near-duplicate grouping (shipped as v2.11.0)
+- Fixed a real MCP protocol bug: every tool-call error response was schema-invalid per the SDK's
+  own `CallToolResultSchema` — likely surfacing to a real client as a transport failure instead of
+  the actual error message
+- New path-derived `Node.module` field (Gradle module labeling, e.g. `forro/feature`) — no
+  `settings.gradle` parsing needed; verified against a real project's actual declared modules
+- New all-pairs near-duplicate grouping (`nodum duplicates --fuzzy`) — real-scale verification
+  against a large real project caught and fixed a genuine bug where the original grouping semantic
+  merged thousands of unrelated functions into one meaningless group, before it shipped
 
 ### ✅ Housekeeping, server hardening, near-duplicate detection, Kotlin source-sets (shipped as v2.10.0)
 - Fixed a real, confirmed path-traversal vulnerability in `nodum serve`'s HTTP API, plus an
@@ -491,7 +501,7 @@ npm install -g .
 - **expand_cluster tool** — on-demand cluster expansion
 - TypeScript/Node.js monorepo, 5 language parsers, MCP integration, 3D graph viewer, benchmark suite
 
-### 🔜 Next: KMP, Dart/Flutter — each its own future initiative, see ROADMAP.md
+### 🔜 Next: KMP/Dart/Flutter (each its own future initiative), MCP SDK upgrade, `packages/server` auth — see ROADMAP.md
 ### 🔮 v3.0.0 — reframed as MCP-native, not a multi-AI adapter hub
 
 The original v3.0 vision was per-provider adapters (OpenAI, Gemini, Ollama). MCP already gives
@@ -543,7 +553,7 @@ A: TypeScript, Python, Java, JavaScript, Swift, Objective-C, Go, and Kotlin — 
 parsing (TypeScript via the compiler API, the rest via tree-sitter).
 
 **Q: Is this production-ready?**
-A: Yes — v2.10.0 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.11.0 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.
@@ -595,4 +605,4 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 **[Get Started Now →](./SETUP-GUIDE.md)**
 
-**Version 2.10.0** · MIT License · No cloud, no subscriptions, no BS.
+**Version 2.11.0** · MIT License · No cloud, no subscriptions, no BS.
