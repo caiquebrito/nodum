@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveRelativeImport, resolveJvmImport, resolvePythonImport, resolveSwiftObjcImport } from "./import-resolver.js";
+import { resolveRelativeImport, resolveJvmImport, resolvePythonImport, resolveSwiftObjcImport, resolveGoImport } from "./import-resolver.js";
 import { normalizeNodeId } from "../types.js";
 
 function fileId(path: string): string {
@@ -178,5 +178,37 @@ describe("resolveSwiftObjcImport", () => {
     expect(
       resolveSwiftObjcImport("Missing.h", "Sources/Legacy/LegacyManager.m", knownFileIds, knownFilesByPath),
     ).toEqual([]);
+  });
+});
+
+describe("resolveGoImport", () => {
+  const knownFileIds = new Set<string>();
+  const knownFilesByPath = new Map([
+    ["internal/svc/server.go", fileId("internal/svc/server.go")],
+    ["internal/svc/store.go", fileId("internal/svc/store.go")],
+    ["cmd/app/main.go", fileId("cmd/app/main.go")],
+  ]);
+
+  it("resolves a local package import to every .go file in that directory", () => {
+    const result = resolveGoImport("myapp/internal/svc", "cmd/app/main.go", knownFileIds, knownFilesByPath).sort();
+    expect(result).toEqual(
+      [fileId("internal/svc/server.go"), fileId("internal/svc/store.go")].sort(),
+    );
+  });
+
+  it("resolves a full module-host-prefixed import path the same way", () => {
+    const result = resolveGoImport("github.com/foo/myapp/internal/svc", "cmd/app/main.go", knownFileIds, knownFilesByPath).sort();
+    expect(result).toEqual(
+      [fileId("internal/svc/server.go"), fileId("internal/svc/store.go")].sort(),
+    );
+  });
+
+  it("returns an empty array for a stdlib import", () => {
+    expect(resolveGoImport("fmt", "cmd/app/main.go", knownFileIds, knownFilesByPath)).toEqual([]);
+    expect(resolveGoImport("net/http", "cmd/app/main.go", knownFileIds, knownFilesByPath)).toEqual([]);
+  });
+
+  it("returns an empty array for an import with no matching directory", () => {
+    expect(resolveGoImport("myapp/internal/missing", "cmd/app/main.go", knownFileIds, knownFilesByPath)).toEqual([]);
   });
 });
