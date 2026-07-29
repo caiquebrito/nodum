@@ -46,6 +46,15 @@ program
       await printUpdateNoticeIfAny(nodumDataDir);
     } catch (error) {
       console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+      // Prints the real underlying stack (sync.ts appends the original
+      // error's stack onto its own, including anything attached via
+      // `.cause`) — sync failures are exactly the class of bug where the
+      // stack trace is the only way to find which recursive call actually
+      // overflowed on a real, large project; a bare message alone isn't
+      // enough to investigate one.
+      if (error instanceof Error && error.stack) {
+        console.error(error.stack);
+      }
       process.exit(1);
     }
   });

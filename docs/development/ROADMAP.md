@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-07-29 · **Current release:** v2.12.0 (all four packages, lockstep) · **Specs shipped:** 56 (`docs/development/completed/`)
+**Last updated:** 2026-07-29 · **Current release:** v2.13.0 (all four packages, lockstep) · **Specs shipped:** 58 (`docs/development/completed/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -270,6 +270,33 @@ practice paying off.
   full-monorepo parsing, then confirmed all 18 real `actual` declarations correctly paired to their
   9 real `expect` counterparts.
 
+### Tree-sitter parser leak fix, MCP registerTool migration — shipped as real npm v2.13.0 (specs `056`–`057`)
+Scoped by actually researching what was real before committing to anything, in direct response to
+being asked "what's expected for v2.13.0?" after v2.12.0 shipped — the same research-first practice
+every batch has used, this time applied explicitly at the user's prompt rather than assumed. Both
+candidates researched here were items ROADMAP.md itself had gotten wrong in a prior batch: the
+Node/V8 crash entry's own speculation (concurrency) and the MCP `registerTool` rewrite's own framing
+("reshapes shared infra non-mechanically") were each corrected by research before any code was
+written.
+- Tree-sitter parser memory leak fix (spec 056) — a real, confirmed bug: every tree-sitter parser
+  created a fresh `TSParser` per file but never freed it, only the parsed tree. Fixed and verified
+  via a real regression test. **Honestly, this did not fully resolve the crash it was investigating**
+  — see the "Known issue" entry below for the complete, updated account: re-verification confirmed
+  the original crash is genuinely Node-version-specific (didn't reproduce on Node 22 LTS), but
+  surfaced a second, separate, real stack-overflow bug in the process. The leak fix itself is real
+  and kept regardless — a genuine resource leak with zero downside to fixing — but this spec's
+  headline framing is deliberately not "fixed the crash," because it didn't, fully.
+- MCP `registerTool` migration (spec 057) — migrated off the deprecated `Server`/`setRequestHandler`
+  API onto `McpServer`/`registerTool`. All 14 tool schemas rewritten as zod (mechanical);
+  `handlers.ts` untouched. Found and fixed a real TypeScript compiler limitation along the way:
+  `@modelcontextprotocol/sdk`'s deeply conditional zod-compat types trigger a genuine
+  `TS2589` "type instantiation excessively deep" error under this monorepo's classic `node` module
+  resolution — reproduced with the SDK's own simplest possible usage in isolation, fixed with a
+  `moduleResolution: "bundler"` override scoped to `packages/mcp` alone. Invalid-args/unknown-tool
+  calls no longer produce a metrics log entry (the SDK now owns that routing before any callback
+  runs) — a real, disclosed, deliberately-accepted behavior change, verified against actual log
+  output rather than assumed from the SDK's types.
+
 ---
 
 ## Next
@@ -287,14 +314,6 @@ prerequisites this roadmap named since v2.1.0. A cross-language layer on top sti
 as an extension of either — different languages produce disjoint token vocabularies by
 construction, so it needs its own similarity mechanism entirely, deferred as its own future spec,
 not restated as imminent.
-
-### MCP SDK `registerTool`/native validation rewrite — deliberately not bundled with the v2.12.0 version bump
-Spec 054 (v2.12.0) shipped the scoped version bump (`^0.7.0` → `^1.30.0`) while deliberately keeping
-the deprecated low-level `Server`/`setRequestHandler` API. The bigger rewrite — migrating to
-`McpServer`/`registerTool` and validating `inputSchema`s at runtime via zod instead of today's
-`as any` casts — reshapes `index.ts`'s shared metrics/error-handling infra non-mechanically and
-stays deferred to its own future investigation, not bundled with the version bump that made it
-possible.
 
 ### `packages/server` real authentication — considered and declined again for v2.12.0
 Re-considered during this batch's `packages/server`-adjacent research (which instead found and
@@ -328,34 +347,45 @@ neither was a hypothetical concern:
 
 None of these three are scoped to any release yet.
 
-### Known issue: full-project sync can crash on some Node/V8 builds at large real-project scale
-Discovered (not induced) during spec 055's real end-to-end verification, unrelated to that spec's
-own logic: syncing a real, genuine Kotlin Multiplatform monorepo (~21,447 files, well over the
-20,000-file `.nodumrc.json` guardrail) reproducibly crashed this machine's Node `v25.9.0` with a
-`Fatal process out of memory: Zone` error during concurrent tree-sitter WASM compilation — a V8
-background-compilation job (`WasmLoweringPhase`/Turboshaft), not this project's own JS heap.
-Confirmed unrelated to spec 055's own code: the crash happens during file parsing itself (spec
-055's post-pass runs after parsing completes and never got the chance to run), reproduced
-identically with `--no-wasm-tier-up` and a reduced V8/libuv worker-pool size (ruling out simple
-JIT-tiering or thread-count fixes), and did **not** occur syncing a comparably-sized real non-KMP
-project (`vv-viaunica-android`, 6,432 files) on the same machine — so file *count* alone isn't
-sufficient to reproduce it; something about this specific ~3.3x-larger real project's scale crosses
-a real threshold. Worked around for spec 055's own verification by scoping to a smaller, real,
-representative subset of the same project rather than skipping real verification — but the
-underlying limitation is real and would affect any user syncing a similarly large real project on a
-similar Node/V8 build.
+### Known issue: full-project sync doesn't complete on either tested Node version, for two separate real reasons
+Originally discovered during spec 055's real end-to-end verification (a real ~21,447-file Kotlin
+Multiplatform monorepo, well over the 20,000-file `.nodumrc.json` guardrail, crashed this machine's
+Node `v25.9.0` with a `Fatal process out of memory: Zone` V8 WASM-compilation error). Spec 056
+(v2.13.0) investigated this fully and found the roadmap's own prior speculation (concurrency-related)
+was wrong — `parseFilesInto` is fully sequential, nothing to cap — and instead found a real, confirmed
+bug: every tree-sitter parser leaked a `TSParser` instance per file (fixed in spec 056). **Real
+re-verification against the exact same project found the leak fix alone does not resolve the
+original crash**:
+- **Re-tested on the same Node `v25.9.0`, with the fix applied**: crashed identically, in the same
+  ~2 seconds — the leak wasn't the (sole) cause of this specific crash.
+- **Tested on Node 22 LTS** (installed specifically for this check): the original V8 WASM crash did
+  **not** reproduce at all — it ran for over two hours instead of crashing in seconds, confirming
+  that specific crash genuinely is Node-version-specific (this machine's `v25.9.0` or that general
+  V8 vintage), not something this codebase's own code fully controls.
+- **But after those two-plus hours, Node 22 hit a second, different, real, previously-unknown bug**:
+  `RangeError: Maximum call stack size exceeded` — a genuine JavaScript call-stack overflow inside
+  this codebase's own recursive AST-walking logic (candidates: the `visit()`-shaped recursive walks
+  in each tree-sitter parser's complexity/duplicate-token/call-extraction functions), triggered by
+  some real file elsewhere in this specific project deep/large enough to exceed the default
+  call-stack limit. Not visible before, because the Node 25.9.0 crash happened first and masked it.
+
+**Neither Node version tested fully syncs this specific real project, for two unrelated reasons.**
+The parser leak fix (spec 056) is real, verified, and worth keeping regardless — but package.json's
+`"engines": ">=18.0.0"` was deliberately **not** narrowed, since neither tested version cleanly
+completes this project; there is no "known-good" range to narrow to with confidence yet.
 
 Not scoped to any release yet — flagged here so it isn't lost, not silently dropped. Worth
 investigating as its own future item:
-- Whether this is Node-version-specific (worth documenting a known-good Node version range, or
-  pinning CI/recommended versions away from whatever specifically triggers it).
-- Whether `.nodumrc.json`'s existing `maxFilesWarning` guardrail (spec 042) should gain a hard,
-  user-configurable *parsing* concurrency cap distinct from its current file-discovery-concurrency
-  role, specifically to reduce simultaneous WASM JIT pressure at this scale — a real, scoped
-  mitigation if the Node-version angle doesn't pan out.
-- Whether this is better understood as an upstream `tree-sitter-wasms`/V8 issue outside this
-  project's control, in which case the right action is documenting the limitation for users (e.g. a
-  README/troubleshooting note) rather than attempting a code fix at all.
+- **Get a real stack trace for the `Maximum call stack size exceeded` error** without needing
+  another multi-hour real-project sync — `packages/cli/src/commands/sync.ts:43` currently discards
+  the original error's stack, keeping only `error.message`. Fixing that first would make the next
+  investigation step far cheaper.
+- Once the real stack trace identifies which recursive function and which real file trigger the
+  overflow, assess whether an iterative (explicit-stack) rewrite of that walk, or a depth guard, is
+  the right fix — don't guess at a fix blind.
+- Whether the original V8 WASM crash is specific to Node `v25.9.0` particularly (worth documenting a
+  known-good Node version range once the stack-overflow bug is also resolved and a full real
+  end-to-end pass actually succeeds on some version) or a broader vintage-of-V8 issue.
 
 ### v3.0.0 — MCP-native, semantically deep
 
@@ -370,10 +400,10 @@ truth for a codebase. **What doesn't:** that the moat is provider breadth. The m
 quality — call edges, type flow, and numbers an agent can trust, across the languages a team
 actually writes in.
 
-- `McpServer`/`registerTool` migration and runtime `inputSchema` validation via zod — the SDK
-  version bump itself already shipped in spec 054 (v2.12.0); see the dedicated "Next" entry above
-  for why the rewrite this would enable stays deferred past it. (Protocol-valid `isError` responses
-  already shipped in spec 050, independent of the SDK version.)
+- The `McpServer`/`registerTool` migration itself shipped in spec 057 (v2.13.0) — the SDK now
+  natively validates every tool's `inputSchema` via zod at the protocol layer, replacing the old
+  `as any` casts. (Protocol-valid `isError` responses already shipped in spec 050, independent of
+  the SDK version.)
 - Verify against multiple real MCP clients (Claude Code, Cursor, Zed, Continue) — same server, no
   per-provider code, as the actual proof this reframe is real rather than aspirational.
 - Type inference and data-flow edges — real accuracy headroom that isn't just "read more files."
@@ -442,7 +472,15 @@ implied by their absence.
    class of correction v2.7.0's roadmap claim about KMP received back in v2.9.0. Real verification
    against a genuine local KMP project also caught a real environmental limitation (a Node/V8 crash
    unrelated to this project's own logic) and worked around it rather than skipping the check.
-8. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
+8. **Parser leak fix, MCP registerTool migration (v2.13.0):** scoped by directly researching what
+   was actually real for "the next release" rather than assuming anything from the roadmap's own
+   prior framing — which research corrected in both directions again (the crash wasn't about
+   concurrency; the `registerTool` rewrite wasn't still risky). The parser-leak spec is this
+   project's most transparent example yet of reporting an incomplete result honestly: the fix
+   shipped because it's a real, independently-valuable bug fix, while the roadmap plainly states it
+   did not fully resolve the crash that motivated finding it, and a second, new, real bug found in
+   the process is tracked openly rather than folded in or hidden.
+9. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
    validated by real numbers instead of asserted ones.
 
 ---
