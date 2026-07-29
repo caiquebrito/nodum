@@ -303,6 +303,60 @@ risk requires a deliberate `NODUM_HOST` opt-in to a non-loopback bind, and the p
 read-only/metadata-only. A token/session auth scheme for that specific opt-in case remains a real
 future item, not urgent enough to force into a batch twice in a row now.
 
+### Kotlin `expect`/`actual` — real refinements found during spec 055, deliberately not expanded on
+Spec 055 (v2.12.0) scoped `expect`/`actual` edge detection to top-level functions and types
+(`class`/`interface`/`enum`/`object`). Real end-to-end verification against a genuine KMP project
+found two further real gaps — documented here rather than left implied by their absence, since
+neither was a hypothetical concern:
+- **`expect class` members are not walked.** A nested declaration inside an `expect`/`actual class`
+  body (the real verification project's own `HttpClientEngineProvider.provideEngine` case) gets no
+  `platformModifier` at all today. Extending the existing class-body member walk to also check each
+  member for a platform modifier is a real, likely-small follow-up, but wasn't attempted alongside
+  the top-level case.
+- **`expect`/`actual` on top-level properties (`val`/`var`) can't be detected**, because this parser
+  has never extracted Kotlin top-level properties as graph nodes *at all* — a pre-existing
+  limitation, not introduced by spec 055. A real `expect val platformModule: Module` declaration in
+  the verification project was confirmed correctly left untagged (there is no node to tag). Fixing
+  this for real would mean adding top-level-property node extraction as its own parser feature
+  first, not a small addition to the pairing logic.
+- **Matching is module + declaration kind + label only, with no package-path awareness** — this
+  parser has never extracted Kotlin `package` declarations either. Verified sufficient against the
+  one real project used for spec 055's verification (a same-name collision across two different
+  modules was already disambiguated by module-scoping alone), but this is a verified-sufficient-once
+  finding, not a proof that every real project's naming can't collide within a single module. Worth
+  re-checking against a second real KMP project before treating it as fully settled.
+
+None of these three are scoped to any release yet.
+
+### Known issue: full-project sync can crash on some Node/V8 builds at large real-project scale
+Discovered (not induced) during spec 055's real end-to-end verification, unrelated to that spec's
+own logic: syncing a real, genuine Kotlin Multiplatform monorepo (~21,447 files, well over the
+20,000-file `.nodumrc.json` guardrail) reproducibly crashed this machine's Node `v25.9.0` with a
+`Fatal process out of memory: Zone` error during concurrent tree-sitter WASM compilation — a V8
+background-compilation job (`WasmLoweringPhase`/Turboshaft), not this project's own JS heap.
+Confirmed unrelated to spec 055's own code: the crash happens during file parsing itself (spec
+055's post-pass runs after parsing completes and never got the chance to run), reproduced
+identically with `--no-wasm-tier-up` and a reduced V8/libuv worker-pool size (ruling out simple
+JIT-tiering or thread-count fixes), and did **not** occur syncing a comparably-sized real non-KMP
+project (`vv-viaunica-android`, 6,432 files) on the same machine — so file *count* alone isn't
+sufficient to reproduce it; something about this specific ~3.3x-larger real project's scale crosses
+a real threshold. Worked around for spec 055's own verification by scoping to a smaller, real,
+representative subset of the same project rather than skipping real verification — but the
+underlying limitation is real and would affect any user syncing a similarly large real project on a
+similar Node/V8 build.
+
+Not scoped to any release yet — flagged here so it isn't lost, not silently dropped. Worth
+investigating as its own future item:
+- Whether this is Node-version-specific (worth documenting a known-good Node version range, or
+  pinning CI/recommended versions away from whatever specifically triggers it).
+- Whether `.nodumrc.json`'s existing `maxFilesWarning` guardrail (spec 042) should gain a hard,
+  user-configurable *parsing* concurrency cap distinct from its current file-discovery-concurrency
+  role, specifically to reduce simultaneous WASM JIT pressure at this scale — a real, scoped
+  mitigation if the Node-version angle doesn't pan out.
+- Whether this is better understood as an upstream `tree-sitter-wasms`/V8 issue outside this
+  project's control, in which case the right action is documenting the limitation for users (e.g. a
+  README/troubleshooting note) rather than attempting a code fix at all.
+
 ### v3.0.0 — MCP-native, semantically deep
 
 **This is a reframe of the old "multi-AI hub" vision, not its continuation.** The original v3.0
