@@ -1,6 +1,7 @@
 import { basename } from 'path';
 import { discoverFiles, discoverChangedFiles } from './file-discovery.js';
 import { selectParser } from './parser/index.js';
+import { applySourceSets } from './analyzer/source-set.js';
 import type { Graph, Node, Edge, FileInfo, FileManifest } from './types.js';
 
 export interface GenerateGraphOptions {
@@ -41,6 +42,7 @@ async function generateGraphFull(
 
   const edges = edgesFromSet(edgesSet);
   const nodes = Array.from(nodeMap.values());
+  applySourceSets(nodes);
 
   const graph: Graph = {
     project: basename(projectPath),
@@ -116,6 +118,7 @@ async function generateGraphIncremental(
 
   const edges = edgesFromSet(edgesSet);
   const nodes = Array.from(nodeMap.values());
+  applySourceSets(nodes);
   const totalFiles = Object.keys(diff.unchanged).length + diff.changed.length;
 
   const graph: Graph = {

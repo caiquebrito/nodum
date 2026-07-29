@@ -5,6 +5,7 @@ import {
   readGoMod,
   readCargoToml,
   readBuildGradle,
+  readGradleBuildFiles,
   readDockerCompose,
   readREADME,
 } from './config-reader.js';
@@ -104,17 +105,23 @@ export async function detectStack(projectPath: string): Promise<ProjectAnalysis>
     if (cargo.includes('sqlx')) analysis.databases.push('SQLx');
   }
 
-  // Check Android/Kotlin
+  // Check Android/Kotlin. `readBuildGradle` (root only) is the "is this
+  // even a Gradle project?" signal; the framework substring checks read
+  // the root plus every depth-1 module's build file too (spec 049) — a
+  // multi-module Android project's `com.android`/`androidx.compose`
+  // markers commonly live in a module's build file, not the root's.
   const buildGradle = await readBuildGradle(projectPath);
   if (buildGradle) {
     if (!analysis.languages.includes('Kotlin')) {
       analysis.languages.push('Kotlin/Java');
     }
     analysis.buildTools.push('Gradle');
-    if (buildGradle.includes('com.android')) {
+
+    const gradleBuildFiles = (await readGradleBuildFiles(projectPath)) ?? buildGradle;
+    if (gradleBuildFiles.includes('com.android')) {
       analysis.frameworks.push('Android');
     }
-    if (buildGradle.includes('androidx.compose')) {
+    if (gradleBuildFiles.includes('androidx.compose')) {
       analysis.frameworks.push('Jetpack Compose');
     }
   }

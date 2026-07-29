@@ -1,4 +1,5 @@
-import { readFile, access } from 'fs/promises';
+import { readFile, access, readdir } from 'fs/promises';
+import type { Dirent } from 'fs';
 import { join } from 'path';
 
 export async function fileExists(path: string): Promise<boolean> {
@@ -44,12 +45,68 @@ export async function readCargoToml(projectPath: string): Promise<string | null>
   return readTextFile(join(projectPath, 'Cargo.toml'));
 }
 
+// Modern Kotlin Multiplatform/Android projects are commonly Kotlin-DSL-only
+// (`.gradle.kts`/`settings.gradle.kts`) — the plain `.gradle` (Groovy) names
+// alone missed them entirely before spec 049, so a real Kotlin/Android
+// project could sync with `languages`/`buildTools`/`frameworks` all empty.
+// First-found-wins, matching every other multi-candidate reader in this file
+// (`readDockerCompose`, `readEnvExample`, `readREADME`).
 export async function readBuildGradle(projectPath: string): Promise<string | null> {
-  return readTextFile(join(projectPath, 'build.gradle'));
+  for (const name of ['build.gradle', 'build.gradle.kts']) {
+    const content = await readTextFile(join(projectPath, name));
+    if (content) return content;
+  }
+  return null;
 }
 
 export async function readSettingsGradle(projectPath: string): Promise<string | null> {
-  return readTextFile(join(projectPath, 'settings.gradle'));
+  for (const name of ['settings.gradle', 'settings.gradle.kts']) {
+    const content = await readTextFile(join(projectPath, name));
+    if (content) return content;
+  }
+  return null;
+}
+
+/** Depth-1 subdirectory names never worth reading a build file from. */
+const GRADLE_BUILD_FILE_SKIP_DIRS = new Set(['build', 'node_modules', '.gradle', '.git', '.idea']);
+/** Bounds the readdir + per-module readFile cost on a project with many top-level directories. */
+const MAX_GRADLE_BUILD_FILES = 50;
+
+/**
+ * Root `build.gradle(.kts)` plus every depth-1 subdirectory's own build
+ * file, concatenated — verified against a real multi-module Android project
+ * (spec 049) that plugin/framework declarations (`com.android.application`,
+ * `androidx.compose`) commonly live in a *module's* build file, not the
+ * root's; `readBuildGradle` alone (root only) is correct as the "is this
+ * even a Gradle project?" signal but a false negative for framework
+ * substring checks in a multi-module layout. Bounded to depth 1 and
+ * `MAX_GRADLE_BUILD_FILES` — not a real Gradle DSL parse, no `include(...)`
+ * awareness, same reduction this repo's other build-file readers already
+ * make.
+ */
+export async function readGradleBuildFiles(projectPath: string): Promise<string | null> {
+  const chunks: string[] = [];
+
+  const root = await readBuildGradle(projectPath);
+  if (root) chunks.push(root);
+
+  let entries: Dirent[];
+  try {
+    entries = await readdir(projectPath, { withFileTypes: true });
+  } catch {
+    entries = [];
+  }
+
+  for (const entry of entries) {
+    if (chunks.length - (root ? 1 : 0) >= MAX_GRADLE_BUILD_FILES) break;
+    if (!entry.isDirectory()) continue;
+    if (entry.name.startsWith('.') || GRADLE_BUILD_FILE_SKIP_DIRS.has(entry.name)) continue;
+
+    const moduleBuildFile = await readBuildGradle(join(projectPath, entry.name));
+    if (moduleBuildFile) chunks.push(moduleBuildFile);
+  }
+
+  return chunks.length > 0 ? chunks.join('\n') : null;
 }
 
 export async function readDockerCompose(projectPath: string): Promise<string | null> {
