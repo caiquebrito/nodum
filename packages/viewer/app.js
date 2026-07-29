@@ -787,50 +787,6 @@ function closeNotification() {
   if (notificationTimeout) clearTimeout(notificationTimeout);
 }
 
-// ── Sync Project ──────────────────────────────────────────────────────────────
-
-async function syncProject() {
-  if (!currentProject) {
-    showNotification('No project selected.', 'error');
-    return;
-  }
-
-  const btn = document.getElementById('btn-sync');
-  const originalText = btn.textContent.trim();
-  btn.disabled = true;
-  btn.textContent = 'Syncing…';
-
-  const projData = projects[currentProject];
-  if (!projData || !projData.project_path) {
-    showNotification('Project path not found. Run nodum sync once to register the path.', 'error');
-    btn.disabled = false;
-    btn.textContent = originalText;
-    return;
-  }
-
-  try {
-    const response = await fetch('/api/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: projData.project_path })
-    });
-
-    const result = await response.json();
-
-    if (result.success) {
-      showNotification('✓ Project synced successfully!', 'success');
-      await loadProject(currentProject);
-    } else {
-      showNotification(`✗ Sync error: ${result.error || result.output}`, 'error');
-    }
-  } catch (err) {
-    showNotification(`✗ Error: ${err.message}`, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = originalText;
-  }
-}
-
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 window.addEventListener('load', () => {
