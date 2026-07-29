@@ -73,6 +73,12 @@ Report saves as: `benchmark-report-[project]-[timestamp].html`
 | `nodum status` | Shows all synced projects | Lists projects + file counts |
 | `nodum serve` | Starts 3D visualizer | Opens http://localhost:7842 |
 
+`nodum serve` binds to `127.0.0.1` (loopback) by default — override the port with `NODUM_PORT` and
+the bind host with `NODUM_HOST`. The server has no authentication, so only set `NODUM_HOST` to a
+non-loopback address (e.g. `0.0.0.0` from inside a Docker/devcontainer/WSL setup that needs to
+reach the viewer from outside the container) if you understand that everyone who can reach that
+address can read every synced project's graph.
+
 ---
 
 ## Test It Now

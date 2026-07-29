@@ -325,7 +325,9 @@ program
 
 program
   .command('serve')
-  .description('Start 3D visualizer server on localhost:7842')
+  .description(
+    'Start 3D visualizer server on localhost:7842 (override with NODUM_PORT/NODUM_HOST — the server has no authentication, so only bind beyond localhost if you understand the exposure)',
+  )
   .action(async () => {
     try {
       const nodumDataDir = getNodeumDataDir();

@@ -152,7 +152,7 @@ async function loadProject(name) {
   await new Promise(r => setTimeout(r, 40));
 
   try {
-    const res = await fetch(`/api/projects/${name}/graph`);
+    const res = await fetch(`/api/projects/${encodeURIComponent(name)}/graph`);
     if (!res.ok) throw new Error();
     const graph = await res.json();
     currentGraphData = graph;
