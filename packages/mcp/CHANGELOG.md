@@ -1,5 +1,12 @@
 # @caiquebrito/nodum-mcp
 
+## 2.15.0
+
+### Patch Changes
+
+- Updated dependencies [deb21f3]
+  - @caiquebrito/nodum-core@2.15.0
+
 ## 2.14.0
 
 ### Patch Changes
