@@ -203,6 +203,7 @@ export class GoParser extends TreeSitterParser {
     const imports = extractImports(root);
 
     tree!.delete();
+    parser.delete();
 
     return { nodes, edges, imports };
   }

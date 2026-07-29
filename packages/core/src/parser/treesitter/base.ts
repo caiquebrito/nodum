@@ -18,6 +18,12 @@ import { loadGrammar, type LoadedGrammar } from './engine.js';
  * only safe by accident, since `parser.parse()` never yields mid-call; it
  * would have silently corrupted results under any future concurrent-parsing
  * work on the same instance.
+ *
+ * Because every `ensureReady()` call hands back a fresh `TSParser`, every
+ * subclass's `parse()` must call `parser.delete()` once done with it (spec
+ * 056) — its WASM-side memory is otherwise never freed. A real ~21,000-file
+ * sync leaking one `TSParser` per file was the confirmed cause of a real
+ * V8 out-of-memory crash at that scale.
  */
 export abstract class TreeSitterParser extends Parser {
   /** The `tree-sitter-wasms/out/` filename for this language's grammar. */
