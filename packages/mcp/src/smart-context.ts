@@ -570,6 +570,8 @@ export function buildNodeContext(
     // output stays byte-identical to before, same posture as spec 036's
     // optional Swift/ObjC stat lines.
     ...(node.sourceSet ? [`   Source set: ${node.sourceSet}`] : []),
+    // Only rendered when present (spec 051), same posture as sourceSet above.
+    ...(node.module ? [`   Module: ${node.module}`] : []),
     ""
   ];
 

@@ -59,14 +59,6 @@ export async function readBuildGradle(projectPath: string): Promise<string | nul
   return null;
 }
 
-export async function readSettingsGradle(projectPath: string): Promise<string | null> {
-  for (const name of ['settings.gradle', 'settings.gradle.kts']) {
-    const content = await readTextFile(join(projectPath, name));
-    if (content) return content;
-  }
-  return null;
-}
-
 /** Depth-1 subdirectory names never worth reading a build file from. */
 const GRADLE_BUILD_FILE_SKIP_DIRS = new Set(['build', 'node_modules', '.gradle', '.git', '.idea']);
 /** Bounds the readdir + per-module readFile cost on a project with many top-level directories. */

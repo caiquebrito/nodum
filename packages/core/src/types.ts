@@ -62,6 +62,12 @@ export interface Node {
    * Set for any file under a `src/<name>/kotlin|java/` path, not only
    * Kotlin files (a plain Java/Gradle project uses the same convention). */
   sourceSet?: string;
+  /** Gradle module path (`forro/feature`, `app`, ...), derived purely from
+   * `file`'s path via `analyzer/source-set.ts`'s `detectModule()` — everything
+   * before the same Kotlin/Java source-set convention `sourceSet` itself
+   * matches, so it never fires on a non-Gradle project's own `src/` layout.
+   * Unset for single-module projects (spec 051). */
+  module?: string;
 }
 
 export interface Edge {
