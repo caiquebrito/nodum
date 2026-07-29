@@ -3,6 +3,7 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import type { Express } from 'express';
+import { resolveProjectGraphPath } from './project-path.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -10,7 +11,9 @@ const __dirname = dirname(__filename);
 export function createApp(dataDir: string): Express {
   const app = express();
 
-  app.use(express.json());
+  // No POST/PUT route exists (sync is CLI-only) — express.json() was dead
+  // weight on every request, removed as free attack-surface reduction
+  // (spec 047).
   app.use(express.static(join(__dirname, '../viewer')));
 
   // Note: Sync is handled via CLI, not via HTTP API yet
@@ -29,10 +32,15 @@ export function createApp(dataDir: string): Express {
 
   // API endpoint to get a specific project's graph
   app.get('/api/projects/:projectName/graph', async (req, res) => {
+    const graphPath = resolveProjectGraphPath(dataDir, req.params.projectName);
+    if (!graphPath) {
+      res.status(400).json({ error: 'Invalid project name' });
+      return;
+    }
+
     try {
-      const { projectName } = req.params;
       const fs = await import('fs/promises');
-      const content = await fs.readFile(`${dataDir}/${projectName}/graph/graph.json`, 'utf-8');
+      const content = await fs.readFile(graphPath, 'utf-8');
       const graph = JSON.parse(content);
       res.json(graph);
     } catch (error) {
