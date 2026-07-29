@@ -2,6 +2,7 @@ import { basename } from 'path';
 import { discoverFiles, discoverChangedFiles } from './file-discovery.js';
 import { selectParser } from './parser/index.js';
 import { applySourceSets, applyModules } from './analyzer/source-set.js';
+import { applyExpectActual } from './analyzer/expect-actual.js';
 import type { Graph, Node, Edge, FileInfo, FileManifest } from './types.js';
 
 export interface GenerateGraphOptions {
@@ -44,6 +45,7 @@ async function generateGraphFull(
   const nodes = Array.from(nodeMap.values());
   applySourceSets(nodes);
   applyModules(nodes);
+  applyExpectActual(nodes, edges);
 
   const graph: Graph = {
     project: basename(projectPath),
@@ -121,6 +123,7 @@ async function generateGraphIncremental(
   const nodes = Array.from(nodeMap.values());
   applySourceSets(nodes);
   applyModules(nodes);
+  applyExpectActual(nodes, edges);
   const totalFiles = Object.keys(diff.unchanged).length + diff.changed.length;
 
   const graph: Graph = {

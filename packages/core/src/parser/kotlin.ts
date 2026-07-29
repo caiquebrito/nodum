@@ -131,6 +131,7 @@ export class KotlinParser extends TreeSitterParser {
       seenTypeNames.add(dedupeKey);
 
       const kind = kotlinDeclKind(defNode);
+      const platformModifier = kotlinPlatformModifier(defNode);
       const typeId = normalizeNodeId(file.path, typeName, kind);
       nodes.push({
         id: typeId,
@@ -139,6 +140,7 @@ export class KotlinParser extends TreeSitterParser {
         file: file.path,
         group: getNodeGroup(file.path),
         line: defNode.startPosition.row + 1,
+        ...(platformModifier ? { platformModifier } : {}),
       });
       edges.push({ source: fileId, target: typeId, relation: 'defines' });
 
@@ -204,6 +206,7 @@ export class KotlinParser extends TreeSitterParser {
 
       const body = defNode.namedChildren.find(c => c?.type === 'function_body');
       const dupSignals = body ? buildDuplicateSignals(collectNormalizedTokens(body)) : {};
+      const platformModifier = kotlinPlatformModifier(defNode);
       const funcId = normalizeNodeId(file.path, name, 'function');
       nodes.push({
         id: funcId,
@@ -215,6 +218,7 @@ export class KotlinParser extends TreeSitterParser {
         ...(body ? { complexity: computeComplexity(body) } : {}),
         ...(body ? { cognitiveComplexity: computeCognitiveComplexity(body, KOTLIN_COGNITIVE_CONFIG, name) } : {}),
         ...dupSignals,
+        ...(platformModifier ? { platformModifier } : {}),
       });
       edges.push({ source: fileId, target: funcId, relation: 'defines' });
       if (body) callables.push({ nodeId: funcId, name, body });
@@ -250,6 +254,26 @@ function kotlinDeclKind(defNode: TSNode): NodeType {
     if (childType === 'enum') sawEnum = true;
   }
   return sawEnum ? 'enum' : 'class';
+}
+
+/**
+ * KMP `expect`/`actual` platform modifier (spec 055). Empirically verified
+ * against the real shipped grammar (not assumed): a top-level `function_
+ * declaration`/`class_declaration`/`object_declaration`/`property_
+ * declaration` carries a `modifiers` named child containing a
+ * `platform_modifier` named child whose own text IS the keyword itself
+ * (`"expect"`/`"actual"`) — its only child is an anonymous token, so
+ * checking `.text` directly (rather than descending further) is sufficient.
+ * A `visibility_modifier` (e.g. `internal`) may sit alongside `platform_
+ * modifier` inside the same `modifiers` node — `find()` handles that
+ * regardless of ordering or what else is present.
+ */
+function kotlinPlatformModifier(defNode: TSNode): 'expect' | 'actual' | undefined {
+  const modifiers = defNode.namedChildren.find(c => c?.type === 'modifiers');
+  const platformModifier = modifiers?.namedChildren.find(c => c?.type === 'platform_modifier');
+  if (platformModifier?.text === 'expect') return 'expect';
+  if (platformModifier?.text === 'actual') return 'actual';
+  return undefined;
 }
 
 /**

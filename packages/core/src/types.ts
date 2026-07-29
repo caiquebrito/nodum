@@ -25,8 +25,12 @@ export type NodeType =
  * calls another function/method defined in the same file, resolved by a
  * flat name lookup within that file (same simplification `defines` edges
  * already use). Cross-file call resolution is a future spec's job.
+ * `'actualizes'` (spec 055) points from a Kotlin `actual` declaration to the
+ * `expect` declaration it fulfills — the one genuinely cross-source-set edge
+ * this codebase produces, resolved by `analyzer/expect-actual.ts`'s
+ * `applyExpectActual()` post-pass rather than any parser-level mechanism.
  */
-export type RelationType = 'imports' | 'defines' | 'extends' | 'implements' | 'calls';
+export type RelationType = 'imports' | 'defines' | 'extends' | 'implements' | 'calls' | 'actualizes';
 
 export interface Node {
   id: string;
@@ -68,6 +72,14 @@ export interface Node {
    * matches, so it never fires on a non-Gradle project's own `src/` layout.
    * Unset for single-module projects (spec 051). */
   module?: string;
+  /** Kotlin `expect`/`actual` platform modifier (spec 055), extracted purely
+   * from the declaration's own `platform_modifier` grammar node — set only
+   * for top-level function and type (class/interface/enum/object)
+   * declarations; `expect`/`actual` on a top-level property (`val`/`var`) is
+   * out of scope since this parser doesn't extract properties as nodes at
+   * all today, and `expect class` *members* are deliberately not walked for
+   * this. Consumed only by `analyzer/expect-actual.ts`'s pairing pass. */
+  platformModifier?: 'expect' | 'actual';
 }
 
 export interface Edge {
