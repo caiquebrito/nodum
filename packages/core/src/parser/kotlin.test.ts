@@ -337,6 +337,47 @@ describe("KotlinParser calls edges", () => {
   });
 });
 
+describe("KotlinParser referencedIdentifiers (same-package dead-code resolution)", () => {
+  it("includes a bare identifier used as a navigation_expression receiver", async () => {
+    const src = `fun themeColor(): Int {\n    return Palette.primary\n}\n`;
+    const { nodes } = await parser.parse(fileInfo("Theme.kt", src));
+    const fileNode = nodes.find(n => n.type === "file")!;
+    expect(fileNode.referencedIdentifiers).toContain("Palette");
+  });
+
+  it("includes a bare call-target identifier", async () => {
+    const src = `fun a(): Int {\n    return helper()\n}\n`;
+    const { nodes } = await parser.parse(fileInfo("a.kt", src));
+    const fileNode = nodes.find(n => n.type === "file")!;
+    expect(fileNode.referencedIdentifiers).toContain("helper");
+  });
+
+  it("is set only on the file node, deduplicated", async () => {
+    const src = `fun a(): Int {\n    val x = Palette.primary\n    val y = Palette.primary\n    return x + y\n}\n`;
+    const { nodes } = await parser.parse(fileInfo("a.kt", src));
+    const fileNode = nodes.find(n => n.type === "file")!;
+    expect(fileNode.referencedIdentifiers!.filter(id => id === "Palette")).toHaveLength(1);
+    expect(nodes.find(n => n.label === "a")!.referencedIdentifiers).toBeUndefined();
+  });
+});
+
+describe("KotlinParser declaredTopLevelNames (same-package dead-code resolution)", () => {
+  it("includes a top-level property name even though it gets no Node of its own", async () => {
+    const src = `val commonModule = buildModule()\n`;
+    const { nodes } = await parser.parse(fileInfo("CommonModule.kt", src));
+    const fileNode = nodes.find(n => n.type === "file")!;
+    expect(fileNode.declaredTopLevelNames).toEqual(["commonModule"]);
+    expect(nodes.map(n => n.type)).toEqual(["file"]); // no property Node created
+  });
+
+  it("includes top-level function and class names alongside property names", async () => {
+    const src = `class Foo\nfun bar() {}\nval baz = 1\n`;
+    const { nodes } = await parser.parse(fileInfo("a.kt", src));
+    const fileNode = nodes.find(n => n.type === "file")!;
+    expect(new Set(fileNode.declaredTopLevelNames)).toEqual(new Set(["Foo", "bar", "baz"]));
+  });
+});
+
 describe("KotlinParser cognitive complexity (spec 045)", () => {
   it("scores a function with no decision points as 0", async () => {
     const { nodes } = await parser.parse(fileInfo("a.kt", `fun foo(): Int {\n  return 1\n}\n`));

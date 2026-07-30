@@ -11,6 +11,7 @@ import {
   loadArchitectureConfig,
   findSimilarCode,
   suggestRefactoring,
+  findManifestEntryFiles,
   type ProjectIndexEntry,
   type Graph,
 } from "@caiquebrito/nodum-core";
@@ -510,7 +511,7 @@ export async function handleFindBottlenecks(projectName: string, limit?: number)
     const lines: string[] = [`🔥 Bottlenecks (${bottlenecks.length})`, ""];
     bottlenecks.forEach((b, i) => {
       lines.push(
-        `  ${i + 1}. ${b.file}  score=${b.score}  complexity=${b.maxComplexity}  dependents=${b.dependentCount}`
+        `  ${i + 1}. ${b.file}  score=${b.score}  complexity=${b.maxComplexity}  dependents=${b.dependentCount}  risk=${b.risk}`
       );
     });
 
@@ -604,10 +605,14 @@ export async function handleSuggestRefactoring(
     const architectureRules = projectPath
       ? (await loadArchitectureConfig(projectPath)).rules
       : undefined;
+    const deadCodeEntryPatterns = projectPath
+      ? await findManifestEntryFiles(projectPath, graph.nodes)
+      : undefined;
 
     const suggestions = suggestRefactoring(graph, {
       architectureRules,
       complexityThreshold,
+      deadCodeEntryPatterns,
     });
 
     if (suggestions.length === 0) {

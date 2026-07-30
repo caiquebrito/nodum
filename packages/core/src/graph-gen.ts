@@ -223,6 +223,11 @@ function resolveImportsInto(rawImports: RawFileImports[], nodeMap: Map<string, N
 
     for (const specifier of imports) {
       for (const targetId of parser.resolveImport(specifier, filePath, knownFileIds, knownFilesByPath)) {
+        // A specifier resolving back to the importing file itself is never a
+        // real cross-file dependency — e.g. Kotlin's `import Foo.Companion.x`
+        // inside `Foo.kt` itself, a normal same-file idiom, not a self-import.
+        // Left in, it reads as a trivial "file imports itself" cycle downstream.
+        if (targetId === sourceId) continue;
         edgesSet.add(edgeKey({ source: sourceId, target: targetId, relation: 'imports' }));
       }
     }
