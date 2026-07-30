@@ -1,137 +1,89 @@
-# How to Run Nodum Right Now
+# Running Nodum
 
-Everything is built and ready. Here are the 3 simplest ways to use it:
+The full CLI command reference. Install first (see [Quick Start](./QUICKSTART.md)):
+
+```bash
+npm install -g @caiquebrito/nodum-cli @caiquebrito/nodum-mcp
+```
+
+Everything below assumes the global `nodum` command. Building from source instead? Prefix each
+command with `node packages/cli/dist/bin/nodum.js` from the repo root after `npm run build`.
 
 ---
 
-## Option 1: Use the Full Path (No Setup)
+## Sync & Setup
 
 ```bash
-cd <nodum-repo>
-
-# Build (only once)
-npm run build
-
-# Then use directly:
-node packages/cli/dist/bin/nodum.js sync /path/to/your/project
-node packages/cli/dist/bin/nodum.js status
-node packages/cli/dist/bin/nodum.js serve
+nodum init                    # Interactive setup: sync + Claude Code MCP integration
+nodum sync                    # Scan the current directory
+nodum sync /path/to/project   # Or an explicit path
+nodum sync --incremental      # Only re-parse changed files
+nodum watch                   # Auto-sync on file changes
+nodum status                  # List all synced projects
 ```
 
-**Data files:** `~/.nodum/` (auto-created)
-
----
-
-## Option 2: Create Simple Alias (Recommended)
-
-Add this to your `~/.zshrc` or `~/.bashrc`:
+## Configuration
 
 ```bash
-alias nodum="node <nodum-repo>/packages/cli/dist/bin/nodum.js"
+nodum config                                     # Show current scan config
+nodum config --set-include "src/**"              # Include patterns
+nodum config --set-exclude "**/*.gen.ts"         # Exclude patterns
+nodum config --set-architecture-rules "ui:repo"  # Declare layer rules
 ```
 
-Replace `<nodum-repo>` with your actual nodum folder path.
+## Graph Analysis
 
-Then reload:
 ```bash
-source ~/.zshrc  # or ~/.bashrc
+nodum cycles                       # Detect circular imports
+nodum dead-code                    # Find files nothing imports
+nodum architecture                 # Check for architecture-rule violations
+nodum complexity                   # Rank functions by cyclomatic complexity
+nodum complexity --cognitive       # Rank by cognitive (nesting-aware) complexity
+nodum duplicates                   # Find structurally duplicated code
+nodum duplicates --fuzzy           # Near-duplicate (MinHash) grouping
+nodum trace-impact <path> <id>     # Cascade of changes if you modify a node
+nodum bottlenecks                  # Complexity x dependents composite ranking
+nodum explain-architecture         # Layer/dependency overview + violations
+nodum similar-code <path> <id>     # Structurally near-identical code to a node
+nodum suggest-refactoring          # Unified suggestions from all of the above
 ```
 
-Now use:
+## Export & Diff
+
 ```bash
-nodum sync /path/to/project
-nodum status
+nodum export --format graphml   # JSON, GraphML, or CSV
+nodum diff <a> <b>              # Compare two graph snapshots
+```
+
+## Viewer
+
+```bash
 nodum serve
 ```
 
----
-
-## Option 3: Run the Benchmark
-
-```bash
-cd <nodum-repo>/benchmarks
-
-# Install once
-npm install
-
-# Run against sample project
-npm run run:sample
-
-# Or your own project:
-npm run run -- /path/to/project
-```
-
-Report saves as: `benchmark-report-[project]-[timestamp].html`
-
----
-
-## What Each Command Does
-
-| Command | Does What | Output |
-|---------|-----------|--------|
-| `nodum sync PROJECT` | Scans and indexes a project | `~/.nodum/[project]/graph.json` |
-| `nodum status` | Shows all synced projects | Lists projects + file counts |
-| `nodum serve` | Starts 3D visualizer | Opens http://localhost:7842 |
-
-`nodum serve` binds to `127.0.0.1` (loopback) by default — override the port with `NODUM_PORT` and
-the bind host with `NODUM_HOST`. The server has no authentication, so only set `NODUM_HOST` to a
-non-loopback address (e.g. `0.0.0.0` from inside a Docker/devcontainer/WSL setup that needs to
-reach the viewer from outside the container) if you understand that everyone who can reach that
+Opens the 3D graph viewer at `http://localhost:7842`, bound to `127.0.0.1` by default. Override
+with `NODUM_PORT` and `NODUM_HOST` — only widen `NODUM_HOST` beyond loopback (e.g. `0.0.0.0` in a
+container) if you understand the server has no authentication and anyone who can reach that
 address can read every synced project's graph.
-
----
-
-## Test It Now
-
-```bash
-# 1. Build
-cd <nodum-repo>
-npm run build
-
-# 2. Test on nodum itself
-node packages/cli/dist/bin/nodum.js sync .
-
-# 3. Check it worked
-node packages/cli/dist/bin/nodum.js status
-
-# 4. View the data
-cat ~/.nodum/nodum/memory/SUMMARY.md
-
-# 5. See the CLAUDE.md that was injected
-head -10 CLAUDE.md
-```
 
 ---
 
 ## Data Location
 
-All data goes to a **fixed path** you suggested:
-
 ```
-~/.nodum/                           # /Users/[you]/.nodum
-├── projects.json                   # Project index
+~/.nodum/
+├── projects.json                 # Project index
 └── [project-name]/
-    ├── graph/graph.json           # Knowledge graph
-    ├── memory/SUMMARY.md          # Project summary  
+    ├── graph/graph.json         # Knowledge graph (nodes + edges)
+    ├── memory/SUMMARY.md        # Project summary
     └── logs/
-        ├── activity.md            # Sync history
-        └── YYYY-MM-DD.md          # Daily logs
+        ├── activity.md          # Sync history
+        └── metrics.jsonl        # Per-response token-efficiency log
 ```
 
-To **reset everything:**
-```bash
-rm -rf ~/.nodum/
-```
+To reset everything: `rm -rf ~/.nodum/`.
 
----
+## Next
 
-## Next Steps
-
-Once you confirm it works:
-
-1. **Install globally** — `npm install -g` to use as a real CLI tool
-2. **Run benchmark** — See actual numbers on your project
-3. **Build MCP** — Integrate with Claude AI
-4. **Publish** — Share on npm
-
-Want to try it now?
+- [Setup Guide](./SETUP-GUIDE.md) — Claude Code / MCP integration walkthrough
+- [MCP Integration](../architecture/MCP.md) — the MCP server's architecture and tool list

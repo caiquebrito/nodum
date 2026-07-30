@@ -386,8 +386,7 @@ nodum/
 │   │   └── SMART-CONTEXT.md
 │   └── development/    # Contributing & planning
 │       ├── PUBLISH.md
-│       ├── ROADMAP.md
-│       └── LAUNCH.md
+│       └── ROADMAP.md
 ├── README.md           # Main readme (you are here)
 ├── CHANGELOG.md        # Release notes
 └── CLAUDE.md           # Project context for Claude
@@ -568,9 +567,9 @@ See [ROADMAP.md](./docs/development/ROADMAP.md) for the full plan and the reason
 - **[Smart Context](./docs/architecture/SMART-CONTEXT.md)** — v2.0 optimizations
 
 **Development:**
-- **[Publishing](./docs/development/PUBLISH.md)** — npm publishing details
-- **[Roadmap](./docs/development/ROADMAP.md)** — Future features (v2.1+)
-- **[Launch Strategy](./docs/development/LAUNCH.md)** — Release planning
+- **[Contributing](./CONTRIBUTING.md)** — Spec-driven workflow: branching, writing a spec, opening a PR
+- **[Publishing](./docs/development/PUBLISH.md)** — Release mechanics: changesets, cutting a version
+- **[Roadmap](./docs/development/ROADMAP.md)** — Shipped releases and what's next
 
 **Benchmarks:**
 - **[Benchmarks](./benchmarks/README.md)** — Token efficiency metrics and v2.0 results
@@ -646,6 +645,6 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 ---
 
-**[Get Started Now →](./SETUP-GUIDE.md)**
+**[Get Started Now →](./docs/guides/SETUP-GUIDE.md)**
 
 **Version 2.16.0** · MIT License · No cloud, no subscriptions, no BS.
