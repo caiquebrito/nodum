@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-07-30 · **Current release:** v2.16.0 (all four packages, lockstep) · **Specs shipped:** 61 (`docs/development/completed/`)
+**Last updated:** 2026-07-30 · **Current release:** v2.17.0 (all four packages, lockstep) · **Specs shipped:** 62 (`docs/development/completed/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -361,6 +361,38 @@ expected, then root-caused it for real instead of continuing to guess.
   WASM code compiled at Liftoff's baseline tier instead of Turboshaft's optimized tier — measured as
   a non-issue for this workload (a one-time parse per sync, not a hot loop).
 
+### Fix dead-code/duplication/cycle/bottleneck accuracy — shipped as real npm v2.17.0 (spec `061`)
+A user-supplied real-world accuracy audit (a separate agent, independently cross-verified against
+the real source rather than trusted at face value) ran nodum's own analyzers against a Clean
+Architecture Android app and found dead-code at ~13% precision, duplication at ~20-40%, and 0/1 on
+circular imports — plain complexity/fan-in counting was 100% accurate, so the gaps were graph-
+resolution and interpretation issues, not the underlying numbers.
+- Kotlin same-package/no-import symbol resolution — new `Node.referencedIdentifiers`/
+  `declaredTopLevelNames` fields (the latter needed because top-level `val`/`var` properties, e.g.
+  a Koin `val commonModule = module { ... }`, have never had their own graph `Node` at all).
+  `detectUnreachableFiles` cross-checks same-directory siblings before flagging a file dead.
+- AndroidManifest.xml entry-point awareness — new `android-manifest.ts`, regex-based (no XML
+  parser dependency added), resolved against the graph via the existing JVM import suffix
+  matching; wired into the CLI `dead-code` command and MCP `suggest_refactoring`.
+- Verified, not separately built: generic-type-argument usage (`composable<Route>`) and
+  DI-registration-call recognition (`loadKoinModules(commonModule)`) were already structurally
+  covered by the same-package fix above, confirmed end-to-end against the real Kotlin parser
+  rather than assumed.
+- Duplication findings now name the actual duplicated symbol instead of a generic count, and
+  suppress a group when its members already delegate to a shared helper call (reuse, not
+  duplication).
+- `findBottlenecks` gains a `risk: 'high' | 'foundational' | 'complex' | 'low'` classification,
+  independent of the existing fan-in-dominated `score`, so a low-complexity/high-fan-in shared
+  type (e.g. a `Result` monad, 12 dependents at complexity ~2) isn't reported the same as a genuine
+  complex chokepoint.
+- A specifier resolving back to its own importing file (Kotlin's `import Foo.Companion.x` inside
+  `Foo.kt` itself) no longer emits a self-`imports` edge, fixing a false-positive circular-import
+  report. `detectCycles` itself is untouched — a genuine self-loop edge is still a real cycle by
+  construction.
+- **Real check**: verified against the actually-published `@caiquebrito/nodum-core@2.17.0` package
+  via a fresh `npm install` in a scratch directory (not just the local build) — the CLI ran, the
+  new exports loaded, and the real fix code was confirmed present in the published `dist/`.
+
 ---
 
 ## Next
@@ -559,6 +591,11 @@ implied by their absence.
     fought over now syncs end to end with zero user-facing configuration.
 12. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
     validated by real numbers instead of asserted ones.
+13. **Dead-code/duplication/cycle/bottleneck accuracy fixes (v2.17.0):** unlike every entry above,
+    this batch's scoping input was an external, independently-verified accuracy audit rather than
+    this project's own roadmap research — and it directly serves the v3.0 framing's stated moat
+    ("graph quality... numbers an agent can trust"), fixing real precision gaps in exactly the
+    analyzers v3.0 depends on being trustworthy, rather than adding a new one.
 
 ---
 
