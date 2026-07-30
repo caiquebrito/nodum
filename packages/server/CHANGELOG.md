@@ -1,5 +1,12 @@
 # @caiquebrito/nodum-server
 
+## 2.16.0
+
+### Patch Changes
+
+- Updated dependencies [3ef9c1c]
+  - @caiquebrito/nodum-core@2.16.0
+
 ## 2.15.0
 
 ### Patch Changes
