@@ -490,8 +490,8 @@ implied by their absence.
 - ~~Delete the orphaned root `/viewer/`~~ — done in spec 046; `packages/viewer` was already the
   real, maintained source.
 - ~~Delete `claude skills/sync-rag/`~~ — done in spec 046.
-- ~~Reconcile the root `package.json` version~~ — done in spec 046 (now `2.9.0` as of that spec;
-  update again if this cosmetic field drifts).
+- ~~Reconcile the root `package.json` version~~ — done in spec 046 (`2.9.0` at that time), re-synced
+  to `2.16.0` during the 2026-07-29 docs cleanup pass; update again if this cosmetic field drifts.
 - ~~Reconcile `CHANGELOG.md`~~ — checked in spec 046 and found already correctly scoped to
   pre-v2.1.0 history, deferring to `packages/*/CHANGELOG.md` from v2.1.0 on; no change needed.
 

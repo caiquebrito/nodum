@@ -1,99 +1,51 @@
 # Nodum — Quick Start Guide
 
-Get nodum running in **3 steps**.
+Get nodum running in **3 steps**. (See [README.md](../../README.md) for the full picture — this
+guide is the condensed version.)
 
-## 1. Build Everything
-
-From the nodum repo root:
-
-```bash
-cd <nodum-repo>
-
-# Install dependencies (one time)
-npm install
-
-# Build all packages
-npm run build
-```
-
-Takes ~30 seconds. Builds TypeScript in `packages/*/dist/`.
-
-## 2. Try the CLI
+## 1. Install
 
 ```bash
-# Scan nodum project itself
-node packages/cli/dist/bin/nodum.js sync .
-
-# Check what was scanned
-node packages/cli/dist/bin/nodum.js status
+npm install -g @caiquebrito/nodum-cli @caiquebrito/nodum-mcp
 ```
 
-Data saved to `~/.nodum/` (your home directory).
+Prefer to build from source instead (e.g. you're contributing to nodum itself)? See
+[Building from source](#building-from-source) below.
+
+## 2. Sync a Project
+
+```bash
+cd ~/my-project
+nodum sync
+```
 
 Output:
 ```
-✅ Synced: nodum
+✅ Synced: my-project
   📁 30 files
   ⚙️  287 functions
   📦 8 classes
   🔗 311 dependencies
 
-Data saved to: /Users/[you]/.nodum/nodum
+Data saved to: ~/.nodum/my-project
 ```
 
-## 3. Run the Benchmark (Optional)
+Check what's synced any time with `nodum status`.
+
+## 3. Connect Claude Code
 
 ```bash
-# Install benchmark dependencies
-cd benchmarks
-npm install
-
-# Run benchmark on the sample project
-npm run run:sample
+claude mcp add nodum -- nodum-mcp
 ```
 
-Takes ~10-15 minutes. Generates HTML report: `benchmark-report-sample-next-app-[timestamp].html`
-
----
-
-## File Paths (For Reference)
-
-| What | Path |
-|------|------|
-| **Nodum project** | `<nodum-repo>` (your local nodum folder) |
-| **Data files** | `~/.nodum/` (auto-created in your home) |
-| **CLI executable** | `packages/cli/dist/bin/nodum.js` |
-| **Benchmark** | `benchmarks/harness.ts` |
-| **Sample project** | `benchmarks/projects/sample-next-app/` |
-
----
-
-## Common Commands
-
-```bash
-# From nodum root:
-
-# 1. Build
-npm run build
-
-# 2. Sync a project
-node packages/cli/dist/bin/nodum.js sync /path/to/project
-
-# 3. View synced projects
-node packages/cli/dist/bin/nodum.js status
-
-# 4. Start 3D visualizer
-node packages/cli/dist/bin/nodum.js serve
-
-# 5. Run benchmark
-cd benchmarks && npm run run:sample
-```
+Restart Claude Code, run `/mcp` to confirm `nodum` is connected, then just ask Claude about your
+code — it now has real graph context. Full options (including a `.mcp.json`-based setup and the
+"command not found" fix for PATH issues) are in the README's
+[Quick Start](../../README.md#quick-start) section.
 
 ---
 
 ## What Gets Created
-
-After running `nodum sync`, you'll have:
 
 ```
 ~/.nodum/
@@ -103,45 +55,46 @@ After running `nodum sync`, you'll have:
     ├── memory/SUMMARY.md        # Project summary
     └── logs/
         ├── activity.md          # Sync history
-        └── YYYY-MM-DD.md        # Session logs
+        └── metrics.jsonl        # Per-response token-efficiency log
 ```
 
-Also: `CLAUDE.md` injected into the scanned project with RAG context.
+`nodum sync` also injects a knowledge-graph summary into the project's `CLAUDE.md`.
+
+To reset everything: `rm -rf ~/.nodum/`.
 
 ---
 
 ## Troubleshooting
 
-### Error: "Cannot find module @caiquebrito/nodum-core"
-```bash
-# Make sure you've built core first
-npm run build
-```
+### "command not found: nodum" / "nodum-mcp"
+The global npm bin isn't on your `PATH`. Run `npm config get prefix` and add
+`<prefix>/bin` to your shell's `PATH`, or use the absolute-path MCP config shown in the README's
+troubleshooting section.
 
-### Error: "ANTHROPIC_API_KEY not found"
-For benchmark only. Set it:
-```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-cd benchmarks && npm run run:sample
-```
-
-### Error: "No such file or directory: .nodum"
-It gets created automatically. Run `nodum sync` first.
-
-### Want to delete all data?
-```bash
-rm -rf ~/.nodum/
-```
+### MCP server won't connect in Claude Code
+Claude Code spawns the server without your shell's full `PATH` — see
+[README → "command not found" / server won't connect](../../README.md#quick-start) for the
+absolute-path fix.
 
 ---
 
-## Next: Make It Easier
+## Building from Source
 
-Once this works, we can:
+Only needed if you're developing nodum itself:
 
-1. **Create npm script aliases** so you don't type the long path
-2. **Create a global `nodum` command** (install via npm)
-3. **Add a UI** (use the built-in 3D visualizer)
-4. **Add configuration** for custom data paths
+```bash
+git clone https://github.com/caiquebrito/nodum
+cd nodum
+npm install
+npm run build
 
-Want to set any of those up?
+# Run the CLI without installing it globally:
+node packages/cli/dist/bin/nodum.js sync .
+node packages/cli/dist/bin/nodum.js status
+```
+
+## Next
+
+- [Running Nodum](./RUN.md) — the full CLI command reference
+- [Setup Guide](./SETUP-GUIDE.md) — detailed MCP integration walkthrough
+- [Contributing](../../CONTRIBUTING.md) — the spec-driven dev workflow, if you're building nodum itself
