@@ -1,243 +1,130 @@
-# 🚀 Nodum Complete Setup Guide
+# Nodum Setup Guide — Claude Integration
 
-Your project is now ready for both npm publishing and Claude MCP integration!
+Complete walkthrough for connecting nodum's knowledge graph to Claude via MCP (Model Context
+Protocol). For installing/running the CLI on its own, see [Quick Start](./QUICKSTART.md) and
+[Running Nodum](./RUN.md). For publishing a release, see
+[`docs/development/PUBLISH.md`](../development/PUBLISH.md).
 
-## Status Check ✅
-
-- ✅ Monorepo structure (core, cli, server, mcp)
-- ✅ CLI working (`nodum sync`, `nodum serve`, `nodum status`)
-- ✅ Server running (3D viewer on localhost:7842)
-- ✅ MCP server built and ready
-- ✅ Benchmark suite implemented
-- ✅ Knowledge graph generation working
-
----
-
-## Phase 1: Publish to npm
-
-### Step 1: Login to npm
+## 1. Install
 
 ```bash
-npm adduser
-# or if you're already logged in:
-npm login
+npm install -g @caiquebrito/nodum-cli @caiquebrito/nodum-mcp
 ```
 
-Enter your npm credentials:
-- Username: your npm username
-- Password: your npm password
-- Email: your email
-- OTP: (if 2FA enabled) your one-time password
-
-### Step 2: Publish Main Package
+## 2. Sync a Project
 
 ```bash
-npm publish --access public
+cd ~/my-project
+nodum sync
 ```
 
-This publishes `@caiquebrito/nodum` with:
-- CLI: `npx nodum sync /path/to/project`
-- Server: `npx nodum serve`
-- Core library: Can be imported as `import { syncProject } from '@caiquebrito/nodum-core'`
+## 3. Connect Claude Code
 
-### Step 3: Publish MCP Package
+Claude Code reads MCP servers from a `.mcp.json` file in your project root, or its own user
+config — **not** from `settings.json` (its `mcpServers` field is silently ignored).
+
+### Option A: `claude mcp add` (recommended)
 
 ```bash
-npm publish --access public --workspace packages/mcp
+claude mcp add nodum -- nodum-mcp
 ```
 
-This publishes `@caiquebrito/nodum-mcp` (the Claude integration).
+Restart Claude Code, then run `/mcp` to confirm `nodum` is connected.
 
-### Verification
+### Option B: `.mcp.json` in your project root
 
-Check npm:
-```bash
-npm view @caiquebrito/nodum
-npm view @caiquebrito/nodum-mcp
-```
-
-Visit:
-- https://www.npmjs.com/package/@caiquebrito/nodum
-- https://www.npmjs.com/package/@caiquebrito/nodum-mcp
-
----
-
-## Phase 2: Set Up Claude MCP Integration
-
-Once published, users (and you) can integrate with Claude in multiple ways:
-
-### Option A: Claude Code IDE (Recommended)
-
-1. **Install globally:**
-   ```bash
-   npm install -g @caiquebrito/nodum
-   npm install -g @caiquebrito/nodum-mcp
-   ```
-
-2. **Configure Claude Code settings** (in your IDE):
-   
-   Open Claude Code → Settings → MCP Servers and add:
-   ```json
-   {
-     "name": "nodum",
-     "command": "nodum-mcp"
-   }
-   ```
-   
-   Or with full path:
-   ```json
-   {
-     "name": "nodum",
-     "command": "node",
-     "args": ["/usr/local/lib/node_modules/@caiquebrito/nodum-mcp/dist/index.js"]
-   }
-   ```
-
-3. **Restart Claude Code**
-
-4. **Start using in Claude:**
-   ```
-   Claude: Analyze the authentication flow in my project
-   → Claude uses sync_project + search_graph + analyze_file tools
-   → Returns complete analysis with context from your code graph
-   ```
-
-### Option B: claude.ai/code Web Editor
-
-Same as Option A - add to MCP servers in settings, then use Claude for code questions.
-
-### Option C: Custom Claude Agents
-
-Use the MCP in your own agents:
-
-```typescript
-import Anthropic from "@anthropic-ai/sdk";
-
-const client = new Anthropic({
-  mcpServers: {
-    nodum: {
-      command: "nodum-mcp"
+```json
+{
+  "mcpServers": {
+    "nodum": {
+      "command": "nodum-mcp"
     }
   }
-});
-
-// Claude can now call nodum tools
-const response = await client.messages.create({
-  model: "claude-opus-5",
-  max_tokens: 2048,
-  tools: [], // Tools loaded from MCP server
-  messages: [{
-    role: "user",
-    content: "What are all the API endpoints in my project?"
-  }]
-});
+}
 ```
+
+Claude Code will prompt you to trust the server the next time it opens that directory.
+
+### Troubleshooting: "command not found" / server won't connect
+
+Claude Code spawns the MCP server without your shell's full `PATH`, so it may not find the global
+npm bin. Point the config at absolute paths instead:
+
+```bash
+which node        # e.g. /opt/homebrew/bin/node
+which nodum-mcp   # e.g. /opt/homebrew/bin/nodum-mcp
+```
+
+```json
+{
+  "mcpServers": {
+    "nodum": {
+      "command": "/opt/homebrew/bin/node",
+      "args": ["/opt/homebrew/bin/nodum-mcp"]
+    }
+  }
+}
+```
+
+### Other MCP clients
+
+Any MCP-speaking client can use the same server — point it at the `nodum-mcp` command the same
+way you would for Claude Code. No per-client code is needed.
 
 ---
 
 ## Available MCP Tools
 
-Once integrated, Claude can use these tools:
+The MCP server exposes 14 tools (`packages/mcp/src/index.ts`):
 
-### 1. `sync_project`
-Scan a project and build its knowledge graph.
+| Tool | Does |
+|---|---|
+| `sync_project` | Scan a project and build/refresh its knowledge graph |
+| `project_status` | List all synced projects and their stats |
+| `get_graph` | Fetch the complete knowledge graph for a project |
+| `get_node` | Get details about a specific code element |
+| `search_graph` | Search for functions, classes, or files by name, with an optional token budget |
+| `get_dependencies` | What a code element depends on |
+| `get_dependents` | What depends on a code element |
+| `analyze_file` | All functions/classes and dependencies in one file |
+| `expand_cluster` | Expand a hierarchical code cluster into its members |
+| `trace_impact` | Cascade of changes if you modify a given node |
+| `find_bottlenecks` | Complexity × dependents composite ranking |
+| `explain_architecture` | Layer/dependency overview and rule violations |
+| `find_similar_code` | Structurally near-identical code to a node (fuzzy) |
+| `suggest_refactoring` | Unified suggestions drawn from the above analyzers |
 
-```
-Claude: Sync my project at /path/to/my/app
-→ Returns: Files, functions, classes, dependencies stats
-```
-
-### 2. `project_status`
-List all synced projects and their statistics.
-
-```
-Claude: What projects have I synced?
-→ Returns: All projects with stats and last sync time
-```
-
-### 3. `get_graph`
-Get the complete knowledge graph for a project.
-
-```
-Claude: Get the knowledge graph for my nodum project
-→ Returns: All nodes (files, functions, classes) and edges
-```
-
-### 4. `search_graph`
-Search for functions, classes, or files by name.
-
-```
-Claude: Find all functions related to authentication
-→ Returns: List of matching nodes
-```
-
-### 5. `get_node`
-Get details about a specific code element.
-
-```
-Claude: Tell me about the loginUser function and what it depends on
-→ Returns: Function details + dependencies + dependents
-```
-
-### 6. `get_dependencies`
-Find what a code element depends on.
-
-```
-Claude: What does the UserService class depend on?
-→ Returns: All outgoing edges (dependencies)
-```
-
-### 7. `get_dependents`
-Find what depends on a code element.
-
-```
-Claude: What uses the authenticate function?
-→ Returns: All incoming edges (code that depends on it)
-```
-
-### 8. `analyze_file`
-Get all functions and dependencies in a file.
-
-```
-Claude: Analyze the src/auth/login.ts file
-→ Returns: All functions/classes + external dependencies
-```
+See [`docs/architecture/MCP.md`](../architecture/MCP.md) for how the server is built.
 
 ---
 
 ## Example Workflows
 
-### Workflow 1: Code Review with Context
-
+### Code Review with Context
 ```
-You: @Claude review this PR - what's the impact?
+You: @Claude review this PR — what's the impact?
 Claude:
-1. Calls sync_project to get your project graph
-2. Searches for modified files in the PR
-3. Calls get_dependents to see what breaks
-4. Provides impact analysis with confidence
+1. Calls search_graph to find the modified files/functions
+2. Calls trace_impact / get_dependents to see what breaks
+3. Provides impact analysis grounded in the real dependency graph
 ```
 
-### Workflow 2: Refactoring Suggestions
-
+### Refactoring Safely
 ```
-You: I want to refactor UserService - is it safe?
+You: I want to refactor UserService — is it safe?
 Claude:
 1. Searches for UserService in the graph
-2. Calls get_dependents to find all code using it
-3. Calls analyze_file on each dependent
-4. Provides refactoring plan with minimal risk
+2. Calls get_dependents and find_bottlenecks
+3. Calls suggest_refactoring for a concrete plan
 ```
 
-### Workflow 3: Architecture Questions
-
+### Architecture Questions
 ```
 You: What's the auth flow from login page to API?
 Claude:
 1. Searches for login-related functions
-2. Traces dependencies through the graph
-3. Builds complete flow diagram
-4. Explains with actual code structure context
+2. Calls explain_architecture / traces dependencies through the graph
+3. Explains with your actual code structure, not a guess
 ```
 
 ---
@@ -245,100 +132,31 @@ Claude:
 ## Testing the MCP Server Locally
 
 ```bash
-# Build everything
 npm run build
-
-# Test the MCP server by itself
 node packages/mcp/dist/index.js
-
-# In another terminal, test a tool call:
-# (This requires MCP protocol formatting, so use via IDE instead)
 ```
 
----
-
-## Publishing Updates
-
-When you make changes:
-
-```bash
-# Bump version
-npm version minor  # or patch/major
-
-# Build
-npm run build
-
-# Publish (both packages)
-npm publish --access public --workspace .
-
-# Push to GitHub
-git push origin main
-git push origin --tags
-```
-
----
-
-## Next Steps
-
-1. **✅ Done**: MCP server built and tested
-2. **🔄 Next**: npm publish (need npm account + login)
-3. **➡️ Then**: Configure in Claude Code settings
-4. **🎯 Final**: Use Claude with full project context!
+The server speaks MCP over stdio — test tool calls through an actual MCP client (Claude Code,
+etc.) rather than by hand.
 
 ---
 
 ## Troubleshooting
 
-### MCP not appearing in Claude Code settings
-- Restart Claude Code completely
-- Verify `nodum-mcp` is in PATH: `which nodum-mcp`
-- Check npm install: `npm list -g @caiquebrito/nodum-mcp`
+### MCP not appearing in Claude Code
+- Restart Claude Code completely.
+- Verify `nodum-mcp` is on `PATH`: `which nodum-mcp`.
+- Check the install: `npm list -g @caiquebrito/nodum-mcp`.
 
-### MCP tools not working
-- Check ~/.nodum/ exists and has data
-- Run `nodum status` in terminal to verify projects synced
-- Check MCP server logs in Claude Code console
-
-### Graph not updating
-- Graphs are cached in ~/.nodum/
-- Rerun `nodum sync /path` to refresh
-- Clear cache: `rm -rf ~/.nodum/projectname`
+### MCP tools not returning data
+- Confirm `~/.nodum/` has data for the project: `nodum status`.
+- Re-sync to refresh: `nodum sync /path/to/project`.
+- Clear a project's cache: `rm -rf ~/.nodum/<project-name>`.
 
 ---
 
-## What Users Get
+## Next
 
-Once published, developers can:
-
-```bash
-# Install
-npm install -g @caiquebrito/nodum
-
-# Use CLI
-nodum sync ~/myproject
-nodum serve                    # View 3D graph
-nodum status                   # Check projects
-
-# Use with Claude
-# → Add to MCP servers in Claude Code
-# → Ask Claude code questions with full project context
-```
-
-Perfect for:
-- 🤖 AI-assisted code reviews
-- 🔍 Architecture analysis
-- 🐛 Impact analysis before refactoring
-- 📚 Understanding codebases
-- 🚀 Onboarding new team members
-
----
-
-## Questions?
-
-Check the documentation:
-- [PUBLISH.md](./PUBLISH.md) - npm publishing details
-- [MCP.md](./MCP.md) - MCP implementation details
-- [RUN.md](./RUN.md) - Running locally
-- [QUICKSTART.md](./QUICKSTART.md) - Quick start guide
-
-Good luck shipping! 🚀
+- [Running Nodum](./RUN.md) — full CLI command reference
+- [MCP Integration](../architecture/MCP.md) — server architecture
+- [Smart Context](../architecture/SMART-CONTEXT.md) — how token-efficient context is built

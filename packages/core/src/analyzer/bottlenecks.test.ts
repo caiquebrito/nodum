@@ -76,4 +76,35 @@ describe("findBottlenecks", () => {
     const targetFileNode = graph.nodes.find(n => n.file === "target.ts" && n.type === "file")!;
     expect(ranking[0].dependentCount).toBe(traceImpact(graph, targetFileNode.id).length);
   });
+
+  it("labels a widely-depended-upon but low-complexity shared type 'foundational', not 'high'", () => {
+    // e.g. a Result monad / base use-case class: 12 dependents, complexity 2.
+    const graph = graphOf(
+      [fileNode("result"), funcNode("result__f", "result.ts", 2), fileNode("a")],
+      [imports("a", "result")],
+    );
+    const ranking = findBottlenecks(graph);
+    expect(ranking[0].risk).toBe("foundational");
+  });
+
+  it("labels a complex, heavily-depended-upon file 'high'", () => {
+    const graph = graphOf(
+      [fileNode("hub"), funcNode("hub__f", "hub.ts", 15), fileNode("a")],
+      [imports("a", "hub")],
+    );
+    const ranking = findBottlenecks(graph);
+    expect(ranking[0].risk).toBe("high");
+  });
+
+  it("labels a complex but undepended-upon file 'complex', not 'high'", () => {
+    const graph = graphOf([fileNode("a"), funcNode("a__f", "a.ts", 15)], []);
+    const ranking = findBottlenecks(graph);
+    expect(ranking[0].risk).toBe("complex");
+  });
+
+  it("labels a simple, undepended-upon file 'low'", () => {
+    const graph = graphOf([fileNode("a"), funcNode("a__f", "a.ts", 2)], []);
+    const ranking = findBottlenecks(graph);
+    expect(ranking[0].risk).toBe("low");
+  });
 });

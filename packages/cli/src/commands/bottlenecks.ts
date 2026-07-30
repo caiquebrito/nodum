@@ -37,6 +37,8 @@ export async function bottlenecksCommand(
 
   console.log(`🔥 Bottlenecks (${bottlenecks.length})\n`);
   bottlenecks.forEach((b, i) => {
-    console.log(`  ${i + 1}. ${b.file}  score=${b.score}  complexity=${b.maxComplexity}  dependents=${b.dependentCount}`);
+    console.log(
+      `  ${i + 1}. ${b.file}  score=${b.score}  complexity=${b.maxComplexity}  dependents=${b.dependentCount}  risk=${b.risk}`,
+    );
   });
 }

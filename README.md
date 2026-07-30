@@ -386,8 +386,7 @@ nodum/
 │   │   └── SMART-CONTEXT.md
 │   └── development/    # Contributing & planning
 │       ├── PUBLISH.md
-│       ├── ROADMAP.md
-│       └── LAUNCH.md
+│       └── ROADMAP.md
 ├── README.md           # Main readme (you are here)
 ├── CHANGELOG.md        # Release notes
 └── CLAUDE.md           # Project context for Claude
@@ -422,9 +421,19 @@ npm install -g .
 
 ## Roadmap
 
-60 specs shipped so far, each with real end-to-end verification against synced projects — see
+61 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.15.0** across all four packages (lockstep).
+**v2.16.0** across all four packages (lockstep).
+
+### ✅ Work around the Node/V8 WASM compiler crash on large syncs (shipped as v2.16.0)
+- Closes a five-spec investigation (055 → 056 → 058 → 059 → 060) into a real Node `v25.9.0` crash on
+  very large syncs. Root-caused via a real native stack trace to a genuine bug in V8's Turboshaft
+  WASM optimizing compiler — not this codebase — and confirmed by elimination against measured V8
+  flags that `--liftoff-only` (baseline-only WASM compilation) avoids it entirely
+- `nodum` and `nodum-mcp` now transparently re-exec themselves with `--liftoff-only` — neither
+  `NODE_OPTIONS` nor a runtime flag flip can apply it, both verified directly
+- Real check: the exact real ~21,447-file Kotlin Multiplatform project that crashed since v2.12.0
+  now completes end to end on Node `v25.9.0` with zero manual configuration — 246,186 dependencies
 
 ### ✅ Fix `applyExpectActual`'s array-spread stack overflow (shipped as v2.15.0)
 - Closed out the investigation started in v2.13.0 and continued in v2.14.0: the real
@@ -558,9 +567,9 @@ See [ROADMAP.md](./docs/development/ROADMAP.md) for the full plan and the reason
 - **[Smart Context](./docs/architecture/SMART-CONTEXT.md)** — v2.0 optimizations
 
 **Development:**
-- **[Publishing](./docs/development/PUBLISH.md)** — npm publishing details
-- **[Roadmap](./docs/development/ROADMAP.md)** — Future features (v2.1+)
-- **[Launch Strategy](./docs/development/LAUNCH.md)** — Release planning
+- **[Contributing](./CONTRIBUTING.md)** — Spec-driven workflow: branching, writing a spec, opening a PR
+- **[Publishing](./docs/development/PUBLISH.md)** — Release mechanics: changesets, cutting a version
+- **[Roadmap](./docs/development/ROADMAP.md)** — Shipped releases and what's next
 
 **Benchmarks:**
 - **[Benchmarks](./benchmarks/README.md)** — Token efficiency metrics and v2.0 results
@@ -586,7 +595,7 @@ A: TypeScript, Python, Java, JavaScript, Swift, Objective-C, Go, and Kotlin — 
 parsing (TypeScript via the compiler API, the rest via tree-sitter).
 
 **Q: Is this production-ready?**
-A: Yes — v2.15.0 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.16.0 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.
@@ -636,6 +645,6 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 ---
 
-**[Get Started Now →](./SETUP-GUIDE.md)**
+**[Get Started Now →](./docs/guides/SETUP-GUIDE.md)**
 
-**Version 2.15.0** · MIT License · No cloud, no subscriptions, no BS.
+**Version 2.16.0** · MIT License · No cloud, no subscriptions, no BS.

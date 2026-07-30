@@ -102,13 +102,14 @@ export class KotlinParser extends TreeSitterParser {
     const callables: CallableUnit[] = [];
 
     const fileId = normalizeNodeId(file.path, file.path, 'file');
-    nodes.push({
+    const fileNode: Node = {
       id: fileId,
       label: file.path.split('/').pop() || file.path,
       type: 'file',
       file: file.path,
       group: getNodeGroup(file.path),
-    });
+    };
+    nodes.push(fileNode);
 
     // Every class/object, at any nesting depth, gets a flat fileId->id edge
     // — matching java.ts's own precedent. `object`/`data class`/
@@ -118,6 +119,8 @@ export class KotlinParser extends TreeSitterParser {
     // is a distinct `companion_object` node type (not matched by this
     // query at all — its members are deliberately not extracted, see
     // Design), so it never becomes a node here.
+    const declaredTopLevelNames = new Set<string>();
+
     const seenTypeNames = new Set<string>();
     const typeQuery = getQuery(language, 'kotlin-types', TYPE_QUERY);
     for (const match of typeQuery.matches(root)) {
@@ -129,6 +132,7 @@ export class KotlinParser extends TreeSitterParser {
       const dedupeKey = `${defNode.type}:${typeName}`;
       if (seenTypeNames.has(dedupeKey)) continue;
       seenTypeNames.add(dedupeKey);
+      declaredTopLevelNames.add(typeName);
 
       const kind = kotlinDeclKind(defNode);
       const platformModifier = kotlinPlatformModifier(defNode);
@@ -203,6 +207,7 @@ export class KotlinParser extends TreeSitterParser {
       const name = nameNode.text;
       if (seenFunctionNames.has(name)) continue;
       seenFunctionNames.add(name);
+      declaredTopLevelNames.add(name);
 
       const body = defNode.namedChildren.find(c => c?.type === 'function_body');
       const dupSignals = body ? buildDuplicateSignals(collectNormalizedTokens(body)) : {};
@@ -224,9 +229,24 @@ export class KotlinParser extends TreeSitterParser {
       if (body) callables.push({ nodeId: funcId, name, body });
     }
 
+    // Top-level `val`/`var` declarations (e.g. a Koin `val commonModule =
+    // module { ... }`) — deliberately not extracted as their own `Node`
+    // (no dedicated NodeType for a property, matching the platformModifier
+    // doc comment's own scope note), just their bare name, so same-package
+    // usage resolution (see `Node.declaredTopLevelNames`) can still see
+    // them even though nothing else about them is tracked.
+    for (const defNode of root.namedChildren) {
+      if (defNode?.type !== 'property_declaration') continue;
+      const varDecl = defNode.namedChildren.find(c => c?.type === 'variable_declaration');
+      const nameNode = varDecl?.namedChildren.find(c => c?.type === 'simple_identifier');
+      if (nameNode) declaredTopLevelNames.add(nameNode.text);
+    }
+
     extractCalls(callables, edges);
 
     const imports = extractImports(root);
+    fileNode.referencedIdentifiers = collectReferencedIdentifiers(root);
+    fileNode.declaredTopLevelNames = [...declaredTopLevelNames];
 
     tree!.delete();
     parser.delete();
@@ -316,6 +336,29 @@ function extractCalls(callables: CallableUnit[], edges: Edge[]): void {
       edges.push({ source: nodeId, target: targetId, relation: 'calls' });
     }
   }
+}
+
+/**
+ * Every distinct `simple_identifier`/`type_identifier` text anywhere in the
+ * file — unlike every other walker in this file, this does NOT stop at a
+ * nested `function_declaration` boundary, since a same-package unqualified
+ * reference (see `Node.referencedIdentifiers`'s doc comment) can appear
+ * inside any function/method body, not just top level. Deliberately not
+ * scope-resolved against locals/params — see that same doc comment for why.
+ */
+function collectReferencedIdentifiers(root: TSNode): string[] {
+  const names = new Set<string>();
+
+  function visit(node: TSNode | null): void {
+    if (!node) return;
+    if (node.type === 'simple_identifier' || node.type === 'type_identifier') {
+      names.add(node.text);
+    }
+    for (const child of node.namedChildren) visit(child);
+  }
+
+  visit(root);
+  return [...names];
 }
 
 /**

@@ -79,4 +79,46 @@ describe("detectUnreachableFiles", () => {
     );
     expect(detectUnreachableFiles(graph)).toEqual([]);
   });
+
+  it("excludes a file whose top-level symbol is referenced by a same-directory sibling with no import edge", () => {
+    // Kotlin same-package idiom: Theme.kt references Palette (an `internal
+    // object` in the same package) with no `import` statement at all.
+    const graph = graphOf(
+      [
+        { ...fileNode("theme", "app/theme/Theme.kt"), referencedIdentifiers: ["Palette"] },
+        fileNode("palette", "app/theme/Palette.kt"),
+        { id: "palette__object", label: "Palette", type: "class", file: "app/theme/Palette.kt", group: "other" },
+      ],
+      [],
+    );
+
+    const result = detectUnreachableFiles(graph);
+    expect(result.map(f => f.file)).not.toContain("app/theme/Palette.kt");
+  });
+
+  it("still reports a file dead when no same-directory sibling references its declared symbols", () => {
+    const graph = graphOf(
+      [
+        { ...fileNode("theme", "app/theme/Theme.kt"), referencedIdentifiers: ["SomethingElse"] },
+        fileNode("palette", "app/theme/Palette.kt"),
+        { id: "palette__object", label: "Palette", type: "class", file: "app/theme/Palette.kt", group: "other" },
+      ],
+      [],
+    );
+    const result = detectUnreachableFiles(graph);
+    expect(result.map(f => f.file)).toContain("app/theme/Palette.kt");
+  });
+
+  it("does not exempt a file referenced only by a sibling in a different directory", () => {
+    const graph = graphOf(
+      [
+        { ...fileNode("other", "app/other/Other.kt"), referencedIdentifiers: ["Palette"] },
+        fileNode("palette", "app/theme/Palette.kt"),
+        { id: "palette__object", label: "Palette", type: "class", file: "app/theme/Palette.kt", group: "other" },
+      ],
+      [],
+    );
+    const result = detectUnreachableFiles(graph);
+    expect(result.map(f => f.file)).toContain("app/theme/Palette.kt");
+  });
 });

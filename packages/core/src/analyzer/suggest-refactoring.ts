@@ -27,6 +27,10 @@ export interface SuggestRefactoringOptions {
   /** Default 10 — a common linter default for "this function is too complex," not a claimed
    * universal standard. Overridable. */
   complexityThreshold?: number;
+  /** Forwarded to `detectUnreachableFiles`'s own `entryPatterns` — e.g. file
+   * paths resolved from AndroidManifest.xml's entry points via
+   * `findManifestEntryFiles`, exempting them from the `dead-code` category. */
+  deadCodeEntryPatterns?: string[];
 }
 
 /**
@@ -66,9 +70,10 @@ export function suggestRefactoring(graph: Graph, options: SuggestRefactoringOpti
   }
 
   for (const group of detectDuplicates(graph)) {
+    const names = [...new Set(group.nodes.map(n => n.label))].join(', ');
     suggestions.push({
       kind: 'duplication',
-      description: `${group.nodes.length} structurally identical functions — consider extracting a shared implementation`,
+      description: `${names} — ${group.nodes.length} structurally identical functions — consider extracting a shared implementation`,
       files: group.nodes.map(n => n.file),
     });
   }
@@ -85,7 +90,7 @@ export function suggestRefactoring(graph: Graph, options: SuggestRefactoringOpti
     });
   }
 
-  for (const unreachable of detectUnreachableFiles(graph)) {
+  for (const unreachable of detectUnreachableFiles(graph, { entryPatterns: options.deadCodeEntryPatterns })) {
     suggestions.push({
       kind: 'dead-code',
       description: `${unreachable.file} is not imported by any other tracked file — candidate for removal`,

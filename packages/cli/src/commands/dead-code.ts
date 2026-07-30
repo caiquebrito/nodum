@@ -1,7 +1,7 @@
 import { resolve, basename } from 'path';
 import { readFile } from 'fs/promises';
 import type { Graph } from '@caiquebrito/nodum-core';
-import { detectUnreachableFiles } from '@caiquebrito/nodum-core';
+import { detectUnreachableFiles, findManifestEntryFiles } from '@caiquebrito/nodum-core';
 
 export interface DeadCodeOptions {
   json?: boolean;
@@ -27,8 +27,12 @@ export async function deadCodeCommand(
     throw new Error(`No synced graph found for "${projectName}". Run \`nodum sync\` first.`);
   }
 
-  const entryPatterns = options.entry ? parsePatterns(options.entry) : undefined;
-  const unreachable = detectUnreachableFiles(graph, { entryPatterns });
+  const userEntryPatterns = options.entry ? parsePatterns(options.entry) : [];
+  const manifestEntryFiles = await findManifestEntryFiles(resolve(projectPath), graph.nodes);
+  const entryPatterns = [...userEntryPatterns, ...manifestEntryFiles];
+  const unreachable = detectUnreachableFiles(graph, {
+    entryPatterns: entryPatterns.length > 0 ? entryPatterns : undefined,
+  });
 
   if (options.json) {
     console.log(JSON.stringify(unreachable, null, 2));

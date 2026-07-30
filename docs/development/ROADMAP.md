@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-07-29 · **Current release:** v2.15.0 (all four packages, lockstep) · **Specs shipped:** 60 (`docs/development/completed/`)
+**Last updated:** 2026-07-30 · **Current release:** v2.16.0 (all four packages, lockstep) · **Specs shipped:** 61 (`docs/development/completed/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -331,6 +331,36 @@ tree-sitter parser's recursive AST walk as the roadmap had speculated.
   `applyExpectActual` ever runs. This spec fixed the second bug the crash was masking, not the
   crash itself.
 
+### Work around the Node/V8 WASM compiler crash on large syncs — shipped as real npm v2.16.0 (spec `060`)
+Closes the four-spec investigation arc (055 → 056 → 058 → 059 → 060) into the original Node
+`v25.9.0` crash — the one item spec 059 explicitly left open. Re-tested the exact same real
+~21,447-file project on `v25.9.0` and confirmed the crash still reproduced after spec 059's fix, as
+expected, then root-caused it for real instead of continuing to guess.
+- **Genuinely a V8 bug, not this codebase's**: the real native stack trace is unambiguous —
+  `Zone::Expand` → `SnapshotTable::MergePredecessors` → `WasmLoweringReducer` →
+  `Pipeline::Run<WasmLoweringPhase>` → `ExecuteTurboshaftWasmCompilation` →
+  `BackgroundCompileJob::Run`. Every frame is inside V8's own Turboshaft WASM optimizing compiler,
+  compiling a tree-sitter grammar module — not this codebase, not `web-tree-sitter`, not the JS
+  heap (so `--max-old-space-size` was never going to help; `Zone` is a separate compiler arena).
+- **Narrowed the real trigger by elimination, with real measurements**: `--wasm-num-compilation-tasks=1`
+  and `--no-wasm-tier-up` both still crashed; `--liftoff-only` (forcing V8's baseline WASM compiler,
+  never invoking the optimizer) did not — the real project completed in ~12 minutes.
+- **Verified the "free" fixes don't work before reaching for a bigger one**: `NODE_OPTIONS` rejects
+  `--liftoff-only` outright (Node's flag allowlist), and calling `v8.setFlagsFromString()` at
+  runtime still crashed identically — WASM tiering is decided too early in V8's startup for a
+  runtime flip. A real process argument, set before V8 initializes, is the only mechanism that
+  actually works.
+- `nodum` and `nodum-mcp` now transparently re-exec themselves with `--liftoff-only` on every
+  invocation (`ensureLiftoffOnly()`, shared from `packages/core` since the MCP server hits the same
+  crash via its `sync_project` tool). **Real check: the exact real project now completes end to end
+  on Node `v25.9.0` with zero manual flags** — 246,186 dependencies, matching every prior successful
+  run exactly. Also verified: a non-sync command, a deliberately failing sync (correct exit code),
+  and the MCP stdio transport (including a real `sync_project` call) all still work through the
+  respawn.
+- **This is a workaround for an upstream V8 bug, not a fix merged into V8 itself.** The tradeoff is
+  WASM code compiled at Liftoff's baseline tier instead of Turboshaft's optimized tier — measured as
+  a non-issue for this workload (a one-time parse per sync, not a hot loop).
+
 ---
 
 ## Next
@@ -381,7 +411,7 @@ neither was a hypothetical concern:
 
 None of these three are scoped to any release yet.
 
-### Known issue: full-project sync still doesn't complete on Node `v25.9.0` — the stack-overflow half is now resolved
+### Closed: the Node `v25.9.0` large-project sync crash (spec 060 resolved it)
 Originally discovered during spec 055's real end-to-end verification (a real ~21,447-file Kotlin
 Multiplatform monorepo, well over the 20,000-file `.nodumrc.json` guardrail, crashed this machine's
 Node `v25.9.0` with a `Fatal process out of memory: Zone` V8 WASM-compilation error). Spec 056
@@ -404,19 +434,18 @@ original crash**:
   the exact same real ~21,447-file project now completes end to end on Node 22 LTS**, for the first
   time across this entire investigation (246,186 dependencies, 18 correct `expect`/`actual` pairs).
 
-**What remains open: the original Node `v25.9.0` V8 WASM crash itself.** The stack-overflow bug that
-was masking it is fixed, but the `v25.9.0`-specific `Fatal process out of memory: Zone` crash was
-never re-tested past that fix on `v25.9.0` — Node 22 LTS is the only version confirmed to complete
-this project end to end. The parser leak fix (spec 056) is real, verified, and worth keeping
-regardless — but package.json's `"engines": ">=18.0.0"` remains deliberately **not** narrowed, since
-`v25.9.0` still isn't confirmed to complete this project.
+**What was still open after spec 059: the original Node `v25.9.0` V8 WASM crash itself.** Spec 060
+re-tested it, confirmed it still reproduced (as expected — it happens during parsing, before either
+of specs 056/059's fixes ever run), root-caused it to a genuine V8 optimizing-compiler bug via a
+real native stack trace, and shipped a real, verified workaround (`--liftoff-only`, applied via a
+transparent self-re-exec). **The exact real ~21,447-file project now completes end to end on Node
+`v25.9.0` with zero manual configuration** — see the v2.16.0 entry above for the full account.
 
-Worth investigating as its own future item, not scoped to any release yet:
-- Re-test the real ~21,447-file project on Node `v25.9.0` now that the stack-overflow bug (which was
-  never reached on that version, since the WASM crash happens earlier, during parsing) is fixed —
-  confirm whether the original V8 WASM crash still reproduces on its own.
-- If it does, narrow down whether it's specific to Node `v25.9.0` particularly or a broader vintage-
-  of-V8 issue, and document a known-good Node version range once one is confirmed with confidence.
+This is a workaround for an upstream V8 bug, not a fix merged into V8 itself — worth remembering if
+a future Node/V8 upgrade changes this behavior. `package.json`'s `"engines": ">=18.0.0"` remains
+un-narrowed, and now genuinely doesn't need narrowing: the reason it was left open was that no Node
+version cleanly completed this project, and now every supported version does (with the workaround
+in place).
 
 ### v3.0.0 — MCP-native, semantically deep
 
@@ -461,8 +490,8 @@ implied by their absence.
 - ~~Delete the orphaned root `/viewer/`~~ — done in spec 046; `packages/viewer` was already the
   real, maintained source.
 - ~~Delete `claude skills/sync-rag/`~~ — done in spec 046.
-- ~~Reconcile the root `package.json` version~~ — done in spec 046 (now `2.9.0` as of that spec;
-  update again if this cosmetic field drifts).
+- ~~Reconcile the root `package.json` version~~ — done in spec 046 (`2.9.0` at that time), re-synced
+  to `2.16.0` during the 2026-07-29 docs cleanup pass; update again if this cosmetic field drifts.
 - ~~Reconcile `CHANGELOG.md`~~ — checked in spec 046 and found already correctly scoped to
   pre-v2.1.0 history, deferring to `packages/*/CHANGELOG.md` from v2.1.0 on; no change needed.
 
@@ -521,7 +550,14 @@ implied by their absence.
     three prior specs completed end to end for the first time. The original Node `v25.9.0` V8 crash
     the investigation started from remains open, tracked honestly rather than assumed fixed by
     association.
-11. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
+11. **Work around the V8 WASM compiler crash (v2.16.0):** closes the five-spec arc this investigation
+    ran across (055 → 056 → 058 → 059 → 060). Rather than accept the original crash as permanently
+    unresolvable, root-caused it for real — a genuine V8 optimizing-compiler bug, confirmed via a
+    real native stack trace and elimination against measured V8 flags, not guessed at from
+    documentation. Verified the cheaper fixes (`NODE_OPTIONS`, a runtime flag flip) didn't actually
+    work before shipping the one that did. The exact real project this whole investigation was
+    fought over now syncs end to end with zero user-facing configuration.
+12. **v3.0:** the reframed vision — MCP-native portability instead of a bespoke adapter layer,
     validated by real numbers instead of asserted ones.
 
 ---
