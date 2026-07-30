@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { ensureLiftoffOnly } from '@caiquebrito/nodum-core';
+ensureLiftoffOnly();
+
 import { Command } from 'commander';
 import { homedir } from 'os';
 import type { ProjectIndexEntry } from '@caiquebrito/nodum-core';

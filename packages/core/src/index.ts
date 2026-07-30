@@ -2,6 +2,8 @@
 export { syncProject, writeGraphFile } from './sync.js';
 export type { SyncHooks } from './sync.js';
 
+export { ensureLiftoffOnly } from './runtime/liftoff-respawn.js';
+
 export type {
   Node,
   Edge,
