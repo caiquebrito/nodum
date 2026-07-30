@@ -97,6 +97,20 @@ describe("suggestRefactoring", () => {
     expect(dupSuggestions[0].files.sort()).toEqual(["a.ts", "b.ts"]);
   });
 
+  it("names the actual duplicated symbol(s) in the duplication description, not just a count", () => {
+    const graph = graphOf(
+      [
+        fileNode("a", "a.ts"),
+        { id: "a__extractId", label: "extractId", type: "function", file: "a.ts", group: "other", duplicateHash: "h1" },
+        fileNode("b", "b.ts"),
+        { id: "b__extractId", label: "extractId", type: "function", file: "b.ts", group: "other", duplicateHash: "h1" },
+      ],
+      [],
+    );
+    const dupSuggestions = suggestRefactoring(graph).filter(s => s.kind === "duplication");
+    expect(dupSuggestions[0].description).toContain("extractId");
+  });
+
   it("produces one near-duplication suggestion per fuzzy group, listing every member file (spec 052)", () => {
     const graph = graphOf(
       [
@@ -123,6 +137,17 @@ describe("suggestRefactoring", () => {
     const deadSuggestions = suggestions.filter(s => s.kind === "dead-code");
     expect(deadSuggestions).toHaveLength(detectUnreachableFiles(graph).length);
     expect(deadSuggestions[0].files).toEqual(["src/orphan.ts"]);
+  });
+
+  it("excludes a file matching deadCodeEntryPatterns from the dead-code category", () => {
+    const graph = graphOf([fileNode("a", "src/PokemonApplication.kt")], []);
+    const withoutPattern = suggestRefactoring(graph).filter(s => s.kind === "dead-code");
+    expect(withoutPattern).toHaveLength(1);
+
+    const withPattern = suggestRefactoring(graph, {
+      deadCodeEntryPatterns: ["src/PokemonApplication.kt"],
+    }).filter(s => s.kind === "dead-code");
+    expect(withPattern).toEqual([]);
   });
 
   it("groups suggestions in the fixed category order", () => {

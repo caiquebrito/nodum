@@ -80,6 +80,32 @@ export interface Node {
    * all today, and `expect class` *members* are deliberately not walked for
    * this. Consumed only by `analyzer/expect-actual.ts`'s pairing pass. */
   platformModifier?: 'expect' | 'actual';
+  /** Every distinct bare identifier/type name referenced anywhere in this
+   * file (not just calls, not just top-level) — only set on `type: 'file'`
+   * nodes, and currently only populated by the Kotlin parser. Exists to
+   * resolve Kotlin's same-package, no-`import`-needed visibility: a
+   * top-level `internal`/public declaration referenced unqualified by a
+   * sibling file in the same directory has no `imports` edge to show for
+   * it, so `detectUnreachableFiles` cross-checks this set against sibling
+   * files' declared symbol names before flagging a file dead. Deliberately
+   * coarse (every identifier, not scope-resolved against locals/params) —
+   * same flat-name-lookup posture `calls` edges already take within a
+   * single file; a stray same-named local variable causing an occasional
+   * false *negative* here is the accepted trade-off for fewer dead-code
+   * false positives. */
+  referencedIdentifiers?: string[];
+  /** Every top-level declaration name in this file (classes/interfaces/enums/
+   * objects, top-level functions, AND top-level properties) — only set on
+   * `type: 'file'` nodes, currently only populated by the Kotlin parser.
+   * Exists alongside `referencedIdentifiers` for the same same-package
+   * dead-code resolution: a top-level `val`/`var` (e.g. a Koin
+   * `val commonModule = module { ... }`) never gets its own graph `Node`
+   * at all (this parser doesn't extract properties as nodes, see
+   * `platformModifier`'s doc comment) — so it would otherwise be
+   * invisible to `usedBySamePackageSibling`'s "does some sibling reference
+   * one of this file's declared symbols" check, which reads *declared*
+   * `Node`s' labels for every other symbol kind. */
+  declaredTopLevelNames?: string[];
 }
 
 export interface Edge {

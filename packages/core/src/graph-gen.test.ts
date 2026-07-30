@@ -188,6 +188,16 @@ describe("generateGraph — import edge resolution", () => {
     expect(graph.edges).toContainEqual({ source: aId, target: bId, relation: "imports" });
   });
 
+  it("does not emit an imports edge when a specifier resolves back to the importing file itself", async () => {
+    fileImports["src/a.ts"] = ["./a"];
+    discoverFilesMock.mockResolvedValue([fileInfo("src/a.ts")]);
+
+    const { generateGraph } = await import("./graph-gen.js");
+    const { graph } = await generateGraph("/proj", {});
+
+    expect(graph.edges.filter(e => e.relation === "imports")).toEqual([]);
+  });
+
   it("incremental: an import edge is dropped when its target file is deleted", async () => {
     const aId = normalizeNodeId("src/a.ts", "src/a.ts", "file");
     const bId = normalizeNodeId("src/b.ts", "src/b.ts", "file");
