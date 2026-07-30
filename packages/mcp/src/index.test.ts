@@ -86,6 +86,7 @@ vi.mock("@caiquebrito/nodum-core", () => ({
   formatUpdateNotice: vi.fn(() => ""),
   appendMetricsLog: appendMetricsLogMock,
   countTokens: (text: string) => text.length,
+  ensureLiftoffOnly: vi.fn(),
 }));
 
 const OK_RESULT = { content: [{ type: "text" as const, text: "ok" }] };

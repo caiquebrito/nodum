@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import { ensureLiftoffOnly } from "@caiquebrito/nodum-core";
+ensureLiftoffOnly();
+
 import { readFileSync } from "fs";
 import { homedir } from "os";
 import { join, dirname } from "path";
