@@ -1,7 +1,7 @@
 import { resolve, basename } from 'path';
 import { readFile } from 'fs/promises';
 import type { Graph } from '@caiquebrito/nodum-core';
-import { detectUnreachableFiles, findManifestEntryFiles } from '@caiquebrito/nodum-core';
+import { detectUnreachableFiles, findManifestEntryFiles, findCiInvokedFiles } from '@caiquebrito/nodum-core';
 
 export interface DeadCodeOptions {
   json?: boolean;
@@ -29,7 +29,8 @@ export async function deadCodeCommand(
 
   const userEntryPatterns = options.entry ? parsePatterns(options.entry) : [];
   const manifestEntryFiles = await findManifestEntryFiles(resolve(projectPath), graph.nodes);
-  const entryPatterns = [...userEntryPatterns, ...manifestEntryFiles];
+  const ciInvokedFiles = await findCiInvokedFiles(resolve(projectPath), graph.nodes);
+  const entryPatterns = [...userEntryPatterns, ...manifestEntryFiles, ...ciInvokedFiles];
   const unreachable = detectUnreachableFiles(graph, {
     entryPatterns: entryPatterns.length > 0 ? entryPatterns : undefined,
   });
