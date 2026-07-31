@@ -12,6 +12,7 @@ import {
   findSimilarCode,
   suggestRefactoring,
   findManifestEntryFiles,
+  findCiInvokedFiles,
   type ProjectIndexEntry,
   type Graph,
 } from "@caiquebrito/nodum-core";
@@ -606,7 +607,10 @@ export async function handleSuggestRefactoring(
       ? (await loadArchitectureConfig(projectPath)).rules
       : undefined;
     const deadCodeEntryPatterns = projectPath
-      ? await findManifestEntryFiles(projectPath, graph.nodes)
+      ? [
+          ...(await findManifestEntryFiles(projectPath, graph.nodes)),
+          ...(await findCiInvokedFiles(projectPath, graph.nodes)),
+        ]
       : undefined;
 
     const suggestions = suggestRefactoring(graph, {
