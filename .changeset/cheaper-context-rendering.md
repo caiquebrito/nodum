@@ -1,5 +1,0 @@
----
-"@caiquebrito/nodum-mcp": patch
----
-
-Reduce `buildSmartContext`'s CPU and token cost. `buildContextSections` no longer independently re-scans `graph.edges` per node (an O(nodes × edges) rescan of the exact adjacency `expandContext` had already built and discarded) — both now share one `buildGraphAdjacency` map, an ~11-77x speedup on synthetic benchmarks depending on graph shape. `search_graph`'s `token_budget` now defaults to 1500 when the caller omits it, so the budgeting machinery (`fillSectionsToBudget`) runs on the common path instead of almost never; pass `0` or `null` explicitly for the old unbounded behavior. The summary/notes footer is now shown in full only on a session's first `search_graph` call (tracked via `ConversationCache`), with a short node-count-only form on subsequent calls in the same session. Decoration (emoji/box-drawing) was measured and left in place — real but modest savings (4-12%) with no way to measure downstream-LLM comprehension impact in this environment; see spec 070 for the full evidence.
