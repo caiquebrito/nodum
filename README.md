@@ -205,6 +205,9 @@ nodum serve
 
 # Check synced projects
 nodum status
+
+# MCP tool call telemetry (v2.18)
+nodum metrics                   # Calls, latency, cache hits, truncation per tool
 ```
 
 ### Data Storage

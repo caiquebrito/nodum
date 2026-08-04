@@ -63,6 +63,33 @@ type ToolResult = CallToolResult;
  * judged acceptable since they're low-frequency error paths, not a
  * correctness concern.
  */
+// `buildSmartContext`'s formatted response text (smart-context.ts) always
+// appends one of these exact phrases when the corresponding condition
+// holds — see its `notes` array. Deriving `cacheHit`/`truncated` (spec 065)
+// by matching them here is a text-scrape, not a structured return value,
+// but it avoids threading new fields through every handler/tool-result path
+// just to log them; if `buildSmartContext`'s wording ever changes, these
+// two fields silently stop populating (best-effort, same posture as
+// `appendMetricsLog` itself) rather than breaking anything.
+const CACHE_HIT_MARKER = "served from cache";
+const TRUNCATED_MARKER = "truncated to fit token budget";
+const RESULT_NODE_COUNT_PATTERN = /Context includes: (\d+) relevant nodes/;
+
+/**
+ * Wraps a tool handler with the same per-call metrics logging every tool
+ * needs — timing, `isError`-based success tracking (spec 050), and
+ * project-scoped log paths — written once and applied at every
+ * `registerTool` call site below, replacing the old manual dispatch
+ * switch's inline block (spec 057).
+ *
+ * Deliberate, disclosed gap (spec 057): the SDK validates `inputSchema` and
+ * resolves the tool name *before* this callback ever runs, so an invalid-args
+ * or unknown-tool call never reaches this wrapper — those two paths no
+ * longer get a metrics log entry. Both remain protocol-valid `isError`
+ * responses (the SDK's own behavior, not this codebase's), just unlogged;
+ * judged acceptable since they're low-frequency error paths, not a
+ * correctness concern.
+ */
 function withMetrics<Args extends Record<string, unknown>>(
   toolName: string,
   handler: (args: Args) => Promise<ToolResult>
@@ -70,6 +97,8 @@ function withMetrics<Args extends Record<string, unknown>>(
   return async (args: Args) => {
     const startedAt = Date.now();
     const projectName = typeof args?.project_name === "string" ? (args.project_name as string) : undefined;
+    const query = typeof args?.query === "string" ? (args.query as string) : undefined;
+    const budgetApplied = typeof args?.token_budget === "number";
 
     let result: ToolResult;
     try {
@@ -80,6 +109,7 @@ function withMetrics<Args extends Record<string, unknown>>(
 
     const success = !result.isError;
     const responseText = result.content.map((c) => ("text" in c ? c.text : "")).join("\n");
+    const resultNodeCountMatch = responseText.match(RESULT_NODE_COUNT_PATTERN);
 
     await appendMetricsLog(join(NODUM_DATA_DIR, projectName ?? "_unscoped", "logs"), {
       timestamp: new Date().toISOString(),
@@ -88,6 +118,11 @@ function withMetrics<Args extends Record<string, unknown>>(
       durationMs: Date.now() - startedAt,
       approxTokens: responseText ? countTokens(responseText) : undefined,
       success,
+      ...(query !== undefined ? { query } : {}),
+      ...(budgetApplied ? { budgetApplied } : {}),
+      ...(resultNodeCountMatch ? { resultNodeCount: Number(resultNodeCountMatch[1]) } : {}),
+      ...(responseText.includes(CACHE_HIT_MARKER) ? { cacheHit: true } : {}),
+      ...(responseText.includes(TRUNCATED_MARKER) ? { truncated: true } : {}),
     });
 
     return result;
