@@ -2,8 +2,8 @@
  * Smart context injection for Claude
  * Only includes relevant parts of the graph based on query, instead of
  * dumping the entire graph. Token savings are computed per call against a
- * real full-graph-dump baseline (see `buildRawGraphDump` / spec 026) rather
- * than asserted as a fixed percentage.
+ * real full-graph-dump baseline (see `rawDumpApproxTokens` / spec 026, cached
+ * at sync time per spec 069) rather than asserted as a fixed percentage.
  */
 
 import { ConversationCache } from "./conversation-cache.js";
@@ -15,8 +15,9 @@ import {
   findSemanticNeighbors,
 } from "./semantic-search.js";
 import { generateQueryEmbedding, hasEmbeddings } from "./embeddings.js";
-import { countTokens } from "@caiquebrito/nodum-core";
+import { countTokens, buildRawGraphDumpText } from "@caiquebrito/nodum-core";
 import type { Graph } from "@caiquebrito/nodum-core";
+import { tokenizeIdentifier } from "./identifier-tokenize.js";
 
 /**
  * `buildSmartContext()`'s result: the formatted text plus its approximate
@@ -37,46 +38,167 @@ function withTokenCount(text: string): SmartContextResult {
  * Examples:
  * - "What's the auth flow?" → ["auth", "flow", "login"]
  * - "Find API endpoints" → ["api", "endpoint", "route"]
+ *
+ * The length filter used to be `word.length > 2`, which silently dropped
+ * real, common identifier fragments like `id`, `db`, `ui`, `io` (spec 068).
+ * Lowered to `word.length > 1` and paired with an explicit stop-list for the
+ * 1-2 char tokens that really are noise (articles/prepositions/pronouns not
+ * already caught by `stopWords` at 3+ chars) — a blanket length cutoff can't
+ * tell "id" from "is", but an explicit list can.
  */
 export function extractKeywords(query: string): string[] {
   const stopWords = new Set([
     "what", "is", "the", "a", "an", "and", "or", "in", "of", "to", "for",
     "from", "by", "with", "as", "can", "does", "do", "did", "how", "why",
     "where", "when", "that", "this", "these", "those", "i", "you", "we",
-    "me", "my", "your", "all", "each", "every", "both", "any", "some"
+    "me", "my", "your", "all", "each", "every", "both", "any", "some",
+    // Short (1-2 char) noise words recovered by lowering the length filter
+    // below from >2 to >1 — added explicitly so genuinely meaningful short
+    // identifier fragments (id, db, ui, io, ...) aren't caught by a blanket
+    // cutoff instead.
+    "on", "at", "up", "if", "no", "so", "am", "be", "us", "ok", "go", "vs",
+    "he", "it"
   ]);
 
   return query
     .toLowerCase()
     .split(/[\s\-_\.\/]+/)
-    .filter(word => word.length > 2 && !stopWords.has(word));
+    .filter(word => word.length > 1 && !stopWords.has(word));
 }
 
 /**
- * Score how relevant a node is to the query
- * Higher score = more relevant
+ * A per-graph index from split identifier term -> the set of node ids whose
+ * label contains that term, plus each term's IDF weight computed from that
+ * same index (spec 068). Built once per `buildSmartContext` call (or once
+ * per `findRelevantNodes` call when no index is supplied — see that
+ * function) rather than recomputed per keyword or per node: `graph.nodes`
+ * can run into the thousands, and every keyword in a query would otherwise
+ * re-scan every node's label.
+ */
+export interface TermIndex {
+  /** term -> node ids whose tokenized label contains that term. */
+  termToNodeIds: Map<string, Set<string>>;
+  /** term -> idf(term), see `buildTermIndex` for the formula. */
+  idf: Map<string, number>;
+  totalNodes: number;
+}
+
+// Floor on a term's IDF weight (spec 068). The textbook formula
+// `log(totalNodes / (1 + nodesContainingTerm))` goes to 0 or slightly
+// negative once a term appears in nearly every node — correct in principle
+// (a term with zero discriminating power should contribute ~nothing), but
+// on the small graphs this repo's own tests and some real small projects
+// use, "nearly every node" can be reached with a handful of matches, and a
+// negative contribution could make an otherwise-real match's total score
+// dip to or below 0 and get filtered out entirely by `findRelevantNodes`.
+// Flooring keeps every real term match worth at least a small positive
+// score while still weighting common terms far below rare ones.
+const IDF_FLOOR = 0.1;
+
+// The substring fallback below is deliberately a small, flat score (not
+// IDF-scaled — it's not a real term-index membership). It must always score
+// below the *minimum possible* term-match contribution
+// (`TERM_MATCH_BASE_SCORE * IDF_FLOOR`), or a term appearing in a
+// near-ubiquitous-vocabulary small graph (where its floored IDF weight is
+// tiny) could lose to a coincidental substring match elsewhere — exactly
+// the ordering spec 068 exists to fix. `TERM_MATCH_MIN_SCORE` enforces that
+// invariant directly rather than depending on the two constants staying in
+// the right relative order as either changes.
+const TERM_MATCH_BASE_SCORE = 5;
+const SUBSTRING_FALLBACK_SCORE = 2;
+const TERM_MATCH_MIN_SCORE = SUBSTRING_FALLBACK_SCORE + 0.5;
+
+/**
+ * Builds the term index + IDF weights described on `TermIndex`, from each
+ * node's tokenized label only (not file paths — extending to file paths is
+ * a natural follow-up per spec 068's Design section, but adds noise from
+ * directory names; measure before adding).
+ */
+export function buildTermIndex(nodes: Graph["nodes"]): TermIndex {
+  const termToNodeIds = new Map<string, Set<string>>();
+
+  for (const node of nodes) {
+    const terms = new Set(tokenizeIdentifier(node.label));
+    for (const term of terms) {
+      let ids = termToNodeIds.get(term);
+      if (!ids) {
+        ids = new Set();
+        termToNodeIds.set(term, ids);
+      }
+      ids.add(node.id);
+    }
+  }
+
+  const totalNodes = nodes.length;
+  const idf = new Map<string, number>();
+  for (const [term, ids] of termToNodeIds) {
+    idf.set(term, Math.log(totalNodes / (1 + ids.size)));
+  }
+
+  return { termToNodeIds, idf, totalNodes };
+}
+
+function idfWeight(termIndex: TermIndex | undefined, term: string): number {
+  if (!termIndex) return 1;
+  const raw = termIndex.idf.get(term);
+  if (raw === undefined) return 1;
+  return Math.max(raw, IDF_FLOOR);
+}
+
+/**
+ * Score how relevant a node is to the query.
+ * Higher score = more relevant.
+ *
+ * Replaces the old raw `label.includes(keyword)` substring check (spec 068)
+ * with term-set intersection against the node's split identifier terms
+ * (`tokenizeIdentifier`), so `user` matching `getUserById` is recognized as
+ * a real term match rather than a coincidental substring — and so that
+ * match's contribution is scaled by the term's IDF weight (rare terms like
+ * `authenticate` count for more than near-ubiquitous ones like `get`). A
+ * lower-weight, non-IDF-scaled substring fallback is kept for queries that
+ * don't tokenize cleanly (e.g. a copy-pasted exact function name that isn't
+ * one of the label's own split terms).
+ *
+ * `termIndex` is optional so this remains callable in isolation (as the
+ * existing unit tests do) — without one, every term match falls back to a
+ * neutral IDF weight of 1 (no weighting, same posture as the pre-068
+ * behavior). `findRelevantNodes` always builds and passes a real index.
  */
 export function scoreNode(
   node: Graph["nodes"][0],
-  keywords: string[]
+  keywords: string[],
+  termIndex?: TermIndex
 ): number {
   let score = 0;
+  const labelLower = node.label.toLowerCase();
+  const labelTerms = new Set(tokenizeIdentifier(node.label));
 
   for (const keyword of keywords) {
-    // Exact match in label (highest priority)
-    if (node.label.toLowerCase() === keyword) {
+    const kw = keyword.toLowerCase();
+
+    // Exact full-label match (highest priority) — an identity match, not a
+    // term-frequency signal, so it's not IDF-scaled.
+    if (labelLower === kw) {
       score += 10;
     }
-    // Contains keyword in label
-    if (node.label.toLowerCase().includes(keyword)) {
-      score += 5;
+
+    if (labelTerms.has(kw)) {
+      // Exact split-term match, scaled by how discriminative the term is
+      // across the graph's own vocabulary — but never below
+      // TERM_MATCH_MIN_SCORE, so it always outranks the flat substring
+      // fallback below regardless of how the IDF floor lands.
+      score += Math.max(TERM_MATCH_BASE_SCORE * idfWeight(termIndex, kw), TERM_MATCH_MIN_SCORE);
+    } else if (labelLower.includes(kw)) {
+      // Substring fallback — lower, flat weight; not a real term match.
+      score += SUBSTRING_FALLBACK_SCORE;
     }
+
     // Contains keyword in file path
-    if (node.file && node.file.toLowerCase().includes(keyword)) {
+    if (node.file && node.file.toLowerCase().includes(kw)) {
       score += 2;
     }
     // Match in type (function vs class)
-    if (keyword === node.type) {
+    if (kw === node.type) {
       score += 3;
     }
   }
@@ -87,16 +209,24 @@ export function scoreNode(
 /**
  * Find nodes relevant to query
  * Returns sorted list with highest-scored nodes first
+ *
+ * Builds a `TermIndex` once over `nodes` (spec 068) unless the caller
+ * already has one (`buildSmartContext` builds a single index from the full
+ * graph and passes it into every `findRelevantNodes` call it makes, so a
+ * `typeFilter`-narrowed candidate set still scores against the whole
+ * graph's term frequencies, not just the filtered subset's).
  */
 export function findRelevantNodes(
   keywords: string[],
   nodes: Graph["nodes"],
-  limit: number = 20
+  limit: number = 20,
+  termIndex?: TermIndex
 ): Graph["nodes"] {
+  const index = termIndex ?? buildTermIndex(nodes);
   return nodes
     .map(node => ({
       node,
-      score: scoreNode(node, keywords)
+      score: scoreNode(node, keywords, index)
     }))
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score)
@@ -318,19 +448,24 @@ function fillSectionsToBudget(
 }
 
 /**
- * Plain-text dump of every node and edge — the "no smart context" baseline
- * `estimateTokenSavings()` compares against. Deliberately unformatted (no
- * clustering, no truncation) since it represents the cost of NOT doing any
- * of that.
+ * Approximate token count of a full, unfiltered plain-text dump of every
+ * node and edge — the "no smart context" baseline `estimateTokenSavings()`
+ * compares against. Deliberately unformatted (no clustering, no truncation)
+ * since it represents the cost of NOT doing any of that.
+ *
+ * Spec 069: this used to rebuild and retokenize that whole string on every
+ * `search_graph` call even though the value doesn't depend on the query at
+ * all — it's a property of the graph. Now it's computed once at sync time
+ * and persisted as `graph.stats.rawDumpApproxTokens`
+ * (`packages/core/src/graph-gen.ts`'s `buildStats()`); this only falls back
+ * to the on-demand computation for a graph loaded from an older nodum
+ * version that doesn't have the field yet.
  */
-function buildRawGraphDump(graph: Graph): string {
-  const nodeLines = graph.nodes.map(
-    (n) => `${n.id} | ${n.label} (${n.type}) | ${n.file ?? ""}`
-  );
-  const edgeLines = graph.edges.map(
-    (e) => `${e.source} -> ${e.target} (${e.relation})`
-  );
-  return [`Project: ${graph.project}`, ...nodeLines, ...edgeLines].join("\n");
+function rawDumpApproxTokens(graph: Graph): number {
+  if (graph.stats.rawDumpApproxTokens !== undefined) {
+    return graph.stats.rawDumpApproxTokens;
+  }
+  return countTokens(buildRawGraphDumpText(graph.project, graph.nodes, graph.edges));
 }
 
 /**
@@ -409,6 +544,12 @@ export async function buildSmartContext(
     // type as context around a match.
     const candidateNodes = typeFilter ? graph.nodes.filter(n => n.type === typeFilter) : graph.nodes;
 
+    // Built once per call, from the FULL graph (not `candidateNodes`) — a
+    // typeFilter narrows what counts as a match, but a term's IDF weight
+    // should still reflect how common it is across the whole graph's
+    // vocabulary, not just the filtered subset (spec 068).
+    const termIndex = buildTermIndex(graph.nodes);
+
     let relevant: Graph["nodes"];
 
     // Try semantic search if embeddings available (v2.0)
@@ -428,8 +569,10 @@ export async function buildSmartContext(
           candidateCount
         );
 
-        // Keyword search for comparison
-        const keywordResults = (findRelevantNodes(keywords, candidateNodes as any, candidateCount) as any) || [];
+        // Keyword search for comparison — wider candidate pool (spec 066)
+        // and IDF-weighted term scoring against the whole-graph term index
+        // (spec 068).
+        const keywordResults = (findRelevantNodes(keywords, candidateNodes as any, candidateCount, termIndex) as any) || [];
 
         // Fuse both rankings via Reciprocal Rank Fusion — rank position,
         // not raw score, drives the fused order, so a 0-40 keyword rank and
@@ -443,11 +586,11 @@ export async function buildSmartContext(
         }
       } else {
         // Embedding generation failed, fall back to keyword search
-        relevant = findRelevantNodes(keywords, candidateNodes as any, maxNodes);
+        relevant = findRelevantNodes(keywords, candidateNodes as any, maxNodes, termIndex);
       }
     } else {
       // No embeddings yet, use keyword search only
-      relevant = findRelevantNodes(keywords, candidateNodes as any, maxNodes);
+      relevant = findRelevantNodes(keywords, candidateNodes as any, maxNodes, termIndex);
     }
 
     if (relevant.length === 0) {
@@ -519,7 +662,7 @@ export async function buildSmartContext(
 
   // Real, measured comparison against a full unfiltered dump of the graph —
   // not an asserted percentage. See spec 026.
-  const rawDumpTokens = countTokens(buildRawGraphDump(graph));
+  const rawDumpTokens = rawDumpApproxTokens(graph);
   const { percentage } = estimateTokenSavings(rawDumpTokens, countTokens(responseBody));
   const notes = [
     `${percentage}% fewer tokens than a full graph dump`,

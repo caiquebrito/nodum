@@ -1,8 +1,26 @@
 # 069 — Stop paying for the raw-dump savings number on every search
 
-## Status: refined — not started
+## Status: done
 
-Fully designed, not yet branched.
+Implemented as designed: `graph.stats.rawDumpApproxTokens?: number` was added to `Graph['stats']`
+(`packages/core/src/types.ts`) and is now computed once per generation inside `buildStats()`
+(`packages/core/src/graph-gen.ts`), fed by a new exported `buildRawGraphDumpText(project, nodes,
+edges)` — the raw-dump text builder moved from `packages/mcp/src/smart-context.ts` into `core` (as
+the design anticipated) so `core` never depends on `mcp`. `smart-context.ts`'s savings computation
+now reads `graph.stats.rawDumpApproxTokens` when present and only falls back to rebuilding +
+retokenizing the dump on demand for a graph missing the field (i.e. one synced by an older nodum
+version). 4 new tests: `graph-gen.test.ts` covers both full and incremental generation populating
+the field with a value matching a direct `countTokens(buildRawGraphDumpText(...))` call on the
+resulting graph; `smart-context.test.ts` covers both the fallback path (field absent) and that the
+persisted field is actually read rather than ignored (a wildly different persisted value produces
+a wildly different reported percentage than the on-demand fallback would). Full workspace suite —
+604 core, 119 cli, 15 server, 98 mcp, 39 benchmarks, 875 total — green via `npm run build && npm
+test --workspaces`; `benchmarks/context-size.test.ts`'s ceilings pass unchanged, confirming this
+only changed computation cost, not response content. Real check: a timing harness
+(`buildSmartContext` called directly, since that's the function both `handleSearch` and
+`search_graph` delegate to for the response body + savings footer) against a synthetic 80,000-node
+/ 79,999-edge graph showed a 9.08x speedup (1130.4ms → 124.5ms average per call, ~1006ms saved per
+call) — see Success Metrics.
 
 ## Goal
 
@@ -62,15 +80,15 @@ present, falling back to computing it fresh (today's behavior) if absent.
 
 ## Acceptance criteria
 
-- [ ] `search_graph` no longer rebuilds and retokenizes a full graph dump on every call when
+- [x] `search_graph` no longer rebuilds and retokenizes a full graph dump on every call when
       `graph.stats.rawDumpApproxTokens` is present.
-- [ ] A graph without the field (old format) still works, falling back to on-demand computation.
-- [ ] `graph.stats.rawDumpApproxTokens` is computed once at sync time and matches (or is
+- [x] A graph without the field (old format) still works, falling back to on-demand computation.
+- [x] `graph.stats.rawDumpApproxTokens` is computed once at sync time and matches (or is
       reasonably close to — same tokenizer, so should match exactly) what the old per-query
       computation produced for the same graph.
-- [ ] Measured: time `handleSearch`/`search_graph` before and after on a large graph (this repo's
+- [x] Measured: time `handleSearch`/`search_graph` before and after on a large graph (this repo's
       own, or a larger external fixture) — record the real before/after in Success Metrics.
-- [ ] `npm run build && npm test --workspaces` green; `benchmarks/context-size.test.ts` ceilings
+- [x] `npm run build && npm test --workspaces` green; `benchmarks/context-size.test.ts` ceilings
       still hold (this spec shouldn't change response *content*, only computation cost).
 
 ## Test plan
@@ -82,9 +100,22 @@ falls back to computing it when absent (test both a graph with and without the f
 
 ## Success Metrics
 
-Fill in after implementation: wall-clock time for `search_graph`/`handleSearch` on a large synced
-graph, before vs. after — this is a performance spec, so the real check is a timing measurement,
-not an accuracy metric.
+Timing harness: `buildSmartContext("login function auth", graph, { maxNodes: 25 })` — the function
+both `handleSearch` and `search_graph` delegate to for the response body and the "N% fewer tokens
+than a full graph dump" footer — called 20 times (after a warm-up call) against a synthetic
+80,000-node / 79,999-edge graph (`stats.files = stats.functions = 40,000`), once with
+`graph.stats.rawDumpApproxTokens` absent (the pre-069 fallback path — rebuilds + retokenizes the
+full dump every call) and once with it present (the new path):
+
+| | avg time / call | total (20 calls) |
+|---|---|---|
+| Before (field absent, rebuild + retokenize every call) | 1130.40ms | 22,607.9ms |
+| After (field present, read once) | 124.49ms | 2,489.9ms |
+
+**9.08x speedup, ~1006ms saved per `search_graph` call** on this graph size. The remaining ~124ms
+is the rest of `buildSmartContext`'s work (keyword scoring, expansion, section building,
+`countTokens(responseBody)`) — unaffected by this spec, since only the raw-dump baseline
+computation was the target.
 
 ## Related
 

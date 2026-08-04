@@ -1,8 +1,37 @@
 # 068 — Identifier-aware keyword scoring with IDF
 
-## Status: refined — not started
+## Status: done
 
-Fully designed, not yet branched.
+Implemented and tested. New `packages/mcp/src/identifier-tokenize.ts` (`tokenizeIdentifier`, 12
+unit tests) plus a rewritten `scoreNode`/`findRelevantNodes`/`buildTermIndex` in
+`smart-context.ts` (24 new/updated tests in `smart-context.test.ts`, including the minimal-pair
+term-vs-substring case and a hand-built 50-node IDF comparison). Full workspace suite green via
+`npm test --workspaces` — 602 core, 119 cli, 15 server, 115 mcp, 39 benchmarks, 890 total.
+`npx eslint packages/mcp --ext .ts` reports the exact same 115 problems (36 errors, 79 warnings)
+before and after this change — no new findings in any touched file. Real check: ran
+`npx tsx benchmarks/retrieval/retrieval-eval.ts` before and after — see Success Metrics below; the
+aggregate numbers were identical on the current 26-query golden set (the ranking-order fix and IDF
+weighting didn't change the *relative order* of matches on these particular small fixture graphs,
+so it doesn't move Recall/nDCG/MRR here, though it fixes the underlying scoring — see note below).
+The `retrieval-eval.test.ts` floor is unchanged (0.9/0.75/0.7) since the measured numbers didn't
+move; it stays a correct floor for this change.
+
+One open design decision the spec left undefined, resolved during implementation: the
+`XMLHttpRequest`-style acronym-boundary rule. Implemented as "the last uppercase letter of an
+uppercase run belongs to the following capitalized word, not the acronym" — `XMLHttpRequest` →
+`XML`, `Http`, `Request`; `parseHTMLString` → `parse`, `HTML`, `String`; a trailing all-caps run
+with nothing capitalized after it stays intact (`fetchJSON` → `fetch`, `json`). Documented directly
+on `tokenizeIdentifier`'s doc comment.
+
+A second implementation-time design call: the textbook IDF formula
+(`log(totalNodes / (1 + nodesContainingTerm))`) goes to zero or slightly negative once a term
+covers nearly every node, which real small graphs (including this repo's own hand-built test
+fixtures) can reach with only a handful of matches — a floored `IDF_FLOOR = 0.1` prevents an
+otherwise-real term match's score from being swamped down to 0 or below and incorrectly filtered
+out by `findRelevantNodes`'s `score > 0` cutoff. A related invariant, `TERM_MATCH_MIN_SCORE`,
+guarantees an exact split-term match always outscores the flat substring-match fallback even at the
+IDF floor — without it, a rare term in a 2-node graph could floor down to less than the fallback's
+flat weight and invert the ordering spec 068 exists to fix.
 
 ## Goal
 
@@ -74,22 +103,22 @@ parallel caching mechanism.
 
 ## Acceptance criteria
 
-- [ ] `tokenizeIdentifier` unit-tested directly: camelCase, PascalCase, snake_case, kebab-case,
+- [x] `tokenizeIdentifier` unit-tested directly: camelCase, PascalCase, snake_case, kebab-case,
       and mixed cases (`XMLHttpRequest`-style acronym boundaries — decide and document the rule
       rather than leaving it undefined).
-- [ ] `scoreNode`/its replacement scores an exact split-term match higher than a coincidental
+- [x] `scoreNode`/its replacement scores an exact split-term match higher than a coincidental
       substring match (e.g. query `user` should not score `getUserById` and a hypothetical
       `superclass` node's `super` era... — construct a real minimal-pair test case during
       implementation).
-- [ ] IDF weighting verified: a rare term (appears in 1 of 50 nodes) contributes more score than
+- [x] IDF weighting verified: a rare term (appears in 1 of 50 nodes) contributes more score than
       a common term (appears in 40 of 50 nodes) for an otherwise-equal match.
-- [ ] `extractKeywords` recovers `id`, `db`, `ui`, `io` as valid keywords while still dropping
+- [x] `extractKeywords` recovers `id`, `db`, `ui`, `io` as valid keywords while still dropping
       pure stop words.
-- [ ] Re-run `npx tsx benchmarks/retrieval/retrieval-eval.ts` (keyword path) before/after; record
+- [x] Re-run `npx tsx benchmarks/retrieval/retrieval-eval.ts` (keyword path) before/after; record
       in Success Metrics. The CI-gated `retrieval-eval.test.ts` floor should only move upward — if
       it drops, something regressed; raise the floor deliberately if it improves (per that test's
-      own doc comment).
-- [ ] `npm run build && npm test --workspaces` green.
+      own doc comment). (Measured numbers were unchanged — floor left as-is; see Success Metrics.)
+- [x] `npm run build && npm test --workspaces` green.
 
 ## Test plan
 
@@ -100,9 +129,26 @@ keywords.
 
 ## Success Metrics
 
-Fill in after implementation: `retrieval-eval.ts` (keyword-only path) aggregate before/after.
-This is the one spec in the arc validated without needing `--embeddings` at all, since it only
-touches the keyword ranker — should be the fastest of 066-068 to measure.
+`npx tsx benchmarks/retrieval/retrieval-eval.ts` (keyword ranker, 26 queries across 2 fixtures),
+before (unmodified `develop`) vs. after this change:
+
+| Metric        | Before | After  |
+|---------------|--------|--------|
+| recall@5      | 0.962  | 0.962  |
+| recall@10     | 0.962  | 0.962  |
+| precision@10  | 0.443  | 0.443  |
+| mrr           | 0.756  | 0.756  |
+| ndcg@10       | 0.814  | 0.814  |
+
+Identical, per-query and in aggregate. The golden set's two fixture graphs are small enough
+(a few dozen nodes each) that the pre-068 substring scoring already happened to rank the labeled-
+relevant nodes in the same relative order the new term+IDF scoring produces — the fix is real
+(verified directly via the unit tests above: term match beats substring match, rare terms
+outweigh common ones, short identifier fragments are recovered) but doesn't move this particular
+golden set's aggregate numbers. Expected to matter more on larger, more vocabulary-diverse real
+graphs where near-ubiquitous terms like `get`/`handle`/`data` currently dilute ranking the most —
+not captured by this golden set's current size. Left the `retrieval-eval.test.ts` floor
+(recall@10 ≥ 0.9, ndcg@10 ≥ 0.75, mrr ≥ 0.7) unchanged since the measured numbers didn't move.
 
 ## Related
 
