@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   buildSmartContext,
   buildNodeContext,
@@ -9,6 +9,20 @@ import {
   buildTermIndex,
 } from "./smart-context.js";
 import type { Node } from "@caiquebrito/nodum-core";
+
+// `generateQueryEmbedding` normally loads a real local embedding model
+// (@xenova/transformers) — too slow/heavy for a unit test, and the fused
+// ranking (spec 066) only depends on the resulting vectors, not on how
+// they're produced. `hasEmbeddings` stays real: it's pure and cheap, and
+// the tests set `node.embedding` directly.
+const generateQueryEmbeddingMock = vi.fn(async (_query: string) => [] as number[]);
+vi.mock("./embeddings.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./embeddings.js")>();
+  return {
+    ...actual,
+    generateQueryEmbedding: (query: string) => generateQueryEmbeddingMock(query),
+  };
+});
 
 const graph = {
   project: "proj",
@@ -411,6 +425,65 @@ describe("buildSmartContext", () => {
     // unbounded by the number of dependents. The hard ceiling is 150.
     expect(foundCount).toBeLessThan(301);
     expect(foundCount).toBeLessThanOrEqual(150);
+  });
+});
+
+describe("buildSmartContext — hybrid keyword+semantic fusion via RRF (spec 066)", () => {
+  it("surfaces a semantically-close, zero-lexical-overlap node over a lexically-matching but semantically-distant one", async () => {
+    const queryEmbedding = [1, 0];
+    generateQueryEmbeddingMock.mockResolvedValue(queryEmbedding);
+
+    // Target: perfect semantic match, zero lexical overlap with the query.
+    const target: any = {
+      id: "core.ts__cacheLayer",
+      label: "cacheLayer",
+      type: "function",
+      file: "core.ts",
+      group: "core",
+      embedding: [1, 0],
+    };
+
+    // Distractor: matches the query lexically ("module"), but is
+    // semantically orthogonal to it (embedding [0, 1] vs. query [1, 0]).
+    // Under the old 0.4*keywordRank + 0.6*cosineSimilarity weighted sum,
+    // one keyword-rank position (worth up to 0.4*40 = 16) drowned out the
+    // entire semantic signal (worth at most 0.6) — this distractor would
+    // have won even though it's semantically irrelevant.
+    const distractor: any = {
+      id: "app.ts__moduleLoader",
+      label: "moduleLoader",
+      type: "function",
+      file: "app.ts",
+      group: "app",
+      embedding: [0, 1],
+    };
+
+    // Enough semantically-closer filler nodes to push the distractor past
+    // the semantic ranker's bounded top-K (candidateCount = max(40, maxNodes
+    // * 4) = 40 for maxNodes: 1 below), so it's genuinely unranked on the
+    // semantic side, not just ranked-last-but-still-counted.
+    const fillers: any[] = Array.from({ length: 45 }, (_, i) => ({
+      id: `filler.ts__node${i}`,
+      label: `node${i}`,
+      type: "function",
+      file: "filler.ts",
+      group: "filler",
+      embedding: [1, i + 1], // cosine similarity to [1,0] is >0 but <1
+    }));
+
+    const semanticGraph = {
+      project: "semproj",
+      stats: { files: 3, functions: 47, classes: 0, interfaces: 0, edges: 0 },
+      nodes: [target, distractor, ...fillers],
+      edges: [],
+    };
+
+    const { text } = await buildSmartContext("module utilities", semanticGraph as any, {
+      maxNodes: 1,
+    });
+
+    expect(text).toContain("cacheLayer");
+    expect(text).not.toContain("moduleLoader");
   });
 });
 
