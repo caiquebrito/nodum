@@ -1,5 +1,18 @@
 # @caiquebrito/nodum-cli
 
+## 2.17.1
+
+### Patch Changes
+
+- 1de5d9f: Dead-code detection no longer flags scripts that are only ever invoked as a CI/shell subprocess (e.g. a Python script called from `bitrise.yml`/GitHub Actions/a wrapper `.sh`) as unreachable. New `findCiInvokedFiles` scans `.yml`/`.yaml`/`.sh` files for script-path tokens and resolves them against the graph, the same way `findManifestEntryFiles` already does for `AndroidManifest.xml` — wired into the CLI `dead-code` command and MCP's `suggest_refactoring`.
+- 96bb981: Add `nodum metrics [projectPath] [--json]`, reading back `~/.nodum/<project>/logs/metrics.jsonl` (written by every MCP tool call since spec 025, previously write-only) and reporting per-tool call counts, success rate, p50/p95 duration, mean approx tokens, cache-hit rate, and truncation rate. `ToolCallMetric` gains optional `query`/`resultNodeCount`/`cacheHit`/`budgetApplied`/`truncated` fields, populated by the MCP server's `withMetrics` wrapper.
+- Updated dependencies [20004e9]
+- Updated dependencies [1de5d9f]
+- Updated dependencies [41be22f]
+- Updated dependencies [96bb981]
+  - @caiquebrito/nodum-core@2.17.1
+  - @caiquebrito/nodum-server@2.17.1
+
 ## 2.17.0
 
 ### Patch Changes
