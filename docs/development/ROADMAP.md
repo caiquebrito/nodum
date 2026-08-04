@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-08-04 · **Current release:** v2.17.0 (all four packages, lockstep; specs 062-071 are merged to `develop` and awaiting the next release cut) · **Specs shipped:** 72 (`docs/development/completed/`) · **Specs fully designed, not yet started:** 072-074 (`docs/development/refined/`)
+**Last updated:** 2026-08-04 · **Current release:** v2.17.1 (all four packages, lockstep; specs 062-071 published) · **Specs shipped:** 72 (`docs/development/completed/`) · **Specs fully designed, not yet started:** 072-074 (`docs/development/refined/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -395,27 +395,28 @@ resolution and interpretation issues, not the underlying numbers.
 
 ---
 
-### Dead-code accuracy follow-on — spec `062`, merged to `develop`, awaiting release
-A small follow-on to v2.17.0's spec 061, merged just after that release cut (so it never made it
-into the published v2.17.0) rather than held back for a future batch.
-- **062 — Dead-code detection: CI/shell-invoked scripts.** `detectUnreachableFiles` was flagging
-  scripts only ever invoked as a CI/shell subprocess (never `import`ed by tracked source) as dead
-  code — the exact false positive the v2.17.0 external accuracy audit caught. New
-  `packages/core/src/analyzer/ci-invoked-scripts.ts` (`findCiInvokedFiles`,
-  `parseCiInvokedPaths`) resolves entry points declared in CI config/shell scripts (e.g. a
-  `bitrise.yml` invoking `python3 tools/ci/run_quality_checks.py`) before flagging their targets.
-  Wired into CLI `nodum dead-code` and MCP `suggest_refactoring`. Verified end-to-end against a
-  scratch fixture reproducing the exact false positive.
-
-### v2.18.0 (all specs merged, awaiting release cut) — Measurement & retrieval accuracy (specs `063`–`070`)
+### v2.18.0 — Measurement & retrieval accuracy, plus a dead-code follow-on — shipped as real npm v2.17.1 (specs `062`–`071`)
 
 A second gate release, same spirit as v2.5.0: before this batch, the project's own declared
 north-star metric (*"tokens spent per correct agent answer"*) was never actually computed, and
 there was no way to test whether a change to `packages/mcp`'s ranking logic improved retrieval
 without spending real API budget on the nightly benchmark. This batch built the instrument first,
-then used it. All eight specs below are complete and merged to `develop` — none have shipped in a
-real npm release yet (still `v2.17.0`); the version bump and changelog entries land with the next
-`develop → main` release PR.
+then used it. Every changeset in this batch was scoped as a `patch`, so the real npm version bump
+is `v2.17.1`, not a minor bump — a reminder that, per this roadmap's own numbering note at the
+top, the roadmap milestone label and the real npm version aren't always the same number. Spec 071
+(the transport-neutral query layer) is covered in full under "Universal IDE reach via LSP" below,
+since it doubles as that arc's first spec.
+
+- **062 — Dead-code detection: CI/shell-invoked scripts.** A small follow-on to v2.17.0's spec
+  061, landed just after that release cut (so it never made it into the published v2.17.0) rather
+  than held back for a future batch. `detectUnreachableFiles` was flagging scripts only ever
+  invoked as a CI/shell subprocess (never `import`ed by tracked source) as dead code — the exact
+  false positive the v2.17.0 external accuracy audit caught. New
+  `packages/core/src/analyzer/ci-invoked-scripts.ts` (`findCiInvokedFiles`,
+  `parseCiInvokedPaths`) resolves entry points declared in CI config/shell scripts (e.g. a
+  `bitrise.yml` invoking `python3 tools/ci/run_quality_checks.py`) before flagging their targets.
+  Wired into CLI `nodum dead-code` and MCP `suggest_refactoring`. Verified end-to-end against a
+  scratch fixture reproducing the exact false positive.
 
 **Measurement floor, specs `063`–`065`:**
 - **063 — Offline retrieval evaluation harness.** `benchmarks/retrieval/`: a 26-query labeled
@@ -489,9 +490,11 @@ numbers, not estimates:**
   not worth the readability cost for what it actually saves.
 
 **Success metric for this batch**: `npx tsx benchmarks/retrieval/retrieval-eval.ts --embeddings`
-aggregate before vs. after (captured per-spec above) and the real `tokensPerCorrectAnswer` first
-baseline, still pending — that number only comes from the nightly `benchmark-accuracy.yml` run
-against a real API budget, not from this batch's own offline verification.
+aggregate before vs. after (captured per-spec above, real and already measured) and the real
+`tokensPerCorrectAnswer` first baseline — still pending, since that number only comes from the
+nightly `benchmark-accuracy.yml` run against a real API budget, not from this batch's own offline
+verification; the next scheduled run will be the first release this baseline exists to diff
+against.
 
 ---
 
@@ -611,7 +614,7 @@ is the equivalent zero-per-provider-code answer for that other half of the marke
 those IDEs already speaks LSP natively, so one `nodum-lsp` binary reaches all of them through thin
 packaging, not a bespoke integration per IDE — the same "one server, many clients" shape MCP
 already gave this project, applied to a protocol those specific IDEs actually support.
-- **071 — Extract a transport-neutral query layer. Done, merged to `develop`, awaiting release.**
+- **071 — Extract a transport-neutral query layer. Done, shipped as real npm v2.17.1.**
   Lifted `packages/mcp/src/handlers.ts`'s query logic (already substantively transport-neutral —
   plain arguments in, formatted text out) into a new `packages/query` workspace
   (`@caiquebrito/nodum-query`, private/unpublished) so both the MCP server and a future LSP server
@@ -734,7 +737,7 @@ implied by their absence.
     ("graph quality... numbers an agent can trust"), fixing real precision gaps in exactly the
     analyzers v3.0 depends on being trustworthy, rather than adding a new one.
 14. **Measurement instrument, then retrieval/cost fixes, then the first LSP-arc spec (v2.18.0,
-    specs `062`–`071`, merged, not yet released):** built the offline retrieval-quality harness and
+    specs `062`–`071`, shipped as real npm v2.17.1):** built the offline retrieval-quality harness and
     the `tokensPerCorrectAnswer` computation first (063-065) precisely so the ranking and
     token-cost fixes that followed (066-070) could each ship with a real before/after number
     instead of an estimate — the same "instrument before you optimize" discipline v2.5.0 set for
