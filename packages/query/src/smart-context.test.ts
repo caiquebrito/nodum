@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   buildSmartContext,
   buildNodeContext,
@@ -6,8 +6,25 @@ import {
   extractKeywords,
   scoreNode,
   findRelevantNodes,
+  buildTermIndex,
 } from "./smart-context.js";
+import { EMBEDDING_TEXT_VERSION } from "./embeddings.js";
 import type { Node } from "@caiquebrito/nodum-core";
+import { ConversationCache } from "./conversation-cache.js";
+
+// `generateQueryEmbedding` normally loads a real local embedding model
+// (@xenova/transformers) — too slow/heavy for a unit test, and the fused
+// ranking (spec 066) only depends on the resulting vectors, not on how
+// they're produced. `hasEmbeddings` stays real: it's pure and cheap, and
+// the tests set `node.embedding` directly.
+const generateQueryEmbeddingMock = vi.fn(async (_query: string) => [] as number[]);
+vi.mock("./embeddings.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./embeddings.js")>();
+  return {
+    ...actual,
+    generateQueryEmbedding: (query: string) => generateQueryEmbeddingMock(query),
+  };
+});
 
 const graph = {
   project: "proj",
@@ -41,7 +58,19 @@ describe("extractKeywords", () => {
   });
 
   it("splits on whitespace, hyphens, underscores, dots, and slashes", () => {
-    expect(extractKeywords("auth-flow_v2.routes/login")).toEqual(["auth", "flow", "routes", "login"]);
+    // "v2" is now kept — spec 068 lowered the length filter from >2 to >1
+    // specifically to recover short identifier fragments like this one.
+    expect(extractKeywords("auth-flow_v2.routes/login")).toEqual(["auth", "flow", "v2", "routes", "login"]);
+  });
+
+  it("recovers short identifier fragments (id, db, ui, io) that a length>2 filter used to drop (spec 068)", () => {
+    expect(extractKeywords("find the db connection and id lookup for the ui and io layer")).toEqual([
+      "find", "db", "connection", "id", "lookup", "ui", "io", "layer",
+    ]);
+  });
+
+  it("still drops short noise words added to the stop-list alongside the length change (spec 068)", () => {
+    expect(extractKeywords("log in on the ok page up at the go button")).toEqual(["log", "page", "button"]);
   });
 
   it("drops short words and known stopwords, keeping the rest", () => {
@@ -72,6 +101,89 @@ describe("scoreNode", () => {
 
   it("scores 0 for a node matching none of the keywords", () => {
     expect(scoreNode(node, ["database", "migration"])).toBe(0);
+  });
+
+  it("scores an exact split-term match higher than a coincidental substring match (spec 068 minimal pair)", () => {
+    // `superclass` contains "super" as a raw substring but "super" is not
+    // one of its own split terms (tokenizeIdentifier("superclass") ===
+    // ["superclass"], no camelCase/snake_case boundary to split on) — so a
+    // query for "super" should score a real `superHelper`-style term match
+    // (where "super" IS a split term) higher than the `superclass`
+    // coincidence.
+    const termIndex = buildTermIndex([
+      { id: "a", label: "superHelper", type: "function", file: "a.ts", group: "util" },
+      { id: "b", label: "superclass", type: "function", file: "b.ts", group: "util" },
+    ]);
+    const termMatch = scoreNode(
+      { id: "a", label: "superHelper", type: "function", file: "a.ts", group: "util" },
+      ["super"],
+      termIndex
+    );
+    const substringMatch = scoreNode(
+      { id: "b", label: "superclass", type: "function", file: "b.ts", group: "util" },
+      ["super"],
+      termIndex
+    );
+    expect(termMatch).toBeGreaterThan(substringMatch);
+  });
+
+  it("weights a rare term's match higher than a common term's match, for an otherwise-equal match (IDF, spec 068)", () => {
+    // 50 nodes total: "get" appears on 40 of them (near-ubiquitous),
+    // "webhook" appears on only 1 (rare, discriminative) — an otherwise
+    // identical single-term exact match should score higher for the rare
+    // term.
+    const nodes: Node[] = [
+      { id: "rare", label: "webhookHandler", type: "function", file: "a.ts", group: "util" },
+      ...Array.from({ length: 39 }, (_, i) => ({
+        id: `common${i}`,
+        label: `getThing${i}`,
+        type: "function" as const,
+        file: "a.ts",
+        group: "util",
+      })),
+      ...Array.from({ length: 10 }, (_, i) => ({
+        id: `filler${i}`,
+        label: `unrelated${i}`,
+        type: "function" as const,
+        file: "a.ts",
+        group: "util",
+      })),
+    ];
+    const termIndex = buildTermIndex(nodes);
+
+    const rareScore = scoreNode(nodes[0], ["webhook"], termIndex);
+    const commonScore = scoreNode(nodes[1], ["get"], termIndex);
+    expect(rareScore).toBeGreaterThan(commonScore);
+  });
+
+  it("scores identically to a neutral (no-op) weight when called without a termIndex", () => {
+    // Backward-compat posture: scoreNode is still callable in isolation
+    // (this whole describe block does exactly that) without needing a
+    // termIndex built first.
+    expect(scoreNode(node, ["login"])).toBeGreaterThan(0);
+  });
+});
+
+describe("buildTermIndex", () => {
+  it("indexes each node under its split identifier terms, not the raw label", () => {
+    const index = buildTermIndex([
+      { id: "a", label: "getUserById", type: "function", file: "a.ts", group: "util" },
+    ]);
+    expect(index.termToNodeIds.get("get")?.has("a")).toBe(true);
+    expect(index.termToNodeIds.get("user")?.has("a")).toBe(true);
+    expect(index.termToNodeIds.get("by")?.has("a")).toBe(true);
+    expect(index.termToNodeIds.get("id")?.has("a")).toBe(true);
+    expect(index.termToNodeIds.has("getuserbyid")).toBe(false);
+  });
+
+  it("gives a term appearing in fewer nodes a higher idf than one appearing in more", () => {
+    const index = buildTermIndex([
+      { id: "a", label: "rareTerm", type: "function", file: "a.ts", group: "util" },
+      { id: "b", label: "commonWord", type: "function", file: "b.ts", group: "util" },
+      { id: "c", label: "commonWord", type: "function", file: "c.ts", group: "util" },
+      { id: "d", label: "commonWord", type: "function", file: "d.ts", group: "util" },
+    ]);
+    expect(index.idf.get("rare") ?? 0).toBeGreaterThan(index.idf.get("common") ?? 0);
   });
 });
 
@@ -251,6 +363,37 @@ describe("buildSmartContext", () => {
     expect(text.length).toBeGreaterThan(0);
   });
 
+  it("falls back to computing the raw-dump baseline on demand when graph.stats.rawDumpApproxTokens is absent (old on-disk graph)", async () => {
+    // `graph` above has no `rawDumpApproxTokens` field — same shape a
+    // pre-spec-069 graph.json would have. The savings percentage should
+    // still be a real, non-zero, non-hardcoded number, not silently 0 or
+    // NaN because the field was missing.
+    expect(graph.stats).not.toHaveProperty("rawDumpApproxTokens");
+    const { text } = await buildSmartContext("login", graph as any, { maxNodes: 25 });
+    expect(text).toMatch(/\d+% fewer tokens than a full graph dump/);
+  });
+
+  it("uses the persisted graph.stats.rawDumpApproxTokens when present, instead of rebuilding and retokenizing the dump", async () => {
+    const fallback = await buildSmartContext("login", graph as any, { maxNodes: 25 });
+    const fallbackPercentage = Number(fallback.text.match(/(\d+)% fewer tokens/)?.[1]);
+    expect(Number.isNaN(fallbackPercentage)).toBe(false);
+
+    // An absurdly large persisted baseline, wildly different from what the
+    // on-demand computation over this tiny 3-node graph would produce. If
+    // the persisted field were being ignored in favor of recomputing from
+    // `graph.nodes`/`graph.edges`, this would report the same percentage as
+    // the fallback case above — it doesn't, proving the field is read.
+    const graphWithHugeBaseline = {
+      ...graph,
+      stats: { ...graph.stats, rawDumpApproxTokens: 1_000_000 },
+    };
+    const withField = await buildSmartContext("login", graphWithHugeBaseline as any, { maxNodes: 25 });
+    const withFieldPercentage = Number(withField.text.match(/(\d+)% fewer tokens/)?.[1]);
+
+    expect(withFieldPercentage).not.toBe(fallbackPercentage);
+    expect(withFieldPercentage).toBeGreaterThanOrEqual(99); // near-100% savings vs. a 1,000,000-token "baseline"
+  });
+
   it("caps expansion around a heavily-imported hub node instead of pulling in every dependent", async () => {
     const hubGraph = {
       project: "hubproj",
@@ -284,6 +427,70 @@ describe("buildSmartContext", () => {
     // unbounded by the number of dependents. The hard ceiling is 150.
     expect(foundCount).toBeLessThan(301);
     expect(foundCount).toBeLessThanOrEqual(150);
+  });
+});
+
+describe("buildSmartContext — hybrid keyword+semantic fusion via RRF (spec 066)", () => {
+  it("surfaces a semantically-close, zero-lexical-overlap node over a lexically-matching but semantically-distant one", async () => {
+    const queryEmbedding = [1, 0];
+    generateQueryEmbeddingMock.mockResolvedValue(queryEmbedding);
+
+    // Target: perfect semantic match, zero lexical overlap with the query.
+    const target: any = {
+      id: "core.ts__cacheLayer",
+      label: "cacheLayer",
+      type: "function",
+      file: "core.ts",
+      group: "core",
+      embedding: [1, 0],
+    };
+
+    // Distractor: matches the query lexically ("module"), but is
+    // semantically orthogonal to it (embedding [0, 1] vs. query [1, 0]).
+    // Under the old 0.4*keywordRank + 0.6*cosineSimilarity weighted sum,
+    // one keyword-rank position (worth up to 0.4*40 = 16) drowned out the
+    // entire semantic signal (worth at most 0.6) — this distractor would
+    // have won even though it's semantically irrelevant.
+    const distractor: any = {
+      id: "app.ts__moduleLoader",
+      label: "moduleLoader",
+      type: "function",
+      file: "app.ts",
+      group: "app",
+      embedding: [0, 1],
+    };
+
+    // Enough semantically-closer filler nodes to push the distractor past
+    // the semantic ranker's bounded top-K (candidateCount = max(40, maxNodes
+    // * 4) = 40 for maxNodes: 1 below), so it's genuinely unranked on the
+    // semantic side, not just ranked-last-but-still-counted.
+    const fillers: any[] = Array.from({ length: 45 }, (_, i) => ({
+      id: `filler.ts__node${i}`,
+      label: `node${i}`,
+      type: "function",
+      file: "filler.ts",
+      group: "filler",
+      embedding: [1, i + 1], // cosine similarity to [1,0] is >0 but <1
+    }));
+
+    const semanticGraph = {
+      project: "semproj",
+      stats: { files: 3, functions: 47, classes: 0, interfaces: 0, edges: 0 },
+      nodes: [target, distractor, ...fillers],
+      edges: [],
+      // hasEmbeddings() (spec 067) treats a missing/mismatched
+      // embeddingVersion as "not embedded" regardless of the `embedding`
+      // arrays present above — set it so this fixture exercises the
+      // semantic path it's actually testing.
+      embeddingVersion: EMBEDDING_TEXT_VERSION,
+    };
+
+    const { text } = await buildSmartContext("module utilities", semanticGraph as any, {
+      maxNodes: 1,
+    });
+
+    expect(text).toContain("cacheLayer");
+    expect(text).not.toContain("moduleLoader");
   });
 });
 
@@ -404,5 +611,81 @@ describe("buildSmartContext — typeFilter (spec 041 fix — was previously acce
     });
     expect(text).toContain("No nodes found");
     expect(text).toContain("interface");
+  });
+});
+
+describe("buildSmartContext — footer compression (spec 070)", () => {
+  it("shows the full summary+notes footer on a session's first call, and a short form on a subsequent call for the same cached session", async () => {
+    const cache = new ConversationCache();
+
+    const first = await buildSmartContext("login", graph as any, { maxNodes: 25, cache });
+    expect(first.text).toContain("📊 Summary:");
+    expect(first.text).toContain("fewer tokens than a full graph dump");
+
+    // A second, keyword-similar query against the same project/session —
+    // cache-eligible per ConversationCache's own keyword-overlap logic.
+    const second = await buildSmartContext("login", graph as any, { maxNodes: 25, cache });
+    expect(second.text).not.toContain("📊 Summary:");
+    expect(second.text).not.toContain("fewer tokens than a full graph dump");
+    expect(second.text).toContain("📊 Context includes:");
+  });
+
+  it("still reports the relevant node count in the short footer", async () => {
+    const cache = new ConversationCache();
+    await buildSmartContext("login", graph as any, { maxNodes: 25, cache });
+    const { text } = await buildSmartContext("login", graph as any, { maxNodes: 25, cache });
+
+    expect(text).toMatch(/📊 Context includes: \d+ relevant nodes/);
+  });
+
+  it("keeps the exact 'truncated to fit token budget' phrase in the short footer when a call is actually truncated — this phrase is what packages/mcp/src/index.ts's withMetrics substring-matches to set the truncated telemetry field (spec 065)", async () => {
+    // Enough distinct file sections that a tight token budget forces real
+    // truncation, same shape as the "token budget (spec 041)" tests below.
+    const manyNodes: any[] = [];
+    const manyEdges: any[] = [];
+    for (let i = 0; i < 30; i++) {
+      const fileId = `login${i}.ts`;
+      const fnId = `login${i}.ts__login`;
+      manyNodes.push({ id: fileId, label: `login${i}.ts`, type: "file", file: fileId, group: "service" });
+      manyNodes.push({ id: fnId, label: "login", type: "function", file: fileId, group: "service" });
+      manyEdges.push({ source: fileId, target: fnId, relation: "defines" });
+    }
+    const manyFilesGraph = {
+      project: "manyfiles-footer",
+      stats: { files: 30, functions: 30, classes: 0, interfaces: 0, edges: 30 },
+      nodes: manyNodes,
+      edges: manyEdges,
+    };
+
+    const cache = new ConversationCache();
+    // First call: full footer, establishes the session.
+    await buildSmartContext("login", manyFilesGraph as any, { maxNodes: 30, cache, tokenBudget: 150 });
+    // Second call: short footer, same tight budget — must still be truncated.
+    const { text } = await buildSmartContext("login", manyFilesGraph as any, {
+      maxNodes: 30,
+      cache,
+      tokenBudget: 150,
+    });
+
+    expect(text).not.toContain("📊 Summary:"); // confirms this really is the short-footer path
+    expect(text).toContain("truncated to fit token budget");
+  });
+
+  it("gives every call the full footer when no cache is supplied — session state can't be tracked without one", async () => {
+    const first = await buildSmartContext("login", graph as any, { maxNodes: 25 });
+    const second = await buildSmartContext("login", graph as any, { maxNodes: 25 });
+
+    expect(first.text).toContain("📊 Summary:");
+    expect(second.text).toContain("📊 Summary:");
+  });
+
+  it("gives a different project its own full footer even after another project's session has already shown one", async () => {
+    const cache = new ConversationCache();
+    await buildSmartContext("login", graph as any, { maxNodes: 25, cache });
+
+    const otherProjectGraph = { ...graph, project: "other-proj" };
+    const { text } = await buildSmartContext("login", otherProjectGraph as any, { maxNodes: 25, cache });
+
+    expect(text).toContain("📊 Summary:");
   });
 });

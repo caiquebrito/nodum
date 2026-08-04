@@ -143,11 +143,32 @@ export interface Graph {
     enums?: number;
     protocols?: number;
     extensions?: number;
+    /** Optional (spec 069): approximate token count of a full, unfiltered
+     * plain-text dump of every node and edge in this graph (the "no smart
+     * context" baseline `estimateTokenSavings()` compares against in
+     * `packages/mcp/src/smart-context.ts`). Computed once at sync time
+     * (`buildStats()`) instead of rebuilt and retokenized on every
+     * `search_graph` call — see `buildRawGraphDumpText()`. Optional purely
+     * because a graph.json written before this spec won't have it yet;
+     * callers fall back to computing it on demand for such graphs. */
+    rawDumpApproxTokens?: number;
   };
   nodes: Node[];
   edges: Edge[];
   clusters?: NodeCluster[];
   nodeToCluster?: Record<string, string>;
+  /** Format version of the text `generateNodeEmbedding` (packages/mcp/src/
+   * embeddings.ts) built each node's `embedding` from (spec 067). Bumped
+   * whenever that text-building logic changes in a way that makes old and
+   * new embeddings incomparable — cosine similarity between an embedding of
+   * `"<label> <type>"` and one of the newer structured text is meaningless,
+   * not just "a bit off". Optional purely because a graph.json written
+   * before this spec won't have it; `hasEmbeddings()` treats a missing or
+   * mismatched version the same as an unembedded node, forcing
+   * regeneration rather than silently mixing generations. Same
+   * versioned-invalidation shape `Graph['stats']`'s spec-036 optional
+   * counters use for old on-disk data. */
+  embeddingVersion?: number;
 }
 
 export interface ProjectIndexEntry {

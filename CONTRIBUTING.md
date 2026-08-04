@@ -16,11 +16,27 @@ what gets published where — see `docs/development/PUBLISH.md`.
 
 ## Writing a spec
 
-Most non-trivial changes get a spec first, written to
-`docs/development/active/NNN-slug/spec.md` — `NNN` is the next unused number across both
-`active/` and `completed/`, zero-padded to 3 digits. `active/` is a staging pad, not a backlog:
-a spec lives there only while its PR is open, and moves to `completed/` in the same commit that
-finishes the implementation.
+A spec moves through three folders under `docs/development/`, in order:
+
+1. **`refined/NNN-slug/spec.md`** — fully designed, not yet branched. This is where an entire
+   batch of planned work gets written down up front (e.g. a multi-spec arc from a research/
+   planning session) so the plan survives a session boundary even before any code exists. A
+   `refined/` spec's `## Status` line reads `refined — not started` and its Acceptance
+   Criteria/Test Plan checkboxes are unchecked descriptions of what to do, not yet what was done.
+2. **`active/NNN-slug/spec.md`** — moved here (same filename, same `NNN`) the moment work
+   actually starts: branch created, PR open. `active/` is a staging pad, not a backlog — a spec
+   lives there only while its PR is open.
+3. **`completed/NNN-slug/spec.md`** — moved here in the same commit that finishes the
+   implementation, `## Status` updated to `done`, and the body rewritten to describe what was
+   actually built and verified (not just what was planned — real deviations from the original
+   design belong in the finished spec, not silently smoothed over).
+
+`NNN` is the next unused number across `refined/`, `active/`, and `completed/` combined,
+zero-padded to 3 digits — check all three before assigning a new one. Most non-trivial changes
+still just go straight to `active/` and skip the `refined/` stage entirely (write the spec right
+before starting the branch, same as before this three-stage model existed) — `refined/` exists
+for work that's fully designed ahead of when it'll actually be picked up, not as a mandatory
+extra step for everything.
 
 Match the shape of any existing file under `docs/development/completed/` — reading a recent one
 is the fastest way to calibrate. There's no separate template file; the completed specs *are*

@@ -1,7 +1,6 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
-import { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import {
   syncProject,
   writeGraphFile,
@@ -12,6 +11,7 @@ import {
   findSimilarCode,
   suggestRefactoring,
   findManifestEntryFiles,
+  findCiInvokedFiles,
   type ProjectIndexEntry,
   type Graph,
 } from "@caiquebrito/nodum-core";
@@ -21,6 +21,18 @@ import { globalGraphCache } from "./graph-cache.js";
 import { generateGraphEmbeddings } from "./embeddings.js";
 
 export const NODUM_DATA_DIR = join(homedir(), ".nodum");
+
+// Structurally identical to the MCP SDK's `TextContent` (a `{ type: "text";
+// text: string }` shape), defined locally so this transport-neutral query
+// layer has zero dependency — even a type-only one — on
+// `@modelcontextprotocol/sdk` (spec 071). `packages/mcp/src/index.ts` passes
+// this straight through as a `CallToolResult`'s `content` entry; TypeScript's
+// structural typing accepts it there without any conversion, so behavior is
+// byte-identical to before the move.
+export interface TextContent {
+  type: "text";
+  text: string;
+}
 
 // Caps a single file/cluster listing's member list — distinct from
 // smart-context.ts's expansion caps, which bound a 1-hop graph traversal
@@ -76,8 +88,11 @@ export async function handleSync(projectPath: string) {
       onWarning: (message) => warnings.push(message),
     });
 
-    // v2.0: Generate embeddings for semantic search
-    await generateGraphEmbeddings(graph.nodes);
+    // v2.0: Generate embeddings for semantic search (spec 067: text enriched
+    // with file/module/layer/calls/callers; embeddingVersion-aware so a
+    // graph produced by an older embedding-text format regenerates instead
+    // of mixing stale and fresh embeddings)
+    await generateGraphEmbeddings(graph);
     await writeGraphFile(NODUM_DATA_DIR, graph.project, graph);
 
     // Clear conversation cache and graph cache for this project (graph changed)
@@ -606,7 +621,10 @@ export async function handleSuggestRefactoring(
       ? (await loadArchitectureConfig(projectPath)).rules
       : undefined;
     const deadCodeEntryPatterns = projectPath
-      ? await findManifestEntryFiles(projectPath, graph.nodes)
+      ? [
+          ...(await findManifestEntryFiles(projectPath, graph.nodes)),
+          ...(await findCiInvokedFiles(projectPath, graph.nodes)),
+        ]
       : undefined;
 
     const suggestions = suggestRefactoring(graph, {

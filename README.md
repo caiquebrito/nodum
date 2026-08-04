@@ -205,6 +205,9 @@ nodum serve
 
 # Check synced projects
 nodum status
+
+# MCP tool call telemetry (v2.18)
+nodum metrics                   # Calls, latency, cache hits, truncation per tool
 ```
 
 ### Data Storage
@@ -421,9 +424,19 @@ npm install -g .
 
 ## Roadmap
 
-61 specs shipped so far, each with real end-to-end verification against synced projects — see
+62 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.16.0** across all four packages (lockstep).
+**v2.17.0** across all four packages (lockstep).
+
+### ✅ Fix dead-code/duplication/cycle/bottleneck accuracy (shipped as v2.17.0)
+- A user-supplied, independently-verified real-world audit against a Kotlin/Android app found
+  dead-code detection at ~13% precision and duplication at ~20-40% — plain complexity/fan-in
+  counting was 100% accurate, so the gaps were graph-resolution issues, not the underlying numbers
+- Fixed: Kotlin same-package/no-import symbol resolution, AndroidManifest.xml entry-point
+  awareness, a self-import false-positive cycle, duplication findings naming the wrong symbol, and
+  a bottleneck score that conflated fan-in with actual complexity/risk
+- Real check: verified against the actually-published `@caiquebrito/nodum-core@2.17.0` package via
+  a fresh `npm install`, not just the local build
 
 ### ✅ Work around the Node/V8 WASM compiler crash on large syncs (shipped as v2.16.0)
 - Closes a five-spec investigation (055 → 056 → 058 → 059 → 060) into a real Node `v25.9.0` crash on
@@ -595,7 +608,7 @@ A: TypeScript, Python, Java, JavaScript, Swift, Objective-C, Go, and Kotlin — 
 parsing (TypeScript via the compiler API, the rest via tree-sitter).
 
 **Q: Is this production-ready?**
-A: Yes — v2.16.0 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.17.0 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.

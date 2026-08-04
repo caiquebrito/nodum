@@ -28,6 +28,7 @@ export {
   generateGraph,
   calculateNodeDegree,
   deduplicateEdges,
+  buildRawGraphDumpText,
 } from './graph-gen.js';
 export type { GenerateGraphOptions } from './graph-gen.js';
 
@@ -59,6 +60,7 @@ export type { Cycle } from './analyzer/cycles.js';
 export { detectUnreachableFiles } from './analyzer/dead-code.js';
 export type { UnreachableFile, DetectUnreachableFilesOptions } from './analyzer/dead-code.js';
 export { findManifestEntryFiles, parseManifestEntryPoints } from './analyzer/android-manifest.js';
+export { findCiInvokedFiles, parseCiInvokedPaths } from './analyzer/ci-invoked-scripts.js';
 
 export { detectArchitectureViolations } from './analyzer/architecture.js';
 export type { ArchitectureViolation } from './analyzer/architecture.js';

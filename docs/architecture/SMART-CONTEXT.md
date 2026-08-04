@@ -18,9 +18,16 @@ This is not a fixed percentage — the real measured savings are reported per re
    related to a recent one in the same conversation, reuse its expanded node set instead of
    re-scoring from scratch (a cache hit skips work; it returns the same context a fresh search
    would find, not a separate token saving).
-3. **`scoreNode()` / `findRelevantNodes()`** — ranks nodes by relevance. Scoring blends keyword
-   matching with semantic (embedding-based) similarity — roughly a 60/40 semantic/keyword blend —
-   with a graceful fallback to keyword-only scoring if embeddings aren't available.
+3. **`scoreNode()` / `findRelevantNodes()`** — ranks nodes by relevance. When embeddings are
+   available, keyword matching (`findRelevantNodes`) and semantic similarity (`semanticScoreNodes`)
+   run as two independent rankers over the same candidate pool, then combine via **Reciprocal Rank
+   Fusion (RRF)** in `mergeScores`/`fuseByRRF` (`packages/mcp/src/semantic-search.ts`):
+   `score(node) = Σ_ranker weight_r / (k + rank_r(node))`, with `k = 60` (the conventional RRF
+   constant) and the intended 0.4/0.6 keyword/semantic weight split. RRF combines each ranker by
+   its *rank position*, not its raw score — this matters because the two scores are not otherwise
+   comparable (a keyword rank is an integer 0–40, a cosine similarity is a float 0–1); a node
+   unranked by one side simply contributes 0 from it, rather than distorting the merge (spec 066).
+   Falls back to keyword-only scoring if embeddings aren't available.
 4. **`expandContext()`** — expands the relevant set to connected (depth-1) neighbor nodes, bounded
    rather than unconditional (a hub node with hundreds of dependents no longer blows the context
    open — fixed as part of the v2.5.0 truth-and-measurement batch).
