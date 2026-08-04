@@ -24,7 +24,7 @@ import { dirname, join } from 'path';
 import { generateGraph } from '@caiquebrito/nodum-core';
 import type { Graph } from '@caiquebrito/nodum-core';
 // @ts-expect-error — compiled output, same import shape as context-size.test.ts
-import { findRelevantNodes, extractKeywords } from '@caiquebrito/nodum-mcp/dist/smart-context.js';
+import { findRelevantNodes, extractKeywords } from '@caiquebrito/nodum-query/dist/smart-context.js';
 import { resolveSelectors, type NodeSelector } from './resolve.js';
 import { scoreQuery, aggregateIRMetrics, type QueryMetrics } from './ir-metrics.js';
 

@@ -16,7 +16,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.28.0",
     "@caiquebrito/nodum-core": "file:../packages/core",
-    "@caiquebrito/nodum-mcp": "file:../packages/mcp"
+    "@caiquebrito/nodum-query": "file:../packages/query"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

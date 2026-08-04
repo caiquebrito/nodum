@@ -9,10 +9,11 @@
   },
   "scripts": {
     "build:core": "cd packages/core && npm run build",
+    "build:query": "cd packages/query && npm run build",
     "build:cli": "cd packages/cli && npm run build",
     "build:server": "cd packages/server && npm run build",
     "build:mcp": "cd packages/mcp && npm run build",
-    "build": "npm run build:core && npm run build:server && npm run build:cli && npm run build:mcp",
+    "build": "npm run build:core && npm run build:query && npm run build:server && npm run build:cli && npm run build:mcp",
     "dev": "npm run dev --workspaces",
     "test": "npm run test --workspaces",
     "lint": "eslint packages --ext .ts",
@@ -24,6 +25,7 @@
   },
   "workspaces": [
     "packages/core",
+    "packages/query",
     "packages/cli",
     "packages/server",
     "packages/mcp",

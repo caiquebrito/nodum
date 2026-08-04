@@ -1,4 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+// Test-only: `@modelcontextprotocol/sdk` is a devDependency of this package
+// (spec 071), never a runtime one — `handlers.ts` itself has no import of
+// it (see its local `TextContent` type). This schema import exists purely
+// to keep asserting, from outside `packages/mcp`, that error results stay
+// shaped as a valid MCP `CallToolResult` even though this package no longer
+// needs the SDK to produce that shape.
 import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { globalGraphCache } from "./graph-cache.js";
 

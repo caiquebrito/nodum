@@ -62,7 +62,7 @@ const {
   handleSuggestRefactoringMock: vi.fn(),
 }));
 
-vi.mock("./handlers.js", () => ({
+vi.mock("@caiquebrito/nodum-query", () => ({
   handleSync: handleSyncMock,
   handleStatus: handleStatusMock,
   handleGetGraph: handleGetGraphMock,
