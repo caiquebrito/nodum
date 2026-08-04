@@ -48,12 +48,21 @@ export class ClaudeAPI {
     return { response: text, metrics };
   }
 
-  // Run 3 times and average metrics to reduce variance
+  // Run 3 times and average metrics to reduce variance. Also returns every
+  // individual response/metrics pair (spec 064) so a caller that wants
+  // per-run accuracy variance — not just averaged token/latency — doesn't
+  // have to re-issue the calls itself. `response`/`metrics` (the averaged,
+  // first-response view) are unchanged for existing callers.
   async callWithRetries(
     systemPrompt: string,
     userMessage: string,
     retries: number = 3,
-  ): Promise<{ response: string; metrics: APICallMetrics }> {
+  ): Promise<{
+    response: string;
+    metrics: APICallMetrics;
+    allResponses: string[];
+    allMetrics: APICallMetrics[];
+  }> {
     const allMetrics: APICallMetrics[] = [];
     const allResponses: string[] = [];
 
@@ -86,6 +95,6 @@ export class ClaudeAPI {
     };
     avgMetrics.totalTokens = avgMetrics.inputTokens + avgMetrics.outputTokens;
 
-    return { response, metrics: avgMetrics };
+    return { response, metrics: avgMetrics, allResponses, allMetrics };
   }
 }

@@ -1,11 +1,24 @@
 import { writeFile } from 'fs/promises';
 import type { BenchmarkSummary } from './datasets/schema.js';
+import type { BaselineDelta } from './baseline-store.js';
 
 export async function generateHTMLReport(
   summary: BenchmarkSummary,
   outputPath: string,
+  previousReleaseDelta: BaselineDelta | null = null,
 ): Promise<void> {
   const { aggregate, results, projectStats } = summary;
+
+  const tokensPerCorrectAnswerDisplay = Number.isFinite(aggregate.tokensPerCorrectAnswer)
+    ? aggregate.tokensPerCorrectAnswer.toFixed(1)
+    : '∞';
+  const tokensPerCorrectAnswerStdErrDisplay =
+    aggregate.tokensPerCorrectAnswerStdErr !== undefined
+      ? ` ± ${aggregate.tokensPerCorrectAnswerStdErr.toFixed(1)}`
+      : '';
+  const deltaHtml = previousReleaseDelta
+    ? `<div class="metric-unit">${previousReleaseDelta.tokensPerCorrectAnswerDelta <= 0 ? '↓' : '↑'} ${Math.abs(previousReleaseDelta.tokensPerCorrectAnswerPercentChange).toFixed(1)}% vs. v${previousReleaseDelta.previousVersion}</div>`
+    : `<div class="metric-unit">No prior release baseline yet</div>`;
 
   const html = `<!DOCTYPE html>
 <html>
@@ -231,6 +244,11 @@ export async function generateHTMLReport(
       <div class="metric-value positive">${aggregate.tokensSaved.toLocaleString()}</div>
       <div class="metric-unit">Across all ${aggregate.questionsRun} questions</div>
     </div>
+    <div class="metric-card">
+      <div class="metric-label">Tokens / Correct Answer</div>
+      <div class="metric-value">${tokensPerCorrectAnswerDisplay}${tokensPerCorrectAnswerStdErrDisplay}</div>
+      ${deltaHtml}
+    </div>
   </div>
 
   <div class="summary-box">
@@ -250,6 +268,10 @@ export async function generateHTMLReport(
     <div class="summary-stat">
       <label>Average token reduction:</label>
       <value>${aggregate.avgTokenReduction.toFixed(2)}%</value>
+    </div>
+    <div class="summary-stat">
+      <label>Tokens per correct answer (north-star metric):</label>
+      <value>${tokensPerCorrectAnswerDisplay}${tokensPerCorrectAnswerStdErrDisplay}</value>
     </div>
   </div>
 
