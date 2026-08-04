@@ -315,6 +315,72 @@ describe("generateGraph — stats (spec 036: struct/enum/protocol/extension)", (
   });
 });
 
+describe("generateGraph — rawDumpApproxTokens (spec 069)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("populates graph.stats.rawDumpApproxTokens once at generation time, matching a direct countTokens(buildRawGraphDumpText(...)) call on the same graph", async () => {
+    selectParserMock.mockImplementation((ext: string) => {
+      if (ext !== ".ts") return null;
+      return {
+        parse: (file: FileInfo) => ({
+          nodes: [
+            { id: file.path, label: file.path, type: "function" as const, file: file.path, group: "other" },
+          ],
+          edges: [],
+        }),
+      };
+    });
+    discoverFilesMock.mockResolvedValue([fileInfo("a.ts"), fileInfo("b.ts")]);
+
+    const { generateGraph, buildRawGraphDumpText } = await import("./graph-gen.js");
+    const { countTokens } = await import("./token-count.js");
+    const { graph } = await generateGraph("/proj", {});
+
+    expect(graph.stats.rawDumpApproxTokens).toBeGreaterThan(0);
+    expect(graph.stats.rawDumpApproxTokens).toBe(
+      countTokens(buildRawGraphDumpText(graph.project, graph.nodes, graph.edges))
+    );
+  });
+
+  it("recomputes rawDumpApproxTokens on an incremental sync, reflecting the merged (carried-over + re-parsed) node/edge set", async () => {
+    const previousGraph: Graph = {
+      project: "proj",
+      stats: { files: 1, functions: 1, classes: 0, interfaces: 0, edges: 0, rawDumpApproxTokens: 1 },
+      nodes: [{ id: "a.ts", label: "a.ts (old)", type: "function", file: "a.ts", group: "other" }],
+      edges: [],
+    };
+    const previousFiles: FileManifest = {
+      "a.ts": { hash: "old-hash", mtimeMs: 1, size: 1 },
+    };
+
+    selectParserMock.mockImplementation((ext: string) => {
+      if (ext !== ".ts") return null;
+      return {
+        parse: (file: FileInfo) => ({
+          nodes: [{ id: file.path, label: file.path, type: "function" as const, file: file.path, group: "other" }],
+          edges: [],
+        }),
+      };
+    });
+    discoverChangedFilesMock.mockResolvedValue({
+      changed: [fileInfo("a.ts")],
+      unchanged: {},
+      deletedPaths: [],
+    });
+
+    const { generateGraph, buildRawGraphDumpText } = await import("./graph-gen.js");
+    const { countTokens } = await import("./token-count.js");
+    const { graph } = await generateGraph("/proj", { previousGraph, previousFiles });
+
+    // Freshly recomputed, not carried over from the stale previous graph.
+    expect(graph.stats.rawDumpApproxTokens).toBe(
+      countTokens(buildRawGraphDumpText(graph.project, graph.nodes, graph.edges))
+    );
+  });
+});
+
 describe("generateGraph — source-set labeling (spec 049)", () => {
   beforeEach(() => {
     vi.clearAllMocks();

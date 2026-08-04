@@ -251,6 +251,37 @@ describe("buildSmartContext", () => {
     expect(text.length).toBeGreaterThan(0);
   });
 
+  it("falls back to computing the raw-dump baseline on demand when graph.stats.rawDumpApproxTokens is absent (old on-disk graph)", async () => {
+    // `graph` above has no `rawDumpApproxTokens` field — same shape a
+    // pre-spec-069 graph.json would have. The savings percentage should
+    // still be a real, non-zero, non-hardcoded number, not silently 0 or
+    // NaN because the field was missing.
+    expect(graph.stats).not.toHaveProperty("rawDumpApproxTokens");
+    const { text } = await buildSmartContext("login", graph as any, { maxNodes: 25 });
+    expect(text).toMatch(/\d+% fewer tokens than a full graph dump/);
+  });
+
+  it("uses the persisted graph.stats.rawDumpApproxTokens when present, instead of rebuilding and retokenizing the dump", async () => {
+    const fallback = await buildSmartContext("login", graph as any, { maxNodes: 25 });
+    const fallbackPercentage = Number(fallback.text.match(/(\d+)% fewer tokens/)?.[1]);
+    expect(Number.isNaN(fallbackPercentage)).toBe(false);
+
+    // An absurdly large persisted baseline, wildly different from what the
+    // on-demand computation over this tiny 3-node graph would produce. If
+    // the persisted field were being ignored in favor of recomputing from
+    // `graph.nodes`/`graph.edges`, this would report the same percentage as
+    // the fallback case above — it doesn't, proving the field is read.
+    const graphWithHugeBaseline = {
+      ...graph,
+      stats: { ...graph.stats, rawDumpApproxTokens: 1_000_000 },
+    };
+    const withField = await buildSmartContext("login", graphWithHugeBaseline as any, { maxNodes: 25 });
+    const withFieldPercentage = Number(withField.text.match(/(\d+)% fewer tokens/)?.[1]);
+
+    expect(withFieldPercentage).not.toBe(fallbackPercentage);
+    expect(withFieldPercentage).toBeGreaterThanOrEqual(99); // near-100% savings vs. a 1,000,000-token "baseline"
+  });
+
   it("caps expansion around a heavily-imported hub node instead of pulling in every dependent", async () => {
     const hubGraph = {
       project: "hubproj",
