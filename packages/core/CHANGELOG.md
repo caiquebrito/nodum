@@ -1,5 +1,14 @@
 # @caiquebrito/nodum-core
 
+## 2.17.1
+
+### Patch Changes
+
+- 20004e9: `search_graph` no longer rebuilds and retokenizes a full plain-text dump of the entire graph on every call just to compute the "N% fewer tokens than a full graph dump" savings footer — that value doesn't depend on the query, so it's now computed once at sync time and persisted as `graph.stats.rawDumpApproxTokens` (`buildStats()`), with `smart-context.ts` falling back to the old on-demand computation only for a graph synced by an older nodum version that doesn't have the field yet. Measured 9.08x faster (1130ms → 124ms average per call) on an 80,000-node synthetic graph.
+- 1de5d9f: Dead-code detection no longer flags scripts that are only ever invoked as a CI/shell subprocess (e.g. a Python script called from `bitrise.yml`/GitHub Actions/a wrapper `.sh`) as unreachable. New `findCiInvokedFiles` scans `.yml`/`.yaml`/`.sh` files for script-path tokens and resolves them against the graph, the same way `findManifestEntryFiles` already does for `AndroidManifest.xml` — wired into the CLI `dead-code` command and MCP's `suggest_refactoring`.
+- 41be22f: Enrich node embedding text with graph context instead of just `"<label> <type>"` (e.g. `authenticateUser function`). `generateNodeEmbedding` now embeds the identifier-split label, type, file basename, and — when present — module/layer/sourceSet, plus up to 5 outgoing call targets and up to 5 incoming callers, all built from adjacency maps constructed once per sync rather than per node. Label splitting reuses the shared `tokenizeIdentifier` utility (spec 068) instead of a second copy. Adds `Graph.embeddingVersion`; `hasEmbeddings()` now treats a missing or stale version as "not embedded" so an old graph.json's embeddings never get silently compared against a query embedded with the new text.
+- 96bb981: Add `nodum metrics [projectPath] [--json]`, reading back `~/.nodum/<project>/logs/metrics.jsonl` (written by every MCP tool call since spec 025, previously write-only) and reporting per-tool call counts, success rate, p50/p95 duration, mean approx tokens, cache-hit rate, and truncation rate. `ToolCallMetric` gains optional `query`/`resultNodeCount`/`cacheHit`/`budgetApplied`/`truncated` fields, populated by the MCP server's `withMetrics` wrapper.
+
 ## 2.17.0
 
 ### Minor Changes
