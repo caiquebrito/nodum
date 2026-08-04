@@ -6,6 +6,7 @@ import {
   extractKeywords,
   scoreNode,
   findRelevantNodes,
+  buildTermIndex,
 } from "./smart-context.js";
 import type { Node } from "@caiquebrito/nodum-core";
 
@@ -41,7 +42,19 @@ describe("extractKeywords", () => {
   });
 
   it("splits on whitespace, hyphens, underscores, dots, and slashes", () => {
-    expect(extractKeywords("auth-flow_v2.routes/login")).toEqual(["auth", "flow", "routes", "login"]);
+    // "v2" is now kept — spec 068 lowered the length filter from >2 to >1
+    // specifically to recover short identifier fragments like this one.
+    expect(extractKeywords("auth-flow_v2.routes/login")).toEqual(["auth", "flow", "v2", "routes", "login"]);
+  });
+
+  it("recovers short identifier fragments (id, db, ui, io) that a length>2 filter used to drop (spec 068)", () => {
+    expect(extractKeywords("find the db connection and id lookup for the ui and io layer")).toEqual([
+      "find", "db", "connection", "id", "lookup", "ui", "io", "layer",
+    ]);
+  });
+
+  it("still drops short noise words added to the stop-list alongside the length change (spec 068)", () => {
+    expect(extractKeywords("log in on the ok page up at the go button")).toEqual(["log", "page", "button"]);
   });
 
   it("drops short words and known stopwords, keeping the rest", () => {
@@ -72,6 +85,89 @@ describe("scoreNode", () => {
 
   it("scores 0 for a node matching none of the keywords", () => {
     expect(scoreNode(node, ["database", "migration"])).toBe(0);
+  });
+
+  it("scores an exact split-term match higher than a coincidental substring match (spec 068 minimal pair)", () => {
+    // `superclass` contains "super" as a raw substring but "super" is not
+    // one of its own split terms (tokenizeIdentifier("superclass") ===
+    // ["superclass"], no camelCase/snake_case boundary to split on) — so a
+    // query for "super" should score a real `superHelper`-style term match
+    // (where "super" IS a split term) higher than the `superclass`
+    // coincidence.
+    const termIndex = buildTermIndex([
+      { id: "a", label: "superHelper", type: "function", file: "a.ts", group: "util" },
+      { id: "b", label: "superclass", type: "function", file: "b.ts", group: "util" },
+    ]);
+    const termMatch = scoreNode(
+      { id: "a", label: "superHelper", type: "function", file: "a.ts", group: "util" },
+      ["super"],
+      termIndex
+    );
+    const substringMatch = scoreNode(
+      { id: "b", label: "superclass", type: "function", file: "b.ts", group: "util" },
+      ["super"],
+      termIndex
+    );
+    expect(termMatch).toBeGreaterThan(substringMatch);
+  });
+
+  it("weights a rare term's match higher than a common term's match, for an otherwise-equal match (IDF, spec 068)", () => {
+    // 50 nodes total: "get" appears on 40 of them (near-ubiquitous),
+    // "webhook" appears on only 1 (rare, discriminative) — an otherwise
+    // identical single-term exact match should score higher for the rare
+    // term.
+    const nodes: Node[] = [
+      { id: "rare", label: "webhookHandler", type: "function", file: "a.ts", group: "util" },
+      ...Array.from({ length: 39 }, (_, i) => ({
+        id: `common${i}`,
+        label: `getThing${i}`,
+        type: "function" as const,
+        file: "a.ts",
+        group: "util",
+      })),
+      ...Array.from({ length: 10 }, (_, i) => ({
+        id: `filler${i}`,
+        label: `unrelated${i}`,
+        type: "function" as const,
+        file: "a.ts",
+        group: "util",
+      })),
+    ];
+    const termIndex = buildTermIndex(nodes);
+
+    const rareScore = scoreNode(nodes[0], ["webhook"], termIndex);
+    const commonScore = scoreNode(nodes[1], ["get"], termIndex);
+    expect(rareScore).toBeGreaterThan(commonScore);
+  });
+
+  it("scores identically to a neutral (no-op) weight when called without a termIndex", () => {
+    // Backward-compat posture: scoreNode is still callable in isolation
+    // (this whole describe block does exactly that) without needing a
+    // termIndex built first.
+    expect(scoreNode(node, ["login"])).toBeGreaterThan(0);
+  });
+});
+
+describe("buildTermIndex", () => {
+  it("indexes each node under its split identifier terms, not the raw label", () => {
+    const index = buildTermIndex([
+      { id: "a", label: "getUserById", type: "function", file: "a.ts", group: "util" },
+    ]);
+    expect(index.termToNodeIds.get("get")?.has("a")).toBe(true);
+    expect(index.termToNodeIds.get("user")?.has("a")).toBe(true);
+    expect(index.termToNodeIds.get("by")?.has("a")).toBe(true);
+    expect(index.termToNodeIds.get("id")?.has("a")).toBe(true);
+    expect(index.termToNodeIds.has("getuserbyid")).toBe(false);
+  });
+
+  it("gives a term appearing in fewer nodes a higher idf than one appearing in more", () => {
+    const index = buildTermIndex([
+      { id: "a", label: "rareTerm", type: "function", file: "a.ts", group: "util" },
+      { id: "b", label: "commonWord", type: "function", file: "b.ts", group: "util" },
+      { id: "c", label: "commonWord", type: "function", file: "c.ts", group: "util" },
+      { id: "d", label: "commonWord", type: "function", file: "d.ts", group: "util" },
+    ]);
+    expect(index.idf.get("rare") ?? 0).toBeGreaterThan(index.idf.get("common") ?? 0);
   });
 });
 
