@@ -76,6 +76,31 @@ const TRUNCATED_MARKER = "truncated to fit token budget";
 const RESULT_NODE_COUNT_PATTERN = /Context includes: (\d+) relevant nodes/;
 
 /**
+ * `search_graph`'s default `token_budget` when the caller doesn't specify
+ * one (spec 070) — before this, the common, unbudgeted call path never
+ * exercised `fillSectionsToBudget` (`smart-context.ts`) at all. Chosen as a
+ * generous-but-real budget: comfortably larger than a typical unbudgeted
+ * response for a normal (non-hub) query per `benchmarks/context-size.test.ts`'s
+ * `NORMAL_QUERY_CEILING`, while still small enough to actually engage the
+ * budgeting machinery on a large expanded set. See this spec's Success
+ * Metrics for the measured before/after this produced.
+ */
+const DEFAULT_SEARCH_TOKEN_BUDGET = 1500;
+
+/**
+ * Resolves `search_graph`'s `token_budget` argument (spec 070):
+ * - `undefined` (caller didn't specify) -> the default budget.
+ * - explicit `0` or `null` (caller wants everything) -> `undefined`, i.e.
+ *   `buildSmartContext`'s own "unbounded" contract.
+ * - any other number -> passed through unchanged.
+ */
+function resolveTokenBudget(raw: number | null | undefined): number | undefined {
+  if (raw === undefined) return DEFAULT_SEARCH_TOKEN_BUDGET;
+  if (raw === 0 || raw === null) return undefined;
+  return raw;
+}
+
+/**
  * Wraps a tool handler with the same per-call metrics logging every tool
  * needs — timing, `isError`-based success tracking (spec 050), and
  * project-scoped log paths — written once and applied at every
@@ -98,7 +123,17 @@ function withMetrics<Args extends Record<string, unknown>>(
     const startedAt = Date.now();
     const projectName = typeof args?.project_name === "string" ? (args.project_name as string) : undefined;
     const query = typeof args?.query === "string" ? (args.query as string) : undefined;
-    const budgetApplied = typeof args?.token_budget === "number";
+    // `search_graph`'s `token_budget` now defaults rather than being purely
+    // opt-in (spec 070) — `budgetApplied` reflects whether budgeting will
+    // actually run (the resolved value, including the default), not just
+    // whether the caller happened to pass the argument. Gated on
+    // `toolName === "search_graph"` since that's the only tool with a
+    // `token_budget` field at all; `resolveTokenBudget` would otherwise
+    // wrongly default a `token_budget: undefined` read off some other
+    // tool's args (which simply lacks the field, not "caller omitted it").
+    const budgetApplied =
+      toolName === "search_graph" &&
+      resolveTokenBudget(args?.token_budget as number | null | undefined) !== undefined;
 
     let result: ToolResult;
     try {
@@ -185,14 +220,15 @@ server.registerTool(
         .describe("Optional: filter results by node type"),
       token_budget: z
         .number()
+        .nullable()
         .optional()
         .describe(
-          "Optional: approximate token budget for the returned context. Sections are included in relevance order until the next one would exceed the budget — the single highest-priority section is always included even if it alone exceeds it. Omit for the default unbounded-by-tokens behavior."
+          `Optional: approximate token budget for the returned context. Sections are included in relevance order until the next one would exceed the budget — the single highest-priority section is always included even if it alone exceeds it. Defaults to ${DEFAULT_SEARCH_TOKEN_BUDGET} when omitted (spec 070); pass 0 or null explicitly for the old unbounded-by-tokens behavior.`
         ),
     },
   },
   withMetrics("search_graph", async (args) =>
-    handleSearch(args.project_name, args.query, args.type_filter, args.token_budget)
+    handleSearch(args.project_name, args.query, args.type_filter, resolveTokenBudget(args.token_budget))
   )
 );
 

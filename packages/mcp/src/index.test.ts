@@ -212,14 +212,51 @@ describe("mcp index.ts (spec 057 — registerTool migration)", () => {
     );
   });
 
-  it("does not set budgetApplied when no token_budget is supplied", async () => {
+  // Spec 070: `token_budget` now defaults (see DEFAULT_SEARCH_TOKEN_BUDGET
+  // in index.ts) instead of being purely opt-in, so the common no-arg path
+  // now exercises budgeting and `budgetApplied` reflects that — this
+  // replaces the pre-070 expectation (a caller who didn't pass
+  // `token_budget` got `budgetApplied: undefined`).
+  it("sets budgetApplied (and passes the default budget to handleSearch) when no token_budget is supplied", async () => {
     const tools = await loadIndex();
     handleSearchMock.mockResolvedValue(OK_RESULT);
 
     await tools.get("search_graph")!.callback({ project_name: "proj", query: "auth flow" });
 
+    expect(handleSearchMock).toHaveBeenLastCalledWith("proj", "auth flow", undefined, 1500);
+    const lastCall = appendMetricsLogMock.mock.calls[appendMetricsLogMock.mock.calls.length - 1];
+    expect(lastCall[1].budgetApplied).toBe(true);
+  });
+
+  it("treats explicit token_budget: 0 as unbounded — passes undefined to handleSearch and does not set budgetApplied", async () => {
+    const tools = await loadIndex();
+    handleSearchMock.mockResolvedValue(OK_RESULT);
+
+    await tools.get("search_graph")!.callback({ project_name: "proj", query: "auth flow", token_budget: 0 });
+
+    expect(handleSearchMock).toHaveBeenLastCalledWith("proj", "auth flow", undefined, undefined);
     const lastCall = appendMetricsLogMock.mock.calls[appendMetricsLogMock.mock.calls.length - 1];
     expect(lastCall[1].budgetApplied).toBeUndefined();
+  });
+
+  it("treats explicit token_budget: null as unbounded — passes undefined to handleSearch and does not set budgetApplied", async () => {
+    const tools = await loadIndex();
+    handleSearchMock.mockResolvedValue(OK_RESULT);
+
+    await tools.get("search_graph")!.callback({ project_name: "proj", query: "auth flow", token_budget: null });
+
+    expect(handleSearchMock).toHaveBeenLastCalledWith("proj", "auth flow", undefined, undefined);
+    const lastCall = appendMetricsLogMock.mock.calls[appendMetricsLogMock.mock.calls.length - 1];
+    expect(lastCall[1].budgetApplied).toBeUndefined();
+  });
+
+  it("passes an explicit non-zero token_budget through unchanged", async () => {
+    const tools = await loadIndex();
+    handleSearchMock.mockResolvedValue(OK_RESULT);
+
+    await tools.get("search_graph")!.callback({ project_name: "proj", query: "auth flow", token_budget: 500 });
+
+    expect(handleSearchMock).toHaveBeenLastCalledWith("proj", "auth flow", undefined, 500);
   });
 
   it("derives cacheHit and resultNodeCount from the response text's own footer", async () => {

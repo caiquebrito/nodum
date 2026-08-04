@@ -88,4 +88,49 @@ describe("ConversationCache", () => {
       expect(cache.getStats()).toEqual({ projectsCached: 2, totalEntries: 2 });
     });
   });
+
+  describe("footer-shown session tracking (spec 070)", () => {
+    it("reports not-shown for a project that never had markFooterShown called", () => {
+      expect(cache.hasShownFullFooter("proj")).toBe(false);
+    });
+
+    it("reports shown immediately after markFooterShown", () => {
+      cache.markFooterShown("proj");
+      expect(cache.hasShownFullFooter("proj")).toBe(true);
+    });
+
+    it("tracks footer-shown state independently per project", () => {
+      cache.markFooterShown("proj-a");
+      expect(cache.hasShownFullFooter("proj-a")).toBe(true);
+      expect(cache.hasShownFullFooter("proj-b")).toBe(false);
+    });
+
+    it("clearProject resets footer-shown state along with context caching", () => {
+      cache.markFooterShown("proj");
+      cache.clearProject("proj");
+      expect(cache.hasShownFullFooter("proj")).toBe(false);
+    });
+
+    describe("TTL expiry", () => {
+      beforeEach(() => {
+        vi.useFakeTimers();
+      });
+
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it("still reports shown just before the 5-minute TTL", () => {
+        cache.markFooterShown("proj");
+        vi.advanceTimersByTime(5 * 60 * 1000 - 1000);
+        expect(cache.hasShownFullFooter("proj")).toBe(true);
+      });
+
+      it("reports not-shown again once the 5-minute TTL has passed", () => {
+        cache.markFooterShown("proj");
+        vi.advanceTimersByTime(5 * 60 * 1000 + 1000);
+        expect(cache.hasShownFullFooter("proj")).toBe(false);
+      });
+    });
+  });
 });

@@ -10,6 +10,7 @@ import {
 } from "./smart-context.js";
 import { EMBEDDING_TEXT_VERSION } from "./embeddings.js";
 import type { Node } from "@caiquebrito/nodum-core";
+import { ConversationCache } from "./conversation-cache.js";
 
 // `generateQueryEmbedding` normally loads a real local embedding model
 // (@xenova/transformers) — too slow/heavy for a unit test, and the fused
@@ -610,5 +611,81 @@ describe("buildSmartContext — typeFilter (spec 041 fix — was previously acce
     });
     expect(text).toContain("No nodes found");
     expect(text).toContain("interface");
+  });
+});
+
+describe("buildSmartContext — footer compression (spec 070)", () => {
+  it("shows the full summary+notes footer on a session's first call, and a short form on a subsequent call for the same cached session", async () => {
+    const cache = new ConversationCache();
+
+    const first = await buildSmartContext("login", graph as any, { maxNodes: 25, cache });
+    expect(first.text).toContain("📊 Summary:");
+    expect(first.text).toContain("fewer tokens than a full graph dump");
+
+    // A second, keyword-similar query against the same project/session —
+    // cache-eligible per ConversationCache's own keyword-overlap logic.
+    const second = await buildSmartContext("login", graph as any, { maxNodes: 25, cache });
+    expect(second.text).not.toContain("📊 Summary:");
+    expect(second.text).not.toContain("fewer tokens than a full graph dump");
+    expect(second.text).toContain("📊 Context includes:");
+  });
+
+  it("still reports the relevant node count in the short footer", async () => {
+    const cache = new ConversationCache();
+    await buildSmartContext("login", graph as any, { maxNodes: 25, cache });
+    const { text } = await buildSmartContext("login", graph as any, { maxNodes: 25, cache });
+
+    expect(text).toMatch(/📊 Context includes: \d+ relevant nodes/);
+  });
+
+  it("keeps the exact 'truncated to fit token budget' phrase in the short footer when a call is actually truncated — this phrase is what packages/mcp/src/index.ts's withMetrics substring-matches to set the truncated telemetry field (spec 065)", async () => {
+    // Enough distinct file sections that a tight token budget forces real
+    // truncation, same shape as the "token budget (spec 041)" tests below.
+    const manyNodes: any[] = [];
+    const manyEdges: any[] = [];
+    for (let i = 0; i < 30; i++) {
+      const fileId = `login${i}.ts`;
+      const fnId = `login${i}.ts__login`;
+      manyNodes.push({ id: fileId, label: `login${i}.ts`, type: "file", file: fileId, group: "service" });
+      manyNodes.push({ id: fnId, label: "login", type: "function", file: fileId, group: "service" });
+      manyEdges.push({ source: fileId, target: fnId, relation: "defines" });
+    }
+    const manyFilesGraph = {
+      project: "manyfiles-footer",
+      stats: { files: 30, functions: 30, classes: 0, interfaces: 0, edges: 30 },
+      nodes: manyNodes,
+      edges: manyEdges,
+    };
+
+    const cache = new ConversationCache();
+    // First call: full footer, establishes the session.
+    await buildSmartContext("login", manyFilesGraph as any, { maxNodes: 30, cache, tokenBudget: 150 });
+    // Second call: short footer, same tight budget — must still be truncated.
+    const { text } = await buildSmartContext("login", manyFilesGraph as any, {
+      maxNodes: 30,
+      cache,
+      tokenBudget: 150,
+    });
+
+    expect(text).not.toContain("📊 Summary:"); // confirms this really is the short-footer path
+    expect(text).toContain("truncated to fit token budget");
+  });
+
+  it("gives every call the full footer when no cache is supplied — session state can't be tracked without one", async () => {
+    const first = await buildSmartContext("login", graph as any, { maxNodes: 25 });
+    const second = await buildSmartContext("login", graph as any, { maxNodes: 25 });
+
+    expect(first.text).toContain("📊 Summary:");
+    expect(second.text).toContain("📊 Summary:");
+  });
+
+  it("gives a different project its own full footer even after another project's session has already shown one", async () => {
+    const cache = new ConversationCache();
+    await buildSmartContext("login", graph as any, { maxNodes: 25, cache });
+
+    const otherProjectGraph = { ...graph, project: "other-proj" };
+    const { text } = await buildSmartContext("login", otherProjectGraph as any, { maxNodes: 25, cache });
+
+    expect(text).toContain("📊 Summary:");
   });
 });

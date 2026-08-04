@@ -241,16 +241,29 @@ const MAX_NEIGHBORS_PER_SEED = 10;
 const MAX_EXPANDED_NODES = 150;
 
 /**
- * Expand context to include connected nodes (depth 1)
- * If user asks about "auth", also include what auth calls and what calls auth
+ * source-id -> target-id[] / target-id -> source-id[] adjacency, keyed only
+ * to edges whose *other* endpoint is present in `nodeMap` (spec 027's
+ * existing filter). Built once per `buildSmartContext` call in
+ * `buildGraphAdjacency` below and threaded into both `expandContext` and
+ * `buildContextSections` (spec 070) — those two used to each derive this
+ * same information independently, `expandContext` via one O(edges) pass and
+ * `buildContextSections` via an O(nodes × edges) `graph.edges.filter(...)`
+ * scan repeated per node.
  */
-function expandContext(
-  nodes: Graph["nodes"],
+export interface GraphAdjacency {
+  outgoing: Map<string, string[]>;
+  incoming: Map<string, string[]>;
+}
+
+/**
+ * Builds `GraphAdjacency` once from `graph.edges` — see that interface's doc
+ * comment for why this is shared between `expandContext` and
+ * `buildContextSections` rather than each rebuilding it (spec 070).
+ */
+function buildGraphAdjacency(
   edges: Graph["edges"],
   nodeMap: Map<string, Graph["nodes"][0]>
-): Set<string> {
-  // Adjacency built once (O(edges)) instead of re-scanning every edge per
-  // seed node (O(seeds × edges)).
+): GraphAdjacency {
   const outgoing = new Map<string, string[]>();
   const incoming = new Map<string, string[]>();
   for (const edge of edges) {
@@ -263,7 +276,18 @@ function expandContext(
       incoming.get(edge.target)!.push(edge.source);
     }
   }
+  return { outgoing, incoming };
+}
 
+/**
+ * Expand context to include connected nodes (depth 1)
+ * If user asks about "auth", also include what auth calls and what calls auth
+ */
+function expandContext(
+  nodes: Graph["nodes"],
+  adjacency: GraphAdjacency
+): Set<string> {
+  const { outgoing, incoming } = adjacency;
   const relevant = new Set<string>();
 
   for (const node of nodes) {
@@ -310,7 +334,8 @@ interface ContextSection {
  */
 function buildContextSections(
   relevantIds: Set<string>,
-  graph: Graph
+  graph: Graph,
+  adjacency: GraphAdjacency
 ): ContextSection[] {
   const nodeMap = new Map(graph.nodes.map(n => [n.id, n]));
   const nodeToCluster = graph.nodeToCluster ? new Map(Object.entries(graph.nodeToCluster)) : new Map();
@@ -373,14 +398,18 @@ function buildContextSections(
         const prefix = node.type === "file" ? "├" : "  ├";
         const type = node.type === "file" ? "📁" : "⚙️";
 
-        const outgoing = graph.edges
-          .filter(e => e.source === node.id)
-          .map(e => nodeMap.get(e.target)?.label || e.target)
+        // Reuses the adjacency maps built once in `buildSmartContext` and
+        // already passed to `expandContext` — spec 070. This used to be an
+        // O(edges) `graph.edges.filter(...)` scan per node here (an
+        // O(nodes × edges) rescan of the same information), even though
+        // `expandContext` right before this had already built and thrown
+        // away that exact adjacency.
+        const outgoing = (adjacency.outgoing.get(node.id) ?? [])
+          .map(id => nodeMap.get(id)?.label || id)
           .slice(0, 3);
 
-        const incoming = graph.edges
-          .filter(e => e.target === node.id)
-          .map(e => nodeMap.get(e.source)?.label || e.source)
+        const incoming = (adjacency.incoming.get(node.id) ?? [])
+          .map(id => nodeMap.get(id)?.label || id)
           .slice(0, 2);
 
         lines.push(
@@ -405,7 +434,9 @@ function formatContextText(
   relevantIds: Set<string>,
   graph: Graph
 ): string {
-  return buildContextSections(relevantIds, graph)
+  const nodeMap = new Map(graph.nodes.map(n => [n.id, n]));
+  const adjacency = buildGraphAdjacency(graph.edges, nodeMap);
+  return buildContextSections(relevantIds, graph, adjacency)
     .map(s => s.text)
     .join("\n\n");
 }
@@ -524,6 +555,14 @@ export async function buildSmartContext(
     );
   }
 
+  // Node map + adjacency built once here, from the FULL graph, and reused by
+  // both `expandContext` (cache-miss path only) and `buildContextSections`
+  // (always) below — spec 070. Previously `buildContextSections` derived
+  // this same information itself via a per-node `graph.edges.filter(...)`
+  // scan, redoing work `expandContext` had already done and discarded.
+  const nodeMap = new Map(graph.nodes.map(n => [n.id, n]));
+  const adjacency = buildGraphAdjacency(graph.edges, nodeMap);
+
   // 2. Check cache for related context (if cache enabled and no type
   // filter — see SmartContextOptions.typeFilter's doc comment)
   let expandedIds = new Set<string>();
@@ -599,13 +638,10 @@ export async function buildSmartContext(
       );
     }
 
-    // Create node map for edge lookups — built from the FULL node set, not
-    // `candidateNodes`, so a type-filtered search can still expand into
-    // neighbors of other types.
-    const nodeMap = new Map(graph.nodes.map(n => [n.id, n]));
-
-    // Expand to include connected nodes
-    expandedIds = expandContext(relevant, graph.edges, nodeMap);
+    // Expand to include connected nodes — `nodeMap`/`adjacency` built above
+    // from the FULL node set, not `candidateNodes`, so a type-filtered
+    // search can still expand into neighbors of other types.
+    expandedIds = expandContext(relevant, adjacency);
 
     // Store in cache for next related query (never for a type-filtered
     // search — see SmartContextOptions.typeFilter's doc comment)
@@ -621,7 +657,15 @@ export async function buildSmartContext(
     `Knowledge Graph Context (${graph.project})${cacheIndicator}${hasSemanticSearch}\n` +
     `Found ${expandedIds.size} relevant nodes for: "${query}"\n\n`;
 
-  const sections = buildContextSections(expandedIds, graph);
+  const sections = buildContextSections(expandedIds, graph, adjacency);
+
+  // Footer compression (spec 070): a session's first `search_graph` call
+  // gets the full summary+notes footer; subsequent calls within the same
+  // cached session get a short form (just the node count and truncation
+  // flag — no repeated percentage/notes prose). Without a `cache`, session
+  // state can't be tracked at all, so every call gets the full footer
+  // (same as today's behavior).
+  const showFullFooter = !cache || !cache.hasShownFullFooter(graph.project);
 
   let contextText: string;
   let includedNodeCount: number;
@@ -633,12 +677,15 @@ export async function buildSmartContext(
     // not just the section text — the footer's own size barely varies with
     // the included count (a handful of digits either way), so a
     // worst-case-shaped placeholder is a close enough estimate for this
-    // approximation.
-    const footerEstimate =
-      `\n📊 Summary:\n` +
-      `• Total project: ${graph.stats.files} files, ${graph.stats.functions} functions, ${graph.stats.classes} classes\n` +
-      `• Context includes: ${expandedIds.size} relevant nodes (of ${expandedIds.size} found — cut short by token budget)\n` +
-      `  (100% fewer tokens than a full graph dump, truncated to fit token budget)\n`;
+    // approximation. Sized to whichever footer form this call will
+    // actually emit, so a short-footer call doesn't reserve (and
+    // needlessly give up section budget for) space it won't use.
+    const footerEstimate = showFullFooter
+      ? `\n📊 Summary:\n` +
+        `• Total project: ${graph.stats.files} files, ${graph.stats.functions} functions, ${graph.stats.classes} classes\n` +
+        `• Context includes: ${expandedIds.size} relevant nodes (of ${expandedIds.size} found — cut short by token budget)\n` +
+        `  (100% fewer tokens than a full graph dump, truncated to fit token budget)\n`
+      : `\n📊 Context includes: ${expandedIds.size} relevant nodes (of ${expandedIds.size} found — cut short by token budget)\n`;
     const fixedOverhead = countTokens(headerText) + countTokens(footerEstimate);
     const sectionBudget = Math.max(0, tokenBudget - fixedOverhead);
 
@@ -653,6 +700,26 @@ export async function buildSmartContext(
   }
 
   // 5. Return with summary
+  if (cache && showFullFooter) {
+    cache.markFooterShown(graph.project);
+  }
+
+  if (!showFullFooter) {
+    // The truncated case keeps the exact phrase "truncated to fit token
+    // budget" (not a paraphrase) because packages/mcp/src/index.ts's
+    // `withMetrics` derives the `truncated` telemetry field (spec 065,
+    // surfaced via `nodum metrics`, spec 070's own README rule #2) by
+    // substring-matching this response text for that literal phrase — an
+    // earlier version of this short footer said "cut short by token
+    // budget" instead, which silently broke truncation detection on every
+    // call after a session's first one.
+    const shortResponseBody =
+      headerText +
+      contextText +
+      `\n📊 Context includes: ${includedNodeCount} relevant nodes${truncated ? ` (of ${expandedIds.size} found — truncated to fit token budget)` : ""}\n`;
+    return { text: shortResponseBody, approxTokens: countTokens(shortResponseBody) };
+  }
+
   const responseBody =
     headerText +
     contextText +
@@ -661,7 +728,10 @@ export async function buildSmartContext(
     `• Context includes: ${includedNodeCount} relevant nodes${truncated ? ` (of ${expandedIds.size} found — cut short by token budget)` : ""}\n`;
 
   // Real, measured comparison against a full unfiltered dump of the graph —
-  // not an asserted percentage. See spec 026.
+  // not an asserted percentage. See spec 026. Only computed for the full
+  // footer — the short form doesn't report this figure, so there's no
+  // reason to pay for `rawDumpApproxTokens`'s (fallback-path) work on a
+  // call that won't use it.
   const rawDumpTokens = rawDumpApproxTokens(graph);
   const { percentage } = estimateTokenSavings(rawDumpTokens, countTokens(responseBody));
   const notes = [
