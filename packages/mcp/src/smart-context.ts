@@ -416,24 +416,25 @@ export async function buildSmartContext(
       const queryEmbedding = await generateQueryEmbedding(query);
 
       if (queryEmbedding.length > 0) {
+        // Candidate pool for both rankers — wider than `maxNodes` so RRF
+        // fusion has real signal to reconsider before truncating to the
+        // final top-N (see spec 066).
+        const candidateCount = Math.max(40, maxNodes * 4);
+
         // Semantic search: find similar nodes
         const semanticResults = semanticScoreNodes(
           queryEmbedding,
-          candidateNodes as any
+          candidateNodes as any,
+          candidateCount
         );
 
         // Keyword search for comparison
-        const keywordResults = (findRelevantNodes(keywords, candidateNodes as any, 40) as any) || [];
-        const keywordScoreMap = new Map(
-          keywordResults.map((n: any, idx: number) => [n.id, 40 - idx])
-        );
+        const keywordResults = (findRelevantNodes(keywords, candidateNodes as any, candidateCount) as any) || [];
 
-        // Merge results with hybrid scoring
-        semanticResults.forEach((scored: any) => {
-          scored.keywordScore = keywordScoreMap.get(scored.node.id) || 0;
-        });
-
-        const merged = mergeScores(semanticResults, 0.4, 0.6);
+        // Fuse both rankings via Reciprocal Rank Fusion — rank position,
+        // not raw score, drives the fused order, so a 0-40 keyword rank and
+        // a 0-1 cosine similarity combine safely (spec 066).
+        const merged = mergeScores(semanticResults, keywordResults, 0.4, 0.6);
         relevant = getTopScoredNodes(merged, maxNodes) as any;
 
         // Extend with neighbors if needed

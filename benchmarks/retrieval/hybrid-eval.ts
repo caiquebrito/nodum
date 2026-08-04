@@ -37,6 +37,9 @@ export async function runHybridEval(
     await generateGraphEmbeddings(graph.nodes as any);
   }
 
+  const maxNodes = 25;
+  const candidateCount = Math.max(40, maxNodes * 4);
+
   const results: QueryMetrics[] = [];
   for (const q of queries) {
     const graph = graphs.get(q.fixture);
@@ -44,16 +47,15 @@ export async function runHybridEval(
     const relevant = resolveSelectors(graph, q.relevant);
 
     const keywords = extractKeywords(q.query);
-    const keywordResults = findRelevantNodes(keywords, graph.nodes, 40) as { id: string }[];
-    const keywordScoreMap = new Map(keywordResults.map((n, idx) => [n.id, 40 - idx]));
+    const keywordResults = findRelevantNodes(keywords, graph.nodes, candidateCount) as { id: string }[];
 
     const queryEmbedding = await generateQueryEmbedding(q.query);
-    const semanticResults = semanticScoreNodes(queryEmbedding, graph.nodes as any);
-    semanticResults.forEach((s: any) => {
-      s.keywordScore = keywordScoreMap.get(s.node.id) || 0;
-    });
-    const merged = mergeScores(semanticResults, 0.4, 0.6);
-    const ranked = getTopScoredNodes(merged, 25).map((n: any) => n.id);
+    const semanticResults = semanticScoreNodes(queryEmbedding, graph.nodes as any, candidateCount);
+
+    // Fuse both rankings via Reciprocal Rank Fusion (spec 066) — mirrors
+    // buildSmartContext's call site in packages/mcp/src/smart-context.ts.
+    const merged = mergeScores(semanticResults, keywordResults, 0.4, 0.6);
+    const ranked = getTopScoredNodes(merged, maxNodes).map((n: any) => n.id);
 
     results.push(scoreQuery(q.id, ranked, relevant));
   }
