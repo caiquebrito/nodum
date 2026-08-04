@@ -74,6 +74,42 @@ export function scoreAccuracy(
   return f1 * 100;
 }
 
+/**
+ * Standard error of the mean for a sample: sampleStdDev / sqrt(n). Returns 0
+ * for fewer than 2 samples — there's no spread to measure from a single
+ * point, and reporting `NaN` there would be worse than reporting "no
+ * measured variance" as zero.
+ */
+function standardError(values: number[]): number {
+  const n = values.length;
+  if (n < 2) return 0;
+  const mean = values.reduce((a, b) => a + b, 0) / n;
+  const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (n - 1);
+  return Math.sqrt(variance) / Math.sqrt(n);
+}
+
+/**
+ * Propagates independent per-question standard errors into the standard
+ * error of their sum divided by a constant (the usual `Var(aX) = a^2 Var(X)`
+ * and `Var(X+Y) = Var(X) + Var(Y)` rules for independent X, Y) — used to
+ * carry `tokensPerCorrectAnswer`'s uncertainty from each question's own
+ * `accuracyStdErr`, when present, rather than reporting a bare number with
+ * no sense of how much run-to-run noise could explain a change in it.
+ */
+function propagatedRatioStdErr(tokens: number[], accuracyFractions: number[], accuracyStdErrs: number[]): number | undefined {
+  if (accuracyStdErrs.every((e) => e === 0)) return undefined;
+  const totalCorrect = accuracyFractions.reduce((a, b) => a + b, 0);
+  if (totalCorrect === 0) return undefined;
+  // d(tokensPerCorrectAnswer)/d(accuracy_i) = -tokens_i * totalTokens / totalCorrect^2,
+  // approximated here holding other questions' accuracy fixed (independence assumption).
+  const totalTokens = tokens.reduce((a, b) => a + b, 0);
+  const variance = accuracyStdErrs.reduce((sum, stdErr, i) => {
+    const partial = (tokens[i] * totalTokens) / totalCorrect ** 2;
+    return sum + (partial * stdErr) ** 2;
+  }, 0);
+  return Math.sqrt(variance);
+}
+
 export function aggregateResults(results: QuestionResult[]): BenchmarkSummary['aggregate'] {
   const questionsRun = results.length;
 
@@ -90,6 +126,14 @@ export function aggregateResults(results: QuestionResult[]): BenchmarkSummary['a
   let totalBaselineTokens = 0;
   let totalWithGraphTokens = 0;
 
+  // For tokensPerCorrectAnswer (spec 064) — scored against the WITH-GRAPH
+  // condition, since that's the configuration nodum actually ships; the
+  // baseline (no graph) run exists to measure improvement, not to be a
+  // candidate "tokens per correct answer" figure in its own right.
+  const withGraphTokensPerQuestion: number[] = [];
+  const withGraphAccuracyFractions: number[] = [];
+  const withGraphAccuracyStdErrs: number[] = [];
+
   for (const result of results) {
     totalTokenReduction += result.improvement.tokenReduction;
     totalInputTokenReduction += result.improvement.inputTokenReduction;
@@ -99,6 +143,10 @@ export function aggregateResults(results: QuestionResult[]): BenchmarkSummary['a
 
     totalBaselineTokens += result.baseline.tokensUsed;
     totalWithGraphTokens += result.withGraph.tokensUsed;
+
+    withGraphTokensPerQuestion.push(result.withGraph.tokensUsed);
+    withGraphAccuracyFractions.push(result.withGraph.accuracy / 100);
+    withGraphAccuracyStdErrs.push(result.withGraph.accuracyStdErr ?? 0);
 
     if (result.improvement.tokenReduction > 0.1) {
       questionsWhereGraphHelped++;
@@ -110,6 +158,15 @@ export function aggregateResults(results: QuestionResult[]): BenchmarkSummary['a
   }
 
   const tokensSaved = totalBaselineTokens - totalWithGraphTokens;
+
+  const totalCorrectAnswerCredit = withGraphAccuracyFractions.reduce((a, b) => a + b, 0);
+  const tokensPerCorrectAnswer =
+    totalCorrectAnswerCredit === 0 ? Infinity : totalWithGraphTokens / totalCorrectAnswerCredit;
+  const tokensPerCorrectAnswerStdErr = propagatedRatioStdErr(
+    withGraphTokensPerQuestion,
+    withGraphAccuracyFractions,
+    withGraphAccuracyStdErrs,
+  );
 
   return {
     avgTokenReduction: totalTokenReduction / questionsRun,
@@ -126,5 +183,21 @@ export function aggregateResults(results: QuestionResult[]): BenchmarkSummary['a
     questionsWhereGraphHelped,
     questionsWhereGraphWasNeutral,
     questionsWhereGraphHurt,
+
+    tokensPerCorrectAnswer,
+    ...(tokensPerCorrectAnswerStdErr !== undefined ? { tokensPerCorrectAnswerStdErr } : {}),
   };
+}
+
+/**
+ * Mean and standard error of a set of per-run accuracy scores for one
+ * question (spec 064) — a single sample can't distinguish "this release
+ * changed accuracy" from ordinary run-to-run noise, so `harness.ts` scores
+ * every retry's response instead of just the first and calls this to
+ * collapse them into the `accuracy`/`accuracyStdErr` pair `QuestionResult`
+ * expects.
+ */
+export function summarizeAccuracyRuns(accuracyScores: number[]): { mean: number; stdErr: number } {
+  const mean = accuracyScores.reduce((a, b) => a + b, 0) / accuracyScores.length;
+  return { mean, stdErr: standardError(accuracyScores) };
 }
