@@ -2,8 +2,8 @@
  * Smart context injection for Claude
  * Only includes relevant parts of the graph based on query, instead of
  * dumping the entire graph. Token savings are computed per call against a
- * real full-graph-dump baseline (see `buildRawGraphDump` / spec 026) rather
- * than asserted as a fixed percentage.
+ * real full-graph-dump baseline (see `rawDumpApproxTokens` / spec 026, cached
+ * at sync time per spec 069) rather than asserted as a fixed percentage.
  */
 
 import { ConversationCache } from "./conversation-cache.js";
@@ -15,7 +15,7 @@ import {
   findSemanticNeighbors,
 } from "./semantic-search.js";
 import { generateQueryEmbedding, hasEmbeddings } from "./embeddings.js";
-import { countTokens } from "@caiquebrito/nodum-core";
+import { countTokens, buildRawGraphDumpText } from "@caiquebrito/nodum-core";
 import type { Graph } from "@caiquebrito/nodum-core";
 
 /**
@@ -318,19 +318,24 @@ function fillSectionsToBudget(
 }
 
 /**
- * Plain-text dump of every node and edge — the "no smart context" baseline
- * `estimateTokenSavings()` compares against. Deliberately unformatted (no
- * clustering, no truncation) since it represents the cost of NOT doing any
- * of that.
+ * Approximate token count of a full, unfiltered plain-text dump of every
+ * node and edge — the "no smart context" baseline `estimateTokenSavings()`
+ * compares against. Deliberately unformatted (no clustering, no truncation)
+ * since it represents the cost of NOT doing any of that.
+ *
+ * Spec 069: this used to rebuild and retokenize that whole string on every
+ * `search_graph` call even though the value doesn't depend on the query at
+ * all — it's a property of the graph. Now it's computed once at sync time
+ * and persisted as `graph.stats.rawDumpApproxTokens`
+ * (`packages/core/src/graph-gen.ts`'s `buildStats()`); this only falls back
+ * to the on-demand computation for a graph loaded from an older nodum
+ * version that doesn't have the field yet.
  */
-function buildRawGraphDump(graph: Graph): string {
-  const nodeLines = graph.nodes.map(
-    (n) => `${n.id} | ${n.label} (${n.type}) | ${n.file ?? ""}`
-  );
-  const edgeLines = graph.edges.map(
-    (e) => `${e.source} -> ${e.target} (${e.relation})`
-  );
-  return [`Project: ${graph.project}`, ...nodeLines, ...edgeLines].join("\n");
+function rawDumpApproxTokens(graph: Graph): number {
+  if (graph.stats.rawDumpApproxTokens !== undefined) {
+    return graph.stats.rawDumpApproxTokens;
+  }
+  return countTokens(buildRawGraphDumpText(graph.project, graph.nodes, graph.edges));
 }
 
 /**
@@ -518,7 +523,7 @@ export async function buildSmartContext(
 
   // Real, measured comparison against a full unfiltered dump of the graph —
   // not an asserted percentage. See spec 026.
-  const rawDumpTokens = countTokens(buildRawGraphDump(graph));
+  const rawDumpTokens = rawDumpApproxTokens(graph);
   const { percentage } = estimateTokenSavings(rawDumpTokens, countTokens(responseBody));
   const notes = [
     `${percentage}% fewer tokens than a full graph dump`,

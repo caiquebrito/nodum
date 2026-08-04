@@ -3,6 +3,7 @@ import { discoverFiles, discoverChangedFiles } from './file-discovery.js';
 import { selectParser } from './parser/index.js';
 import { applySourceSets, applyModules } from './analyzer/source-set.js';
 import { applyExpectActual } from './analyzer/expect-actual.js';
+import { countTokens } from './token-count.js';
 import type { Graph, Node, Edge, FileInfo, FileManifest } from './types.js';
 
 export interface GenerateGraphOptions {
@@ -47,9 +48,10 @@ async function generateGraphFull(
   applyModules(nodes);
   applyExpectActual(nodes, edges);
 
+  const project = basename(projectPath);
   const graph: Graph = {
-    project: basename(projectPath),
-    stats: buildStats(files.length, nodes, edges),
+    project,
+    stats: buildStats(project, files.length, nodes, edges),
     nodes,
     edges,
   };
@@ -126,9 +128,10 @@ async function generateGraphIncremental(
   applyExpectActual(nodes, edges);
   const totalFiles = Object.keys(diff.unchanged).length + diff.changed.length;
 
+  const project = basename(projectPath);
   const graph: Graph = {
-    project: basename(projectPath),
-    stats: buildStats(totalFiles, nodes, edges),
+    project,
+    stats: buildStats(project, totalFiles, nodes, edges),
     nodes,
     edges,
   };
@@ -251,7 +254,7 @@ function edgesFromSet(edgesSet: Set<string>): Edge[] {
   return Array.from(edgesMap.values());
 }
 
-function buildStats(fileCount: number, nodes: Node[], edges: Edge[]): Graph['stats'] {
+function buildStats(project: string, fileCount: number, nodes: Node[], edges: Edge[]): Graph['stats'] {
   return {
     files: fileCount,
     functions: nodes.filter(n => n.type === 'function').length,
@@ -265,7 +268,32 @@ function buildStats(fileCount: number, nodes: Node[], edges: Edge[]): Graph['sta
     enums: nodes.filter(n => n.type === 'enum').length,
     protocols: nodes.filter(n => n.type === 'protocol').length,
     extensions: nodes.filter(n => n.type === 'extension').length,
+    // Optional per Graph['stats']'s doc comment (spec 069), but always
+    // populated here — computed once at generation time instead of rebuilt
+    // per query, see buildRawGraphDumpText()'s doc comment.
+    rawDumpApproxTokens: countTokens(buildRawGraphDumpText(project, nodes, edges)),
   };
+}
+
+/**
+ * Plain-text dump of every node and edge — the "no smart context" baseline
+ * `packages/mcp/src/smart-context.ts`'s `estimateTokenSavings()` compares
+ * against. Deliberately unformatted (no clustering, no truncation) since it
+ * represents the cost of NOT doing any of that (see that module's own doc
+ * comment). Lives in `core` (moved here from `mcp` by spec 069) so
+ * `buildStats()` can compute `graph.stats.rawDumpApproxTokens` once at sync
+ * time, instead of `mcp` rebuilding and retokenizing this string on every
+ * `search_graph` call — `core` mustn't depend on `mcp`, so the shared logic
+ * has to live on this side of that boundary.
+ */
+export function buildRawGraphDumpText(project: string, nodes: Node[], edges: Edge[]): string {
+  const nodeLines = nodes.map(
+    (n) => `${n.id} | ${n.label} (${n.type}) | ${n.file ?? ""}`
+  );
+  const edgeLines = edges.map(
+    (e) => `${e.source} -> ${e.target} (${e.relation})`
+  );
+  return [`Project: ${project}`, ...nodeLines, ...edgeLines].join("\n");
 }
 
 export function calculateNodeDegree(nodeId: string, edges: Edge[]): number {

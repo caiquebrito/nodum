@@ -143,6 +143,15 @@ export interface Graph {
     enums?: number;
     protocols?: number;
     extensions?: number;
+    /** Optional (spec 069): approximate token count of a full, unfiltered
+     * plain-text dump of every node and edge in this graph (the "no smart
+     * context" baseline `estimateTokenSavings()` compares against in
+     * `packages/mcp/src/smart-context.ts`). Computed once at sync time
+     * (`buildStats()`) instead of rebuilt and retokenized on every
+     * `search_graph` call — see `buildRawGraphDumpText()`. Optional purely
+     * because a graph.json written before this spec won't have it yet;
+     * callers fall back to computing it on demand for such graphs. */
+    rawDumpApproxTokens?: number;
   };
   nodes: Node[];
   edges: Edge[];

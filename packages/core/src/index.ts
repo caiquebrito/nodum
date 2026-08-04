@@ -28,6 +28,7 @@ export {
   generateGraph,
   calculateNodeDegree,
   deduplicateEdges,
+  buildRawGraphDumpText,
 } from './graph-gen.js';
 export type { GenerateGraphOptions } from './graph-gen.js';
 
