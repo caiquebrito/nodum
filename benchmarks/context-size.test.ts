@@ -9,6 +9,22 @@ import { buildSmartContext } from '@caiquebrito/nodum-mcp/dist/smart-context.js'
 const NORMAL_QUERY_CEILING = 500;
 const HUB_QUERY_CEILING = 400; // post-spec-027: this was in the thousands pre-fix
 
+// Spec 070 (adjacency reuse, default token_budget, footer compression,
+// decoration-trim evaluation) deliberately did NOT lower these: both fixture
+// calls below go through `buildSmartContext` directly with no `cache` and no
+// `tokenBudget`, and spec 070's response-shaping changes only fire on that
+// axis — the default `token_budget` is applied at the `search_graph` MCP
+// tool boundary (`packages/mcp/src/index.ts`), not inside `buildSmartContext`
+// itself, and footer compression requires a `ConversationCache` to track
+// session state. Measured directly: both fixtures produce byte-identical
+// `approxTokens` (89 for the normal-query fixture, 280 for the hub-query
+// fixture) before and after spec 070's changes, so there's nothing real to
+// tighten against on this specific code path. Decoration trim was measured
+// and, per that spec's Success Metrics, left in place (savings were real but
+// modest — 4-12% depending on shape — and there was no way to measure
+// downstream-LLM comprehension impact in this environment), so it doesn't
+// move these numbers either.
+
 const normalGraph = {
   project: 'proj',
   stats: { files: 3, functions: 2, classes: 0, interfaces: 0, edges: 2 },
