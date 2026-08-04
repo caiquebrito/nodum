@@ -26,7 +26,7 @@ import {
   handleFindSimilarCode,
   handleSuggestRefactoring,
   NODUM_DATA_DIR,
-} from "./handlers.js";
+} from "@caiquebrito/nodum-query";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_NAME = "@caiquebrito/nodum-mcp";

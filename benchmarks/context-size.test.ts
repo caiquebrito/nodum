@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSmartContext } from '@caiquebrito/nodum-mcp/dist/smart-context.js';
+import { buildSmartContext } from '@caiquebrito/nodum-query/dist/smart-context.js';
 
 // Regression ceilings for a deterministic, offline check — these gate every
 // PR (unlike the API-calling accuracy suite, moved to a nightly/manual

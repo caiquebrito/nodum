@@ -6,18 +6,19 @@
  * is passed.
  *
  * Mirrors the seed-selection logic `buildSmartContext` runs internally
- * (packages/mcp/src/smart-context.ts) — hybrid fusion of keyword rank and
- * semantic cosine similarity — so this measures exactly what a real query
- * would rank, without pulling in buildSmartContext's caching/expansion/
- * formatting, which aren't part of what these IR metrics score.
+ * (packages/query/src/smart-context.ts, moved out of packages/mcp by spec
+ * 071) — hybrid fusion of keyword rank and semantic cosine similarity — so
+ * this measures exactly what a real query would rank, without pulling in
+ * buildSmartContext's caching/expansion/formatting, which aren't part of
+ * what these IR metrics score.
  */
 import type { Graph } from '@caiquebrito/nodum-core';
 // @ts-expect-error — compiled output
-import { findRelevantNodes, extractKeywords } from '@caiquebrito/nodum-mcp/dist/smart-context.js';
+import { findRelevantNodes, extractKeywords } from '@caiquebrito/nodum-query/dist/smart-context.js';
 // @ts-expect-error — compiled output
-import { semanticScoreNodes, mergeScores, getTopScoredNodes } from '@caiquebrito/nodum-mcp/dist/semantic-search.js';
+import { semanticScoreNodes, mergeScores, getTopScoredNodes } from '@caiquebrito/nodum-query/dist/semantic-search.js';
 // @ts-expect-error — compiled output
-import { generateGraphEmbeddings, generateQueryEmbedding } from '@caiquebrito/nodum-mcp/dist/embeddings.js';
+import { generateGraphEmbeddings, generateQueryEmbedding } from '@caiquebrito/nodum-query/dist/embeddings.js';
 import { resolveSelectors, type NodeSelector } from './resolve.js';
 import { scoreQuery, type QueryMetrics } from './ir-metrics.js';
 
