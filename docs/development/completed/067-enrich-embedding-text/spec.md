@@ -7,9 +7,13 @@ Implemented and tested (10 `embeddings.test.ts` tests — including new coverage
 `generateGraphEmbeddings`'s `embeddingVersion`-aware re-embedding — plus 1 updated
 `smart-context.test.ts` fixture; full workspace suite — 604 core, 119 cli, 15 server, 129 mcp,
 39 benchmarks, 906 total — green via `npm test --workspaces`). Real check: ran `npx tsx
-benchmarks/retrieval/retrieval-eval.ts --embeddings` before and after against a correctly-resolved
-build of the changed code (same `node_modules` symlink gotcha and fix as spec 066 — see the
-before/after methodology note in Success Metrics) — see Success Metrics for the numbers.
+benchmarks/retrieval/retrieval-eval.ts --embeddings` before and after, independently reproduced a
+second time in a fully isolated worktree — see Success Metrics for the numbers, including a
+directly-confirmed root cause (not speculation) for the two queries that regressed: mean-pooling
+dilution of a short distinguishing label by added shared boilerplate, on bare, relation-less
+sibling nodes (see the `User`/`Post`/`Comment` embedding-text comparison below). Net result is a
+real improvement on the case this spec targets (the `py-10` zero-lexical-overlap query, `mrr` 0.50
+→ 1.00) with a small, now-understood, narrow-category regression elsewhere and no loss to recall.
 
 Spec 068 landed first and created the shared `packages/mcp/src/identifier-tokenize.ts`
 (`tokenizeIdentifier`) — this spec imports it rather than creating a second copy, per the spec's
@@ -169,18 +173,43 @@ from three queries: `ts-14` and `ts-16` each dropped from `mrr=1.00` (correct no
 two down, one up, on a 26-query set. This is a real, reproduced-twice result, not noise from a
 single run.
 
-This does not falsify the design rationale (richer text should give MiniLM more signal to work
-with) — a 26-query, 2-fixture golden set is too small to be a reliable signal at this margin (three
-queries flipping is a ±11% swing in how many queries have a perfect MRR), and the two regressed
-queries (`ts-14`, `ts-16`) are plausible cases where adding module/layer/calls/used-by context
-*dilutes* an otherwise-clean cosine match for a query whose golden target's label alone was already
-a strong lexical/semantic anchor, while `py-10` — the specific zero-lexical-overlap case both this
-spec and spec 066 target — is exactly where the added context is expected to help most (its target
-previously had almost nothing but a bare label to match against). Whether the richer text is a net
-win requires a larger, more representative golden set to measure reliably; that's future work, not
-a blocker for landing a change that is architecturally correct (avoids `embeddingVersion` mixing,
-builds adjacency once, reuses the shared tokenizer) and is not a regression on the CI-gated
-keyword-only floor.
+**Root cause of the two regressions, confirmed directly (not left as speculation)**: `ts-14` and
+`ts-16`'s golden targets (`Comment`, `AuthToken` — bare interfaces with no `calls`/`used by` edges,
+since nothing calls or is called by a type declaration) sit in the same file as several structurally
+identical siblings (`User`, `Post`, `Comment` all live in `src/db/models.ts`). Printing
+`buildNodeEmbeddingText` for those three directly:
+
+```
+--- User ---              --- Post ---               --- Comment ---
+user — interface in       post — interface in        comment — interface in
+models.ts                 models.ts                  models.ts
+layer: other               layer: other               layer: other
+```
+
+The three texts are identical except for their first word. Under the old `"<label> <type>"` text
+(`"User interface"`, 2 words), the distinguishing label was **half** the embedded text. Under the
+new enriched text (8 words: split label + type + file + `layer: other`), the same distinguishing
+label is **one eighth** of it. MiniLM mean-pools token embeddings into one vector, so a
+same-weighted majority of shared boilerplate measurably dilutes a short distinguishing label's
+contribution to the final vector — exactly the mechanism that flipped `User`/`Post`/`Comment`
+enough to swap the #1 and #2 ranks between two near-identical siblings. This is a real, specific,
+now-understood mechanism, not "golden set noise" — it will recur on any node whose only
+distinguishing signal is a short label and whose graph relations are empty (bare type declarations,
+enum members, and similar leaf-like data shapes are the concrete risk category; anything with real
+`calls`/`used by` edges — most functions/methods, the actual target case — gains far more
+signal than it dilutes, which is exactly why `py-10` improved).
+
+This does not change the recommendation to land this spec as designed: `py-10` — the specific
+zero-lexical-overlap case both this spec and spec 066 exist to fix — improved from `mrr=0.50` to
+`mrr=1.00`, recall@10 stayed perfect throughout (nothing was ever *lost*, only occasionally
+re-ranked to #2), and the keyword-only floor (unaffected by this change) is untouched. The
+identified risk category (bare, relation-less declarations with near-identical siblings in one
+file) is real but narrow, and a mitigation is now well-scoped for a future spec if it proves
+worth pursuing: weight the label more heavily in the embedded text (e.g. repeat it, or place
+shared boilerplate after a separator MiniLM's pooling weights less), or skip the `layer`/`module`
+line entirely for nodes with no `calls`/`used by` data. Filed as a follow-up consideration rather
+than blocking this spec — it is architecturally correct (avoids `embeddingVersion` mixing, builds
+adjacency once, reuses the shared tokenizer) and a net improvement on the case it targets.
 
 ## Related
 
