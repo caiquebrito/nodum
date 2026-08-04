@@ -46,13 +46,19 @@ const hubGraph = {
 
 describe('context size regression', () => {
   it('stays under the ceiling for a normal, non-hub query', async () => {
-    const { approxTokens } = await buildSmartContext('login', normalGraph as any, 25);
+    // Spec 041 replaced the old positional `(query, graph, maxNodes, cache)`
+    // signature with a `SmartContextOptions` object — this call used to pass
+    // `25` positionally where `options` now lives, which destructured to
+    // all-undefined and silently fell back to the same default (`maxNodes:
+    // 25`), so the test kept passing without exercising what it appeared to
+    // (spec 063). Passing `{ maxNodes: 25 }` explicitly now.
+    const { approxTokens } = await buildSmartContext('login', normalGraph as any, { maxNodes: 25 });
     expect(approxTokens).toBeGreaterThan(0);
     expect(approxTokens).toBeLessThan(NORMAL_QUERY_CEILING);
   });
 
   it('stays bounded for a query matching a heavily-imported hub node (spec 027 regression guard)', async () => {
-    const { approxTokens } = await buildSmartContext('hub', hubGraph as any, 25);
+    const { approxTokens } = await buildSmartContext('hub', hubGraph as any, { maxNodes: 25 });
     expect(approxTokens).toBeGreaterThan(0);
     expect(approxTokens).toBeLessThan(HUB_QUERY_CEILING);
   });

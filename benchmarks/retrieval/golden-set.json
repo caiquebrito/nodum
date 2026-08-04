@@ -1,0 +1,31 @@
+{
+  "$comment": "Labeled ground truth for the offline retrieval harness (spec 063). Each entry names a query and the nodes a good retriever must surface, as (file, label, type) selectors rather than raw graph node ids — ids are a derived encoding (see normalizeNodeId in packages/core/src/types.ts) and selectors stay stable if that encoding ever changes. retrieval-eval.ts resolves each selector against a freshly generated graph for the named fixture and fails loudly if a selector matches zero or more than one node, so this file can't silently drift out of sync with the fixture source under it. Deliberately scoped to the two synthetic fixtures under benchmarks/projects/ (not this repo's own graph) so the gate stays stable across nodum's own churn; see spec 063's Scope section.",
+  "queries": [
+    { "id": "ts-01", "fixture": "sample-next-app", "query": "generate a jwt token for a user", "relevant": [{ "file": "src/lib/auth.ts", "label": "generateToken", "type": "function" }] },
+    { "id": "ts-02", "fixture": "sample-next-app", "query": "verify an auth token is valid", "relevant": [{ "file": "src/lib/auth.ts", "label": "verifyToken", "type": "function" }] },
+    { "id": "ts-03", "fixture": "sample-next-app", "query": "hash a plaintext password", "relevant": [{ "file": "src/lib/auth.ts", "label": "hashPassword", "type": "function" }] },
+    { "id": "ts-04", "fixture": "sample-next-app", "query": "check a password matches its stored hash", "relevant": [{ "file": "src/lib/auth.ts", "label": "validatePassword", "type": "function" }] },
+    { "id": "ts-05", "fixture": "sample-next-app", "query": "token generation and verification", "relevant": [{ "file": "src/lib/auth.ts", "label": "generateToken", "type": "function" }, { "file": "src/lib/auth.ts", "label": "verifyToken", "type": "function" }] },
+    { "id": "ts-06", "fixture": "sample-next-app", "query": "middleware that rejects requests without a valid auth header", "relevant": [{ "file": "src/api/middleware.ts", "label": "authMiddleware", "type": "function" }] },
+    { "id": "ts-07", "fixture": "sample-next-app", "query": "set cors headers on the response", "relevant": [{ "file": "src/api/middleware.ts", "label": "corsMiddleware", "type": "function" }] },
+    { "id": "ts-08", "fixture": "sample-next-app", "query": "global express error handler", "relevant": [{ "file": "src/api/middleware.ts", "label": "errorHandler", "type": "function" }] },
+    { "id": "ts-09", "fixture": "sample-next-app", "query": "look up a user by their email address", "relevant": [{ "file": "src/db/models.ts", "label": "findByEmail", "type": "method" }] },
+    { "id": "ts-10", "fixture": "sample-next-app", "query": "find all posts written by a given author", "relevant": [{ "file": "src/db/models.ts", "label": "findByAuthor", "type": "method" }] },
+    { "id": "ts-11", "fixture": "sample-next-app", "query": "find comments belonging to a post", "relevant": [{ "file": "src/db/models.ts", "label": "findByPost", "type": "method" }] },
+    { "id": "ts-12", "fixture": "sample-next-app", "query": "shape of a user record", "relevant": [{ "file": "src/db/models.ts", "label": "User", "type": "interface" }] },
+    { "id": "ts-13", "fixture": "sample-next-app", "query": "shape of a blog post record", "relevant": [{ "file": "src/db/models.ts", "label": "Post", "type": "interface" }] },
+    { "id": "ts-14", "fixture": "sample-next-app", "query": "shape of a comment record", "relevant": [{ "file": "src/db/models.ts", "label": "Comment", "type": "interface" }] },
+    { "id": "ts-15", "fixture": "sample-next-app", "query": "repository class that manages user persistence", "relevant": [{ "file": "src/db/models.ts", "label": "UserRepository", "type": "class" }] },
+    { "id": "ts-16", "fixture": "sample-next-app", "query": "decoded payload of a signed auth token", "relevant": [{ "file": "src/lib/auth.ts", "label": "AuthToken", "type": "interface" }] },
+    { "id": "py-01", "fixture": "python-hub-app", "query": "get a handle to the shared database connection", "relevant": [{ "file": "hub.py", "label": "get_db_connection", "type": "function" }] },
+    { "id": "py-02", "fixture": "python-hub-app", "query": "write a message to the application log", "relevant": [{ "file": "hub.py", "label": "log", "type": "function" }] },
+    { "id": "py-03", "fixture": "python-hub-app", "query": "application-wide configuration class", "relevant": [{ "file": "hub.py", "label": "Config", "type": "class" }] },
+    { "id": "py-04", "fixture": "python-hub-app", "query": "send a notification message to a user", "relevant": [{ "file": "notifications.py", "label": "notify_user", "type": "function" }] },
+    { "id": "py-05", "fixture": "python-hub-app", "query": "place a new order for a set of items", "relevant": [{ "file": "orders.py", "label": "place_order", "type": "function" }] },
+    { "id": "py-06", "fixture": "python-hub-app", "query": "cancel an existing order", "relevant": [{ "file": "orders.py", "label": "cancel_order", "type": "function" }] },
+    { "id": "py-07", "fixture": "python-hub-app", "query": "order placement and cancellation", "relevant": [{ "file": "orders.py", "label": "place_order", "type": "function" }, { "file": "orders.py", "label": "cancel_order", "type": "function" }] },
+    { "id": "py-08", "fixture": "python-hub-app", "query": "create a brand new user", "relevant": [{ "file": "users.py", "label": "create_user", "type": "function" }] },
+    { "id": "py-09", "fixture": "python-hub-app", "query": "remove a user from the system", "relevant": [{ "file": "users.py", "label": "delete_user", "type": "function" }] },
+    { "id": "py-10", "fixture": "python-hub-app", "query": "shared utilities used by every module in the app", "relevant": [{ "file": "hub.py", "label": "get_db_connection", "type": "function" }, { "file": "hub.py", "label": "log", "type": "function" }, { "file": "hub.py", "label": "Config", "type": "class" }] }
+  ]
+}
