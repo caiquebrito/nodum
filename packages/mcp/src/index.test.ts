@@ -195,6 +195,74 @@ describe("mcp index.ts (spec 057 — registerTool migration)", () => {
     expect(appendMetricsLogMock).toHaveBeenLastCalledWith(expect.stringContaining("proj"), expect.anything());
   });
 
+  // Spec 065 — withMetrics derives a few extra fields for `nodum metrics` to
+  // report on: the query text, whether a token budget was supplied, and
+  // (text-scraped from buildSmartContext's own formatted footer, since
+  // there's no structured return value for these) cache-hit/truncated
+  // status and the reported relevant-node count.
+  it("logs the query and budgetApplied when search_graph is called with a token_budget", async () => {
+    const tools = await loadIndex();
+    handleSearchMock.mockResolvedValue(OK_RESULT);
+
+    await tools.get("search_graph")!.callback({ project_name: "proj", query: "auth flow", token_budget: 500 });
+
+    expect(appendMetricsLogMock).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({ query: "auth flow", budgetApplied: true })
+    );
+  });
+
+  it("does not set budgetApplied when no token_budget is supplied", async () => {
+    const tools = await loadIndex();
+    handleSearchMock.mockResolvedValue(OK_RESULT);
+
+    await tools.get("search_graph")!.callback({ project_name: "proj", query: "auth flow" });
+
+    const lastCall = appendMetricsLogMock.mock.calls[appendMetricsLogMock.mock.calls.length - 1];
+    expect(lastCall[1].budgetApplied).toBeUndefined();
+  });
+
+  it("derives cacheHit and resultNodeCount from the response text's own footer", async () => {
+    const tools = await loadIndex();
+    handleSearchMock.mockResolvedValue({
+      content: [{ type: "text", text: "Found 5 relevant nodes (📦 from cache)\n...\n• Context includes: 5 relevant nodes\n  (served from cache)" }],
+    });
+
+    await tools.get("search_graph")!.callback({ project_name: "proj", query: "auth" });
+
+    expect(appendMetricsLogMock).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({ cacheHit: true, resultNodeCount: 5 })
+    );
+  });
+
+  it("derives truncated from the response text's own footer", async () => {
+    const tools = await loadIndex();
+    handleSearchMock.mockResolvedValue({
+      content: [{ type: "text", text: "...\n• Context includes: 3 relevant nodes (of 20 found — cut short by token budget)\n  (truncated to fit token budget)" }],
+    });
+
+    await tools.get("search_graph")!.callback({ project_name: "proj", query: "auth", token_budget: 100 });
+
+    expect(appendMetricsLogMock).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({ truncated: true })
+    );
+  });
+
+  it("does not set cacheHit, truncated, query, or resultNodeCount for a tool with none of those concepts", async () => {
+    const tools = await loadIndex();
+    handleStatusMock.mockResolvedValue(OK_RESULT);
+
+    await tools.get("project_status")!.callback({});
+
+    const lastCall = appendMetricsLogMock.mock.calls[appendMetricsLogMock.mock.calls.length - 1];
+    expect(lastCall[1].cacheHit).toBeUndefined();
+    expect(lastCall[1].truncated).toBeUndefined();
+    expect(lastCall[1].query).toBeUndefined();
+    expect(lastCall[1].resultNodeCount).toBeUndefined();
+  });
+
   it("connects a real transport via server.connect() on load", async () => {
     await loadIndex();
     expect(connectMock).toHaveBeenCalledTimes(1);
