@@ -553,7 +553,7 @@ export async function buildSmartContext(
     let relevant: Graph["nodes"];
 
     // Try semantic search if embeddings available (v2.0)
-    if (hasEmbeddings(candidateNodes as any)) {
+    if (hasEmbeddings(candidateNodes as any, graph.embeddingVersion)) {
       const queryEmbedding = await generateQueryEmbedding(query);
 
       if (queryEmbedding.length > 0) {
@@ -616,7 +616,7 @@ export async function buildSmartContext(
 
   // 4. Format as readable text — budgeted (spec 041) or unlimited
   const cacheIndicator = cacheHit ? " (📦 from cache)" : "";
-  const hasSemanticSearch = hasEmbeddings(graph.nodes as any) ? " (🧠 semantic)" : "";
+  const hasSemanticSearch = hasEmbeddings(graph.nodes as any, graph.embeddingVersion) ? " (🧠 semantic)" : "";
   const headerText =
     `Knowledge Graph Context (${graph.project})${cacheIndicator}${hasSemanticSearch}\n` +
     `Found ${expandedIds.size} relevant nodes for: "${query}"\n\n`;
@@ -667,7 +667,7 @@ export async function buildSmartContext(
   const notes = [
     `${percentage}% fewer tokens than a full graph dump`,
     cacheHit ? "served from cache" : null,
-    !cacheHit && hasEmbeddings(graph.nodes as any) ? "semantic search enabled" : null,
+    !cacheHit && hasEmbeddings(graph.nodes as any, graph.embeddingVersion) ? "semantic search enabled" : null,
     truncated ? "truncated to fit token budget" : null,
   ].filter((n): n is string => n !== null);
 

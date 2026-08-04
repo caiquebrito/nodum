@@ -8,6 +8,7 @@ import {
   findRelevantNodes,
   buildTermIndex,
 } from "./smart-context.js";
+import { EMBEDDING_TEXT_VERSION } from "./embeddings.js";
 import type { Node } from "@caiquebrito/nodum-core";
 
 // `generateQueryEmbedding` normally loads a real local embedding model
@@ -476,6 +477,11 @@ describe("buildSmartContext — hybrid keyword+semantic fusion via RRF (spec 066
       stats: { files: 3, functions: 47, classes: 0, interfaces: 0, edges: 0 },
       nodes: [target, distractor, ...fillers],
       edges: [],
+      // hasEmbeddings() (spec 067) treats a missing/mismatched
+      // embeddingVersion as "not embedded" regardless of the `embedding`
+      // arrays present above — set it so this fixture exercises the
+      // semantic path it's actually testing.
+      embeddingVersion: EMBEDDING_TEXT_VERSION,
     };
 
     const { text } = await buildSmartContext("module utilities", semanticGraph as any, {
