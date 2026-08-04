@@ -77,8 +77,11 @@ export async function handleSync(projectPath: string) {
       onWarning: (message) => warnings.push(message),
     });
 
-    // v2.0: Generate embeddings for semantic search
-    await generateGraphEmbeddings(graph.nodes);
+    // v2.0: Generate embeddings for semantic search (spec 067: text enriched
+    // with file/module/layer/calls/callers; embeddingVersion-aware so a
+    // graph produced by an older embedding-text format regenerates instead
+    // of mixing stale and fresh embeddings)
+    await generateGraphEmbeddings(graph);
     await writeGraphFile(NODUM_DATA_DIR, graph.project, graph);
 
     // Clear conversation cache and graph cache for this project (graph changed)

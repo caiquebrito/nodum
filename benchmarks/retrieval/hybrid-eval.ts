@@ -34,7 +34,7 @@ export async function runHybridEval(
 ): Promise<QueryMetrics[]> {
   // Embed every fixture graph's nodes once, up front.
   for (const graph of graphs.values()) {
-    await generateGraphEmbeddings(graph.nodes as any);
+    await generateGraphEmbeddings(graph as any);
   }
 
   const maxNodes = 25;
