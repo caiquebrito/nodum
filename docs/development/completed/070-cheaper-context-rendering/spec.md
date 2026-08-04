@@ -16,11 +16,13 @@ boundary rather than introducing a second one; `buildSmartContext` now renders t
 summary+notes footer only when the session hasn't seen one yet, and skips the
 `rawDumpApproxTokens`/percentage computation entirely on the short-footer path (a CPU win, not just
 a token one). The decoration-trim question was measured, not assumed, and the finding was to
-**leave decoration in place** — see Success Metrics for the real numbers and reasoning. 13 new
-tests (4 in `smart-context.test.ts` for footer compression, 6 in `conversation-cache.test.ts` for
+**leave decoration in place** — see Success Metrics for the real numbers and reasoning. Caught and
+fixed in review: the short footer's truncated-case text initially broke `nodum metrics`' truncation
+telemetry (see the correction note near the end of Success Metrics). 14 new tests (5 in
+`smart-context.test.ts` for footer compression, 6 in `conversation-cache.test.ts` for
 the new session-tracking methods, 3 in `index.test.ts` replacing a now-stale pre-070 expectation
-about `budgetApplied`), full workspace suite green: 604 core, 119 cli, 15 server, 137 mcp, 39
-benchmarks — 914 total, via `npm run build && npm test --workspaces`.
+about `budgetApplied`), full workspace suite green: 604 core, 119 cli, 15 server, 138 mcp, 39
+benchmarks — 915 total, via `npm run build && npm test --workspaces`.
 `benchmarks/context-size.test.ts`'s ceilings were left unchanged with the reason documented inline
 (both fixture calls go through `buildSmartContext` directly with no `cache`/`tokenBudget`, the two
 axes spec 070's response-shaping changes actually fire on — measured byte-identical `approxTokens`
@@ -190,6 +192,19 @@ is to leave decoration in place.** The real, measured token cost (4-12% of a rep
 response) is recorded here for whoever picks this up next with real LLM-facing measurement
 available (`benchmarks/harness.ts`'s nightly/manual `tokensPerCorrectAnswer` run would be the right
 tool for that follow-up).
+
+**Correction found in review**: the short footer's truncated-case text originally read
+`"(of N found — cut short by token budget)"` — a paraphrase, not the literal string
+`"truncated to fit token budget"` that `packages/mcp/src/index.ts`'s `withMetrics` substring-matches
+to populate the `truncated` field in `nodum metrics`' telemetry (spec 065). That paraphrase meant
+every truncated call after a session's first would silently stop reporting `truncated: true` to
+`~/.nodum/<project>/logs/metrics.jsonl` — the exact observability regression the measurement rule
+in `CLAUDE.md` exists to prevent, on a spec that didn't touch telemetry at all. Fixed by keeping the
+literal phrase in the short footer too, and a new test
+(`smart-context.test.ts`, "keeps the exact 'truncated to fit token budget' phrase...") forces real
+truncation on the short-footer path specifically and asserts the exact string is present — verified
+to fail against the paraphrased version before the fix, confirming the test actually catches this
+class of regression rather than just documenting it after the fact.
 
 ## Related
 

@@ -705,10 +705,18 @@ export async function buildSmartContext(
   }
 
   if (!showFullFooter) {
+    // The truncated case keeps the exact phrase "truncated to fit token
+    // budget" (not a paraphrase) because packages/mcp/src/index.ts's
+    // `withMetrics` derives the `truncated` telemetry field (spec 065,
+    // surfaced via `nodum metrics`, spec 070's own README rule #2) by
+    // substring-matching this response text for that literal phrase — an
+    // earlier version of this short footer said "cut short by token
+    // budget" instead, which silently broke truncation detection on every
+    // call after a session's first one.
     const shortResponseBody =
       headerText +
       contextText +
-      `\n📊 Context includes: ${includedNodeCount} relevant nodes${truncated ? ` (of ${expandedIds.size} found — cut short by token budget)` : ""}\n`;
+      `\n📊 Context includes: ${includedNodeCount} relevant nodes${truncated ? ` (of ${expandedIds.size} found — truncated to fit token budget)` : ""}\n`;
     return { text: shortResponseBody, approxTokens: countTokens(shortResponseBody) };
   }
 
