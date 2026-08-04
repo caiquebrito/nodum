@@ -54,4 +54,4 @@ Measuring effectiveness:
 
 ---
 
-**Last updated:** 2026-07-29 | **Version:** 2.16.0 (all four packages, lockstep; see `docs/development/ROADMAP.md`)
+**Last updated:** 2026-08-04 | **Version:** 2.17.0 (all four packages, lockstep; specs 063-065 merged to `develop` and awaiting next release cut; see `docs/development/ROADMAP.md`)

@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-07-30 · **Current release:** v2.17.0 (all four packages, lockstep) · **Specs shipped:** 62 (`docs/development/completed/`)
+**Last updated:** 2026-08-04 · **Current release:** v2.17.0 (all four packages, lockstep; specs 063-065 are merged to `develop` and awaiting the next release cut) · **Specs shipped:** 65 (`docs/development/completed/`) · **Specs fully designed, not yet started:** 066-074 (`docs/development/refined/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -395,6 +395,63 @@ resolution and interpretation issues, not the underlying numbers.
 
 ---
 
+### v2.18.0 (in progress) — Measurement & retrieval accuracy (specs `063`–`070`)
+
+A second gate release, same spirit as v2.5.0: before this batch, the project's own declared
+north-star metric (*"tokens spent per correct agent answer"*) was never actually computed, and
+there was no way to test whether a change to `packages/mcp`'s ranking logic improved retrieval
+without spending real API budget on the nightly benchmark. This batch builds the instrument
+first, then uses it.
+
+**Merged to `develop`, specs `063`–`065` (measurement floor):**
+- **063 — Offline retrieval evaluation harness.** `benchmarks/retrieval/`: a 26-query labeled
+  golden set against the existing `sample-next-app`/`python-hub-app` fixtures, IR metrics
+  (Recall@k, Precision@k, MRR, nDCG@k), and a CI-gated regression floor — deterministic, no LLM,
+  no API cost, runs on every PR (`benchmarks/retrieval/retrieval-eval.test.ts`). **Immediately
+  found a real gap**: a query with zero lexical overlap with its target scored `recall@10 = 0.00`
+  under keyword-only matching — exactly the blind spot semantic search should cover, and per spec
+  066's finding, currently doesn't. Also fixed a real, previously-undetected bug: a stale
+  positional argument in `benchmarks/context-size.test.ts` (spec 041 changed `buildSmartContext`'s
+  signature; the test passed by coincidence, not because it exercised what it appeared to).
+- **064 — Compute `tokensPerCorrectAnswer`.** `benchmarks/metrics.ts`'s `aggregateResults()` now
+  actually produces the declared north-star metric, with a propagated standard error. Also fixed
+  a precision gap: `harness.ts` previously scored accuracy against only the first of three
+  retried API responses — now scores all of them, so the metric carries real run-to-run variance
+  instead of a false-precision single sample. New `benchmarks/baselines/<version>.json` storage
+  lets the nightly benchmark report a real release-over-release delta.
+- **065 — `nodum metrics`.** `~/.nodum/<project>/logs/metrics.jsonl` has been write-only since
+  spec 025; `nodum metrics [projectPath] [--json]` now reads it back — per-tool call counts,
+  latency percentiles, cache-hit rate, truncation rate from real sessions.
+
+**Refined, not yet started, specs `066`–`070`** (full designs in `docs/development/refined/`):
+- **066 — Fix hybrid score fusion.** A real, verified bug: `packages/mcp/src/semantic-search.ts`'s
+  `mergeScores` combines a keyword *rank* (range 0-40) with a cosine *similarity* (range 0-1)
+  using weights 0.4/0.6 — so keyword contributes up to 16.0, semantic at most 0.6. The documented
+  "60/40 hybrid" doesn't describe what the code does; semantic search is functionally
+  near-disabled. Fix: Reciprocal Rank Fusion. Validated against spec 063's harness.
+- **067 — Enrich embedding text.** Nodes currently embed as `"<label> <type>"` — e.g.
+  `"authenticateUser function"` — discarding file/module/layer/calls/callers data the graph
+  already computes. Highest-ROI accuracy change available: free at query time, reuses existing
+  data. Includes an `embeddingVersion` migration so old and new embedding generations never
+  silently mix.
+- **068 — Identifier-aware keyword scoring with IDF.** Keyword matching is currently raw
+  substring matching with no term boundaries and no term-frequency weighting — `get` scores the
+  same as `authenticate`. Adds camelCase/snake_case splitting and IDF weighting.
+- **069 — Stop paying for the savings number on every search.** `buildSmartContext` currently
+  rebuilds and retokenizes a full string dump of the entire graph on every single query, just to
+  print a percentage in the footer — a property of the graph, not the query. Cache or precompute
+  it at sync time instead.
+- **070 — Cheaper context rendering.** Adjacency maps built once in `expandContext` are discarded
+  and rescanned per node in `buildContextSections` (O(nodes × edges)); `token_budget` has no
+  default so the budgeting machinery from spec 041 rarely runs; emoji/box-drawing decoration costs
+  an estimated 300-500 tokens per response at the node cap, un-measured against retrieval quality.
+
+**Success metric for this batch, once 066-070 land**: `npx tsx
+benchmarks/retrieval/retrieval-eval.ts --embeddings` aggregate before vs. after, and the real
+`tokensPerCorrectAnswer` first baseline from the next nightly `benchmark-accuracy.yml` run.
+
+---
+
 ## Next
 
 ### Dart/Flutter — still its own future initiative
@@ -479,7 +536,7 @@ un-narrowed, and now genuinely doesn't need narrowing: the reason it was left op
 version cleanly completed this project, and now every supported version does (with the workaround
 in place).
 
-### v3.0.0 — MCP-native, semantically deep
+### v3.0.0 — MCP-native, semantically deep, and reachable from every IDE via LSP
 
 **This is a reframe of the old "multi-AI hub" vision, not its continuation.** The original v3.0
 draft centered on per-provider adapters — a Claude adapter, an OpenAI adapter, a Gemini
@@ -502,9 +559,38 @@ actually writes in.
 - **Real authentication for `packages/server`** — see the dedicated "Next" entry above; considered
   and declined twice now (v2.11.0 and v2.12.0) as not yet urgent enough to force in.
 
+**Universal IDE reach via LSP (specs `071`–`074`, refined, not yet started; full designs in
+`docs/development/refined/`) — this extends the "no per-provider code" reasoning above, it
+doesn't contradict it.** The MCP-is-enough argument holds *for MCP-speaking clients*. Android
+Studio, Visual Studio, and every JetBrains IDE have no MCP client today and none is expected —
+MCP-only reach stops at the editors listed two bullets up. Language Server Protocol is the
+equivalent zero-per-provider-code answer for that other half of the market: every one of those
+IDEs already speaks LSP natively, so one `nodum-lsp` binary reaches all of them through thin
+packaging, not a bespoke integration per IDE — the same "one server, many clients" shape MCP
+already gave this project, applied to a protocol those specific IDEs actually support.
+- **071 — Extract a transport-neutral query layer.** Lifts `packages/mcp/src/handlers.ts`'s query
+  logic (already substantively transport-neutral — plain arguments in, formatted text out) out of
+  `packages/mcp` so both the MCP server and a new LSP server can call it without either depending
+  on the other.
+- **072 — LSP capability surface.** A real `nodum-lsp` binary mapping graph queries onto standard
+  LSP requests: `workspace/symbol` (search), `textDocument/hover` (node context),
+  `textDocument/codeLens` (dependents/complexity inline), `textDocument/references` (graph
+  edges), and — the sleeper feature — `textDocument/publishDiagnostics` surfacing cycles/dead-code/
+  architecture violations as inline warnings in every connected IDE, with zero per-IDE code.
+- **073 — Per-IDE shims.** Thin packaging only, no logic: a VS Code VSIX (also covers Cursor/
+  Windsurf), a JetBrains Marketplace plugin (covers IntelliJ, **Android Studio**, PyCharm,
+  GoLand, WebStorm from one artifact), config recipes for Neovim/Helix/Zed, and a Visual Studio
+  VSIX.
+- **074 — Xcode: scope honestly.** The genuine exception — no general LSP client, no MCP client.
+  Expected outcome is a documented, reasoned deferral (same posture as the Dart/Flutter and
+  server-auth entries above), not a forced integration; Swift/ObjC developers already have a path
+  today via the CLI/MCP server in any MCP-speaking editor, even one that isn't Xcode itself.
+
 **Success metrics change accordingly** — not GitHub stars or provider count, but **tokens spent
 per correct agent answer**, tracked per release against real repositories, per the v2.5.0
-measurement harness.
+measurement harness (now computed for real — see spec 064) — plus, for the LSP arc specifically,
+real verification against at least one non-MCP IDE client (Android Studio, per spec 073) as proof
+this reframe reached somewhere MCP alone couldn't.
 
 ---
 
@@ -603,8 +689,13 @@ implied by their absence.
 
 - [`docs/development/completed/`](./completed/) — every shipped spec, in order, each with its
   own real verification evidence.
-- [`docs/development/active/`](./active/) — specs currently in progress.
+- [`docs/development/active/`](./active/) — specs currently in progress (branched, PR open).
+- [`docs/development/refined/`](./refined/) — specs fully designed and ready to execute, not yet
+  branched — currently specs 066-074, the rest of the v2.18.0/v3.0.0 work above.
 - [`benchmarks/README.md`](../../benchmarks/README.md) — the measurement harness referenced
   throughout this roadmap.
+- [`benchmarks/retrieval/`](../../benchmarks/retrieval/) — the offline retrieval evaluation
+  harness (spec 063): `npx tsx benchmarks/retrieval/retrieval-eval.ts` for a free, no-API-key
+  check of retrieval quality before/after a `packages/mcp` ranking change.
 
 Questions? Open an issue on [GitHub](https://github.com/caiquebrito/nodum/issues).
