@@ -1,0 +1,75 @@
+{
+  "name": "nodum-vscode",
+  "displayName": "Nodum",
+  "description": "Knowledge-graph context (hover, symbols, code lens, references, and inline diagnostics for cycles/dead code/architecture violations) from nodum-lsp — the same graph context nodum gives Claude, in VS Code.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "caiquebrito",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/caiquebrito/nodum"
+  },
+  "engines": {
+    "vscode": "^1.91.0",
+    "node": ">=20.0.0"
+  },
+  "categories": ["Other", "Linters", "Visualization"],
+  "keywords": ["lsp", "language-server-protocol", "code-analysis", "knowledge-graph"],
+  "main": "./dist/extension.js",
+  "files": ["dist/extension.js", "package.json", "README.md"],
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "nodum.sync",
+        "title": "Nodum: Sync Project",
+        "category": "Nodum"
+      },
+      {
+        "command": "nodum.deadCode",
+        "title": "Nodum: Find Dead Code",
+        "category": "Nodum"
+      },
+      {
+        "command": "nodum.restartServer",
+        "title": "Nodum: Restart Language Server",
+        "category": "Nodum"
+      }
+    ],
+    "configuration": {
+      "title": "Nodum",
+      "properties": {
+        "nodum.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the nodum-lsp binary. Leave empty to resolve 'nodum-lsp' from PATH (see docs/guides/LSP-SETUP.md for install instructions)."
+        },
+        "nodum.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Trace LSP communication with nodum-lsp, visible in the 'Nodum Language Server' output channel."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --outfile=dist/extension.js --external:vscode",
+    "package": "npm run build && npm run bundle && npx --yes @vscode/vsce package --allow-missing-repository --no-dependencies -o dist/nodum-vscode.vsix",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.91.0",
+    "esbuild": "^0.28.1",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  }
+}

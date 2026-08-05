@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-08-05 · **Current release:** v2.17.1 (all four packages, lockstep; specs 062-071 published; spec 072 merged to `develop`, private/unpublished new `packages/lsp` workspace, awaiting the next release cut) · **Specs shipped:** 73 (`docs/development/completed/`) · **Specs fully designed, not yet started:** 073-074 (`docs/development/refined/`)
+**Last updated:** 2026-08-05 · **Current release:** v2.17.1 (all four packages, lockstep; specs 062-071 published; specs 072-073 merged to `develop`, private/unpublished new `packages/lsp` + `packages/vscode-extension` workspaces, awaiting the next release cut) · **Specs shipped:** 74 (`docs/development/completed/`) · **Specs fully designed, not yet started:** 074 (`docs/development/refined/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -605,7 +605,7 @@ actually writes in.
 - **Real authentication for `packages/server`** — see the dedicated "Next" entry above; considered
   and declined twice now (v2.11.0 and v2.12.0) as not yet urgent enough to force in.
 
-**Universal IDE reach via LSP (specs `071`–`072` merged to `develop`, specs `073`–`074` refined,
+**Universal IDE reach via LSP (specs `071`–`073` merged to `develop`, spec `074` refined,
 not yet started; full designs in `docs/development/refined/`) — this extends the "no per-provider code"
 reasoning above, it doesn't contradict it.** The MCP-is-enough argument holds *for MCP-speaking
 clients*. Android Studio, Visual Studio, and every JetBrains IDE have no MCP client today and none
@@ -651,10 +651,31 @@ already gave this project, applied to a protocol those specific IDEs actually su
   real `2^31-1` cap. 51 new tests (`packages/lsp`), including one real, unmocked
   `vscode-languageserver` `Connection` over an in-memory stream pair exercising the actual wire
   protocol end to end, not just individual handlers.
-- **073 — Per-IDE shims.** Thin packaging only, no logic: a VS Code VSIX (also covers Cursor/
-  Windsurf), a JetBrains Marketplace plugin (covers IntelliJ, **Android Studio**, PyCharm,
-  GoLand, WebStorm from one artifact), config recipes for Neovim/Helix/Zed, and a Visual Studio
-  VSIX.
+- **073 — Per-IDE shims. Done (scoped), merged to `develop`, private/unpublished new
+  `packages/vscode-extension` workspace.** Thin packaging only, no logic — everything stays in
+  `nodum-lsp`. Delivered this pass: a VS Code extension (`nodum-vscode`, also covers Cursor/
+  Windsurf — same extension format) wrapping `vscode-languageclient` around `nodum-lsp` resolved
+  from `PATH`, plus `docs/guides/LSP-SETUP.md`'s Neovim/Helix config recipes (Zed's is documented
+  but explicitly flagged unverified). **Real, not simulated, packaging check**: built, bundled via
+  `esbuild` (`vscode-languageclient` inlined, only `vscode`+Node builtins left as real `require`
+  calls — confirmed by grepping the actual bundled output), packaged into a real `.vsix`, then
+  unzipped and inspected file-by-file (5 files, 139.74 KB). That real packaging attempt caught
+  three genuine bugs no amount of code review would have: a deep import that type-checks under
+  classic module resolution but throws `ERR_PACKAGE_PATH_NOT_EXPORTED` at real Node runtime
+  (reproduced directly before fixing), `vi.mock("vscode", ...)` not intercepting a dependency's
+  own transitive `require("vscode")` (worked around by splitting the one pure-logic function into
+  its own module), and `vsce package` defaulting to its own dependency resolution and walking
+  1845 files / 36+ MB across the entire monorepo via npm workspaces' hoisted `node_modules`
+  before failing outright (fixed with `--no-dependencies`, valid once `vscode-languageclient`
+  itself was bundled in). **Deferred, not delivered this pass, and said so directly rather than
+  quietly dropped**: the JetBrains/Android Studio plugin and the Visual Studio shim — both need
+  real in-IDE click-through verification this environment has no GUI to provide, and JetBrains
+  wasn't part of the explicit scope this pass; VS Code Marketplace publishing (packaged, not
+  submitted — a real externally-visible action needing separate authorization). Also **not**
+  verified: the packaged VS Code extension actually installed and working inside a running VS
+  Code instance — real module-resolution and packaging correctness were verified for real, but
+  the GUI click-through step from the original Test Plan is still owed by whoever installs the
+  `.vsix` next.
 - **074 — Xcode: scope honestly.** The genuine exception — no general LSP client, no MCP client.
   Expected outcome is a documented, reasoned deferral (same posture as the Dart/Flutter and
   server-auth entries above), not a forced integration; Swift/ObjC developers already have a path
@@ -663,8 +684,11 @@ already gave this project, applied to a protocol those specific IDEs actually su
 **Success metrics change accordingly** — not GitHub stars or provider count, but **tokens spent
 per correct agent answer**, tracked per release against real repositories, per the v2.5.0
 measurement harness (now computed for real — see spec 064) — plus, for the LSP arc specifically,
-real verification against at least one non-MCP IDE client (Android Studio, per spec 073) as proof
-this reframe reached somewhere MCP alone couldn't.
+real verification against at least one non-MCP IDE client (Android Studio). **Still open**: spec
+073 scoped Android Studio's own JetBrains plugin out of this pass (see above), so that specific
+proof point remains outstanding, tracked honestly rather than assumed satisfied by the VS Code
+shim alone — VS Code already had an MCP-capable path (Copilot/Continue/etc.), so it isn't itself
+the reach-somewhere-new proof this framing is after.
 
 ---
 
@@ -771,6 +795,16 @@ implied by their absence.
     vice versa. Spec 062 (dead-code CI/shell-invoked scripts) landed alongside this batch as a
     small, independent follow-on to v2.17.0's own accuracy audit, not itself part of the
     measurement/retrieval theme.
+15. **LSP capability surface, then its first real IDE shim (specs `072`–`073`, merged, not yet
+    released):** built the `nodum-lsp` binary first, verified against a real spawned process, then
+    packaged it for VS Code — the same "build the real thing, then verify with a real check, not a
+    mocked one" discipline every batch above uses, this time surfacing genuine bugs neither code
+    review nor a type-checker alone would have caught (a runtime-only module-exports crash in
+    spec 072's `createConnection` usage, a *different* runtime-only module-exports crash in spec
+    073's `vscode-languageclient` import, and `vsce`'s own dependency-resolution walking the whole
+    monorepo). Scope for 073 was deliberately narrowed mid-spec, disclosed rather than forced: the
+    JetBrains/Android Studio plugin and Visual Studio shim both need real in-IDE verification this
+    environment can't provide, so they're tracked as open, not silently dropped or claimed done.
 
 ---
 
@@ -780,8 +814,9 @@ implied by their absence.
   own real verification evidence.
 - [`docs/development/active/`](./active/) — specs currently in progress (branched, PR open).
 - [`docs/development/refined/`](./refined/) — specs fully designed and ready to execute, not yet
-  branched — currently specs 073-074, the remaining LSP-arc work above (066-072 moved to
-  `completed/` as they landed).
+  branched — currently just spec 074, the remaining LSP-arc work above (066-073 moved to
+  `completed/` as they landed; the JetBrains plugin and Visual Studio shim spec 073 deferred are
+  tracked in this section's own prose above, not yet given their own spec numbers).
 - [`benchmarks/README.md`](../../benchmarks/README.md) — the measurement harness referenced
   throughout this roadmap.
 - [`benchmarks/retrieval/`](../../benchmarks/retrieval/) — the offline retrieval evaluation
