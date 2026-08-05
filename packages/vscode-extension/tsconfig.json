@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // VS Code's extension host loads a `main` entry via CommonJS require() —
+    // diverges deliberately from every other package's ESM output (root
+    // tsconfig's "module": "ESNext"), a platform constraint, same posture
+    // as spec 057/072's own scoped tsconfig overrides. "NodeNext" (not
+    // classic "node", and not "bundler" — TS forbids pairing "bundler" with
+    // a non-ESM "module") emits CommonJS here (no "type": "module" in this
+    // package's own package.json) while still correctly resolving
+    // vscode-languageclient's "./node" exports-map subpath — confirmed by
+    // reproducing a real Node ERR_PACKAGE_PATH_NOT_EXPORTED crash with the
+    // deep-path alternative before switching to this.
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "types": ["node", "vscode"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}

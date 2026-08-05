@@ -28,6 +28,7 @@
     "packages/core",
     "packages/query",
     "packages/lsp",
+    "packages/vscode-extension",
     "packages/cli",
     "packages/server",
     "packages/mcp",
