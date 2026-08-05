@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-08-05 · **Current release:** v2.17.1 (all four packages, lockstep; specs 062-071 published; specs 072-073 merged to `develop`, private/unpublished new `packages/lsp` + `packages/vscode-extension` workspaces, awaiting the next release cut) · **Specs shipped:** 74 (`docs/development/completed/`) · **Specs fully designed, not yet started:** 074 (`docs/development/refined/`)
+**Last updated:** 2026-08-05 · **Current release:** v2.17.1 (all four packages, lockstep; specs 062-071 published; specs 072-073 merged to `develop`, private/unpublished new `packages/lsp` + `packages/vscode-extension` workspaces, awaiting the next release cut; spec 074 closed via a documented deferral, no code) · **Specs shipped:** 75 (`docs/development/completed/`) · **Specs fully designed, not yet started:** none — `docs/development/refined/` is currently empty
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -507,6 +507,21 @@ first build-file reader — plus a decision on how to widen `Parser.resolveImpor
 project-config-blind interface. Not a one-release-away item; needs its own scoped batch, same
 posture the v2.9.0 entry originally set for both KMP and Dart/Flutter together.
 
+### Xcode — deferred (spec 074): no general LSP client, no MCP client
+Every other IDE the LSP arc named (Android Studio, Visual Studio, JetBrains, VS Code) has a real
+path via specs 071-073. Xcode does not, and spec 074 weighed the two real build options against
+deferral rather than reaching for the first idea: an Xcode Source Editor Extension can only ever
+be a manually-invoked menu command (no diagnostics API, no persistent server connection — a
+materially worse experience than every other editor gets); a companion macOS app sidesteps Xcode's
+constraints by not integrating with Xcode at all, making it a separate product on a separate stack.
+Deferred, with a reason specific to how the decision itself was made: neither option could be
+verified for real in this environment either way (both need a real macOS GUI to click through, and
+a native app would additionally need Apple Developer signing/notarization no credentials exist for
+here). **Interim path, already true today, not new work**: Swift/Objective-C developers get full
+nodum context via the CLI or MCP server (specs 037-039 already parse Swift/ObjC for real) in any
+MCP-speaking editor, or the VS Code extension from spec 073 — just not inside Xcode itself. Revisit
+if Apple ever exposes a real LSP-client mechanism in Xcode, not on a fixed timeline.
+
 ### Cross-language duplication detection — still blocked on an unbuilt prerequisite
 Specs 048 and 052 (v2.10.0/v2.11.0) built the same-language near-duplicate *lookup* and *grouping*
 prerequisites this roadmap named since v2.1.0. A cross-language layer on top still cannot be built
@@ -605,9 +620,9 @@ actually writes in.
 - **Real authentication for `packages/server`** — see the dedicated "Next" entry above; considered
   and declined twice now (v2.11.0 and v2.12.0) as not yet urgent enough to force in.
 
-**Universal IDE reach via LSP (specs `071`–`073` merged to `develop`, spec `074` refined,
-not yet started; full designs in `docs/development/refined/`) — this extends the "no per-provider code"
-reasoning above, it doesn't contradict it.** The MCP-is-enough argument holds *for MCP-speaking
+**Universal IDE reach via LSP (specs `071`–`074` all closed — 071-073 merged to `develop` and
+awaiting the next release cut, 074 closed via a documented deferral, no code) — this extends the
+"no per-provider code" reasoning above, it doesn't contradict it.** The MCP-is-enough argument holds *for MCP-speaking
 clients*. Android Studio, Visual Studio, and every JetBrains IDE have no MCP client today and none
 is expected — MCP-only reach stops at the editors listed two bullets up. Language Server Protocol
 is the equivalent zero-per-provider-code answer for that other half of the market: every one of
@@ -676,10 +691,22 @@ already gave this project, applied to a protocol those specific IDEs actually su
   Code instance — real module-resolution and packaging correctness were verified for real, but
   the GUI click-through step from the original Test Plan is still owed by whoever installs the
   `.vsix` next.
-- **074 — Xcode: scope honestly.** The genuine exception — no general LSP client, no MCP client.
-  Expected outcome is a documented, reasoned deferral (same posture as the Dart/Flutter and
-  server-auth entries above), not a forced integration; Swift/ObjC developers already have a path
-  today via the CLI/MCP server in any MCP-speaking editor, even one that isn't Xcode itself.
+- **074 — Xcode: scope honestly. Done (deferred) — closes the LSP arc.** Weighed both real build
+  options against deferral rather than picking the first idea: an Xcode Source Editor Extension
+  can only ever be a manually-invoked menu command (no diagnostics API, no persistent server
+  connection — a materially worse experience than specs 071-073 give every other editor); a
+  companion macOS app sidesteps Xcode's constraints by not integrating with Xcode at all, making
+  it a separate product on a separate stack, disproportionate to this spec's own "thin" framing.
+  Deferred (option 3) — the genuine exception, no general LSP client, no MCP client — with one
+  reason specific to how this decision itself was made: neither option could be verified for real
+  in this environment even if built (both need a real macOS GUI to click through, and a native app
+  would additionally need Apple Developer signing/notarization this environment has no credentials
+  for), and shipping either blind was judged worse than naming the gap honestly. Swift/ObjC
+  developers already have a real path today via the CLI/MCP server (specs 037-039 already parse
+  Swift/ObjC) in any MCP-speaking editor, or the VS Code extension from spec 073 — just not inside
+  Xcode itself. Full reasoning: `docs/development/completed/074-xcode-scoping/spec.md`; interim
+  path also recorded in this roadmap's "Next" section below, same posture as the Dart/Flutter and
+  server-auth entries there.
 
 **Success metrics change accordingly** — not GitHub stars or provider count, but **tokens spent
 per correct agent answer**, tracked per release against real repositories, per the v2.5.0
@@ -805,6 +832,13 @@ implied by their absence.
     monorepo). Scope for 073 was deliberately narrowed mid-spec, disclosed rather than forced: the
     JetBrains/Android Studio plugin and Visual Studio shim both need real in-IDE verification this
     environment can't provide, so they're tracked as open, not silently dropped or claimed done.
+16. **Close the LSP arc with a real decision, not silence (spec `074`):** weighed both real Xcode
+    integration options against deferral before choosing — same discipline the roadmap already
+    applies to Dart/Flutter and `packages/server` auth, extended here to a decision made partly
+    *because* neither option was verifiable in this environment, not only because of Xcode's own
+    platform constraints. Closes 071-074 as a fully accounted-for arc: three specs shipped or
+    awaiting release, one closed by a documented, reasoned "no" — not left as a silently-missing
+    fourth item.
 
 ---
 
@@ -814,9 +848,10 @@ implied by their absence.
   own real verification evidence.
 - [`docs/development/active/`](./active/) — specs currently in progress (branched, PR open).
 - [`docs/development/refined/`](./refined/) — specs fully designed and ready to execute, not yet
-  branched — currently just spec 074, the remaining LSP-arc work above (066-073 moved to
-  `completed/` as they landed; the JetBrains plugin and Visual Studio shim spec 073 deferred are
-  tracked in this section's own prose above, not yet given their own spec numbers).
+  branched — currently empty. The LSP arc (071-074) is fully closed as of spec 074; the JetBrains
+  plugin, Visual Studio shim, and Xcode are all tracked as deferred future work in this roadmap's
+  own prose (the "Universal IDE reach via LSP" section and "Next" above), not yet given their own
+  spec numbers.
 - [`benchmarks/README.md`](../../benchmarks/README.md) — the measurement harness referenced
   throughout this roadmap.
 - [`benchmarks/retrieval/`](../../benchmarks/retrieval/) — the offline retrieval evaluation
