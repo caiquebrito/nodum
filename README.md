@@ -424,9 +424,27 @@ npm install -g .
 
 ## Roadmap
 
-72 specs shipped so far, each with real end-to-end verification against synced projects — see
+76 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.17.1** across all four packages (lockstep).
+**v2.17.2** across all four packages (lockstep).
+
+### ✅ LSP arc + Kotlin expect/actual member linking (shipped as v2.17.2)
+- `nodum-lsp` (spec 072): a real Language Server Protocol binary over the graph — `workspace/symbol`,
+  hover, document symbols, code lenses, references, and inline diagnostics for cycles/dead
+  code/architecture violations, reaching any LSP-speaking IDE with zero per-IDE code
+- `nodum-vscode` (spec 073): a VS Code extension (also covers Cursor/Windsurf) wrapping
+  `vscode-languageclient` around `nodum-lsp`, plus Neovim/Helix/Zed setup docs — see
+  [`docs/guides/LSP-SETUP.md`](./docs/guides/LSP-SETUP.md). JetBrains/Android Studio and Visual
+  Studio deferred this pass, both needing real in-IDE verification
+- Xcode (spec 074): closed via a documented, reasoned deferral — no general LSP or MCP client
+  exists in Xcode; Swift/ObjC developers keep the existing CLI/MCP/VS Code path
+- Kotlin `expect`/`actual` class-body members (spec 075): methods inside an `expect`/`actual class`
+  now get tagged and correctly linked, not just top-level declarations — closes the first of three
+  real gaps spec 055 documented as follow-ups
+- Real check: every capability verified against a real spawned `nodum-lsp` process and a real
+  synced project; the packaged `.vsix` was unzipped and inspected directly; the Kotlin fix was
+  verified against a real `nodum sync` run, numbers in
+  [`docs/development/ROADMAP.md`](./docs/development/ROADMAP.md)
 
 ### ✅ Measurement & retrieval accuracy, plus a dead-code follow-on (shipped as v2.17.1)
 - Second gate release, same spirit as v2.5.0: built an offline retrieval-quality harness and a
@@ -626,7 +644,7 @@ A: TypeScript, Python, Java, JavaScript, Swift, Objective-C, Go, and Kotlin — 
 parsing (TypeScript via the compiler API, the rest via tree-sitter).
 
 **Q: Is this production-ready?**
-A: Yes — v2.17.1 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.17.2 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.

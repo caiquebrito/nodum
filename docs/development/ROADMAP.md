@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-08-05 · **Current release:** v2.17.1 (all four packages, lockstep; specs 062-071 published; specs 072-073 merged to `develop`, private/unpublished new `packages/lsp` + `packages/vscode-extension` workspaces, awaiting the next release cut; spec 074 closed via a documented deferral, no code; spec 075 merged to `develop`, a real `@caiquebrito/nodum-core` fix awaiting the next release cut) · **Specs shipped:** 76 (`docs/development/completed/`) · **Specs fully designed, not yet started:** none — `docs/development/refined/` is currently empty
+**Last updated:** 2026-08-05 · **Current release:** v2.17.2 (all four packages, lockstep; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2; specs 072-073 published too as part of the same v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code) · **Specs shipped:** 76 (`docs/development/completed/`) · **Specs fully designed, not yet started:** none — `docs/development/refined/` is currently empty
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -496,6 +496,23 @@ nightly `benchmark-accuracy.yml` run against a real API budget, not from this ba
 verification; the next scheduled run will be the first release this baseline exists to diff
 against.
 
+### LSP arc + Kotlin expect/actual member linking — shipped as real npm v2.17.2 (specs `072`–`075`)
+A patch release (every changeset in the batch was scoped `patch`, same numbering caveat as
+v2.18.0's own v2.17.1) closing the LSP arc's build-and-package work and one real accuracy fix,
+full detail in the "Universal IDE reach via LSP" section of v3.0.0 below and in each spec's own
+`docs/development/completed/` writeup:
+- **072 — `nodum-lsp`**: a real Language Server Protocol binary over the graph (private/
+  unpublished `packages/lsp` workspace — this release's version bump came from spec 075's
+  `nodum-core` fix, not from 072/073 themselves, since neither touches a published package).
+- **073 — `nodum-vscode`**: a VS Code extension wrapping `vscode-languageclient` around
+  `nodum-lsp` (private/unpublished `packages/vscode-extension`), plus Neovim/Helix/Zed setup docs.
+  Scoped to VS Code this pass — JetBrains/Android Studio and Visual Studio deferred, both needing
+  real in-IDE verification unavailable in this environment.
+- **074 — Xcode**: closed via a documented deferral, no code shipped (nothing to publish).
+- **075 — Kotlin `expect`/`actual` class-body members**: the one real `@caiquebrito/nodum-core`
+  change in this release — class-body methods now get tagged and correctly linked, closing the
+  first of three real gaps spec 055 documented as follow-ups.
+
 ---
 
 ## Next
@@ -541,7 +558,7 @@ Spec 055 (v2.12.0) scoped `expect`/`actual` edge detection to top-level function
 (`class`/`interface`/`enum`/`object`). Real end-to-end verification against a genuine KMP project
 found three further real gaps — documented here rather than left implied by their absence, since
 none was a hypothetical concern:
-- **`expect class` members are not walked — closed by spec 075, merged, not yet released.** A
+- **`expect class` members are not walked — closed by spec 075, shipped as real npm v2.17.2.** A
   nested declaration inside an `expect`/`actual class` body (the real verification project's own
   `HttpClientEngineProvider.provideEngine` case) got no `platformModifier` at all before this spec.
   Fixed: a member's own explicit modifier wins if present, else it inherits the enclosing type's —
@@ -625,8 +642,8 @@ actually writes in.
 - **Real authentication for `packages/server`** — see the dedicated "Next" entry above; considered
   and declined twice now (v2.11.0 and v2.12.0) as not yet urgent enough to force in.
 
-**Universal IDE reach via LSP (specs `071`–`074` all closed — 071-073 merged to `develop` and
-awaiting the next release cut, 074 closed via a documented deferral, no code) — this extends the
+**Universal IDE reach via LSP (specs `071`–`074` all closed — 071-073 shipped as real npm
+v2.17.1/v2.17.2, 074 closed via a documented deferral, no code) — this extends the
 "no per-provider code" reasoning above, it doesn't contradict it.** The MCP-is-enough argument holds *for MCP-speaking
 clients*. Android Studio, Visual Studio, and every JetBrains IDE have no MCP client today and none
 is expected — MCP-only reach stops at the editors listed two bullets up. Language Server Protocol
@@ -646,8 +663,9 @@ already gave this project, applied to a protocol those specific IDEs actually su
   interface so `packages/query` needs the SDK only as a test-time devDependency, never at runtime.
   Verified via the full workspace suite green (922 tests, up from 920 pre-spec) and confirmed the
   moved code's behavior is byte-identical, not just re-exported.
-- **072 — LSP capability surface. Done, merged to `develop`, private/unpublished new
-  `packages/lsp` workspace, awaiting the next release cut.** A real `nodum-lsp` binary mapping
+- **072 — LSP capability surface. Done, shipped as real npm v2.17.2 (as a private/unpublished new
+  `packages/lsp` workspace — no npm-publish impact of its own; the version bump came from spec
+  075's `nodum-core` fix in the same release cut).** A real `nodum-lsp` binary mapping
   graph queries onto standard LSP requests: `workspace/symbol` (label-substring search over the
   graph, not `handleSearch`'s hybrid ranking — a deliberate deviation, an IDE quick-pick wants
   exact-name matches, not conversation-tuned relevance ranking), `textDocument/hover` (node
@@ -671,7 +689,7 @@ already gave this project, applied to a protocol those specific IDEs actually su
   real `2^31-1` cap. 51 new tests (`packages/lsp`), including one real, unmocked
   `vscode-languageserver` `Connection` over an in-memory stream pair exercising the actual wire
   protocol end to end, not just individual handlers.
-- **073 — Per-IDE shims. Done (scoped), merged to `develop`, private/unpublished new
+- **073 — Per-IDE shims. Done (scoped), shipped as real npm v2.17.2, private/unpublished new
   `packages/vscode-extension` workspace.** Thin packaging only, no logic — everything stays in
   `nodum-lsp`. Delivered this pass: a VS Code extension (`nodum-vscode`, also covers Cursor/
   Windsurf — same extension format) wrapping `vscode-languageclient` around `nodum-lsp` resolved
@@ -827,8 +845,8 @@ implied by their absence.
     vice versa. Spec 062 (dead-code CI/shell-invoked scripts) landed alongside this batch as a
     small, independent follow-on to v2.17.0's own accuracy audit, not itself part of the
     measurement/retrieval theme.
-15. **LSP capability surface, then its first real IDE shim (specs `072`–`073`, merged, not yet
-    released):** built the `nodum-lsp` binary first, verified against a real spawned process, then
+15. **LSP capability surface, then its first real IDE shim (specs `072`–`073`, shipped as real npm
+    v2.17.2):** built the `nodum-lsp` binary first, verified against a real spawned process, then
     packaged it for VS Code — the same "build the real thing, then verify with a real check, not a
     mocked one" discipline every batch above uses, this time surfacing genuine bugs neither code
     review nor a type-checker alone would have caught (a runtime-only module-exports crash in
@@ -841,8 +859,8 @@ implied by their absence.
     integration options against deferral before choosing — same discipline the roadmap already
     applies to Dart/Flutter and `packages/server` auth, extended here to a decision made partly
     *because* neither option was verifiable in this environment, not only because of Xcode's own
-    platform constraints. Closes 071-074 as a fully accounted-for arc: three specs shipped or
-    awaiting release, one closed by a documented, reasoned "no" — not left as a silently-missing
+    platform constraints. Closes 071-074 as a fully accounted-for arc: three specs shipped as real
+    npm v2.17.1/v2.17.2, one closed by a documented, reasoned "no" — not left as a silently-missing
     fourth item.
 17. **Pick up the smallest, least-blocked deferred item once the LSP arc closed (spec `075`):**
     with `docs/development/refined/` empty and nothing left to release-cut, went back to this
