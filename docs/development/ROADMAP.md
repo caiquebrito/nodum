@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-08-04 · **Current release:** v2.17.1 (all four packages, lockstep; specs 062-071 published) · **Specs shipped:** 72 (`docs/development/completed/`) · **Specs fully designed, not yet started:** 072-074 (`docs/development/refined/`)
+**Last updated:** 2026-08-05 · **Current release:** v2.17.1 (all four packages, lockstep; specs 062-071 published; spec 072 merged to `develop`, private/unpublished new `packages/lsp` workspace, awaiting the next release cut) · **Specs shipped:** 73 (`docs/development/completed/`) · **Specs fully designed, not yet started:** 073-074 (`docs/development/refined/`)
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -605,8 +605,8 @@ actually writes in.
 - **Real authentication for `packages/server`** — see the dedicated "Next" entry above; considered
   and declined twice now (v2.11.0 and v2.12.0) as not yet urgent enough to force in.
 
-**Universal IDE reach via LSP (spec `071` merged to `develop`, specs `072`–`074` refined, not yet
-started; full designs in `docs/development/refined/`) — this extends the "no per-provider code"
+**Universal IDE reach via LSP (specs `071`–`072` merged to `develop`, specs `073`–`074` refined,
+not yet started; full designs in `docs/development/refined/`) — this extends the "no per-provider code"
 reasoning above, it doesn't contradict it.** The MCP-is-enough argument holds *for MCP-speaking
 clients*. Android Studio, Visual Studio, and every JetBrains IDE have no MCP client today and none
 is expected — MCP-only reach stops at the editors listed two bullets up. Language Server Protocol
@@ -626,11 +626,31 @@ already gave this project, applied to a protocol those specific IDEs actually su
   interface so `packages/query` needs the SDK only as a test-time devDependency, never at runtime.
   Verified via the full workspace suite green (922 tests, up from 920 pre-spec) and confirmed the
   moved code's behavior is byte-identical, not just re-exported.
-- **072 — LSP capability surface.** A real `nodum-lsp` binary mapping graph queries onto standard
-  LSP requests: `workspace/symbol` (search), `textDocument/hover` (node context),
-  `textDocument/codeLens` (dependents/complexity inline), `textDocument/references` (graph
-  edges), and — the sleeper feature — `textDocument/publishDiagnostics` surfacing cycles/dead-code/
-  architecture violations as inline warnings in every connected IDE, with zero per-IDE code.
+- **072 — LSP capability surface. Done, merged to `develop`, private/unpublished new
+  `packages/lsp` workspace, awaiting the next release cut.** A real `nodum-lsp` binary mapping
+  graph queries onto standard LSP requests: `workspace/symbol` (label-substring search over the
+  graph, not `handleSearch`'s hybrid ranking — a deliberate deviation, an IDE quick-pick wants
+  exact-name matches, not conversation-tuned relevance ranking), `textDocument/hover` (node
+  context via `handleGetNode`), `textDocument/documentSymbol`, `textDocument/codeLens`
+  (dependents/complexity inline, wired to `nodum.traceImpact`), `textDocument/references` (graph
+  edges, reversed `handleGetDeps`), `workspace/executeCommand`
+  (`nodum.sync`/`traceImpact`/`findSimilar`/`deadCode`), and — the sleeper feature —
+  `textDocument/publishDiagnostics` surfacing cycles/dead-code/architecture violations as inline
+  warnings, with zero per-IDE code. `packages/query` gained one new export (`loadGraph`) — the
+  only capability this spec needed that pre-formatted MCP text handlers couldn't provide directly.
+  A never-before-synced project gets one real full sync the first time any capability needs graph
+  data (not blocking `initialize` itself); an already-synced project loads instantly from disk.
+  **Real check, not simulated**: spawned the real built binary as a child process against
+  `benchmarks/projects/sample-next-app` (already synced, 4 files/27 edges) over raw
+  Content-Length-framed JSON-RPC — every capability returned real, correct data, including a
+  genuine dead-code diagnostic (`src/api/routes.ts`, unreachable) published automatically after
+  `initialized`. That same real spawn caught two bugs no mocked test would have:
+  `createConnection(ProposedFeatures.all)` doesn't default to stdio without explicit streams or a
+  `--stdio` flag (fixed by binding `process.stdin`/`stdout` explicitly), and a `Range`'s
+  end-of-line convention used `Number.MAX_SAFE_INTEGER`, overflowing LSP's `uinteger` wire type's
+  real `2^31-1` cap. 51 new tests (`packages/lsp`), including one real, unmocked
+  `vscode-languageserver` `Connection` over an in-memory stream pair exercising the actual wire
+  protocol end to end, not just individual handlers.
 - **073 — Per-IDE shims.** Thin packaging only, no logic: a VS Code VSIX (also covers Cursor/
   Windsurf), a JetBrains Marketplace plugin (covers IntelliJ, **Android Studio**, PyCharm,
   GoLand, WebStorm from one artifact), config recipes for Neovim/Helix/Zed, and a Visual Studio
@@ -760,7 +780,7 @@ implied by their absence.
   own real verification evidence.
 - [`docs/development/active/`](./active/) — specs currently in progress (branched, PR open).
 - [`docs/development/refined/`](./refined/) — specs fully designed and ready to execute, not yet
-  branched — currently specs 072-074, the remaining LSP-arc work above (066-071 moved to
+  branched — currently specs 073-074, the remaining LSP-arc work above (066-072 moved to
   `completed/` as they landed).
 - [`benchmarks/README.md`](../../benchmarks/README.md) — the measurement harness referenced
   throughout this roadmap.
