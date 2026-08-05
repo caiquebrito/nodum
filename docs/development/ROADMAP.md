@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-08-05 · **Current release:** v2.17.1 (all four packages, lockstep; specs 062-071 published; specs 072-073 merged to `develop`, private/unpublished new `packages/lsp` + `packages/vscode-extension` workspaces, awaiting the next release cut; spec 074 closed via a documented deferral, no code) · **Specs shipped:** 75 (`docs/development/completed/`) · **Specs fully designed, not yet started:** none — `docs/development/refined/` is currently empty
+**Last updated:** 2026-08-05 · **Current release:** v2.17.1 (all four packages, lockstep; specs 062-071 published; specs 072-073 merged to `develop`, private/unpublished new `packages/lsp` + `packages/vscode-extension` workspaces, awaiting the next release cut; spec 074 closed via a documented deferral, no code; spec 075 merged to `develop`, a real `@caiquebrito/nodum-core` fix awaiting the next release cut) · **Specs shipped:** 76 (`docs/development/completed/`) · **Specs fully designed, not yet started:** none — `docs/development/refined/` is currently empty
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -536,30 +536,35 @@ risk requires a deliberate `NODUM_HOST` opt-in to a non-loopback bind, and the p
 read-only/metadata-only. A token/session auth scheme for that specific opt-in case remains a real
 future item, not urgent enough to force into a batch twice in a row now.
 
-### Kotlin `expect`/`actual` — real refinements found during spec 055, deliberately not expanded on
+### Kotlin `expect`/`actual` — real refinements found during spec 055, one closed, two still open
 Spec 055 (v2.12.0) scoped `expect`/`actual` edge detection to top-level functions and types
 (`class`/`interface`/`enum`/`object`). Real end-to-end verification against a genuine KMP project
-found two further real gaps — documented here rather than left implied by their absence, since
-neither was a hypothetical concern:
-- **`expect class` members are not walked.** A nested declaration inside an `expect`/`actual class`
-  body (the real verification project's own `HttpClientEngineProvider.provideEngine` case) gets no
-  `platformModifier` at all today. Extending the existing class-body member walk to also check each
-  member for a platform modifier is a real, likely-small follow-up, but wasn't attempted alongside
-  the top-level case.
+found three further real gaps — documented here rather than left implied by their absence, since
+none was a hypothetical concern:
+- **`expect class` members are not walked — closed by spec 075, merged, not yet released.** A
+  nested declaration inside an `expect`/`actual class` body (the real verification project's own
+  `HttpClientEngineProvider.provideEngine` case) got no `platformModifier` at all before this spec.
+  Fixed: a member's own explicit modifier wins if present, else it inherits the enclosing type's —
+  real Kotlin semantics, not a guess. Making method nodes carry a `platformModifier` at all
+  surfaced a second, real necessity in the same spec: `applyExpectActual`'s module+kind+label
+  matching could cross-link two different classes' same-named members in the same module, so spec
+  075 also added enclosing-class scoping for method-level matches specifically. No real KMP project
+  with `expect`/`actual` usage exists on this machine (confirmed by grep, not assumed) — verified
+  instead against a fixture built to the exact `HttpClientEngineProvider.provideEngine` shape,
+  synced with the real CLI, real `graph.json` inspected directly; a second class added to the same
+  fixture with a same-named member confirmed zero cross-class false positives in the real output.
 - **`expect`/`actual` on top-level properties (`val`/`var`) can't be detected**, because this parser
   has never extracted Kotlin top-level properties as graph nodes *at all* — a pre-existing
   limitation, not introduced by spec 055. A real `expect val platformModule: Module` declaration in
   the verification project was confirmed correctly left untagged (there is no node to tag). Fixing
   this for real would mean adding top-level-property node extraction as its own parser feature
-  first, not a small addition to the pairing logic.
+  first, not a small addition to the pairing logic. Still open.
 - **Matching is module + declaration kind + label only, with no package-path awareness** — this
   parser has never extracted Kotlin `package` declarations either. Verified sufficient against the
   one real project used for spec 055's verification (a same-name collision across two different
   modules was already disambiguated by module-scoping alone), but this is a verified-sufficient-once
   finding, not a proof that every real project's naming can't collide within a single module. Worth
-  re-checking against a second real KMP project before treating it as fully settled.
-
-None of these three are scoped to any release yet.
+  re-checking against a second real KMP project before treating it as fully settled. Still open.
 
 ### Closed: the Node `v25.9.0` large-project sync crash (spec 060 resolved it)
 Originally discovered during spec 055's real end-to-end verification (a real ~21,447-file Kotlin
@@ -839,6 +844,15 @@ implied by their absence.
     platform constraints. Closes 071-074 as a fully accounted-for arc: three specs shipped or
     awaiting release, one closed by a documented, reasoned "no" — not left as a silently-missing
     fourth item.
+17. **Pick up the smallest, least-blocked deferred item once the LSP arc closed (spec `075`):**
+    with `docs/development/refined/` empty and nothing left to release-cut, went back to this
+    roadmap's own "Next" section rather than starting a new speculative initiative — of the three
+    documented Kotlin `expect`/`actual` gaps, the class-body-member one was the only one with no
+    unbuilt prerequisite and no open "needs re-verification" question, so it was the correct next
+    pick, not an arbitrary one. Verified against a real fixture (no real KMP project with
+    `expect`/`actual` usage exists on this machine — confirmed before building one, not assumed),
+    surfacing a second real fix (cross-class matching scope) the original one-line description
+    didn't fully anticipate until member-level `platformModifier` tagging made it a real risk.
 
 ---
 
