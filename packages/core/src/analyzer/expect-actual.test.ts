@@ -129,6 +129,52 @@ describe("applyExpectActual", () => {
     expect(edges).toHaveLength(2);
   });
 
+  it("links a member-level expect/actual pair when their enclosing classes match (spec 075)", () => {
+    const expectClass = funcNode("ec", "Foo", { module: "app", sourceSet: "commonMain", type: "class" });
+    const actualClass = funcNode("ac", "Foo", { module: "app", sourceSet: "iosMain", type: "class" });
+    const expectMethod = funcNode("em", "bar", { module: "app", sourceSet: "commonMain", platformModifier: "expect", type: "method" });
+    const actualMethod = funcNode("am", "bar", { module: "app", sourceSet: "iosMain", platformModifier: "actual", type: "method" });
+    const nodes = [expectClass, actualClass, expectMethod, actualMethod];
+    const edges: Edge[] = [
+      { source: "ec", target: "em", relation: "defines" },
+      { source: "ac", target: "am", relation: "defines" },
+    ];
+
+    applyExpectActual(nodes, edges);
+
+    expect(edges).toContainEqual({ source: "am", target: "em", relation: "actualizes" });
+  });
+
+  it("does not cross-link same-named methods belonging to different classes in the same module (spec 075)", () => {
+    // Two unrelated expect/actual class pairs, both in "app", both exposing
+    // a same-named member — module + kind + label alone would incorrectly
+    // match Bar's actual "log" to Foo's expect "log" without enclosing-type
+    // scoping.
+    const expectFoo = funcNode("ef", "Foo", { module: "app", sourceSet: "commonMain", type: "class" });
+    const actualFoo = funcNode("af", "Foo", { module: "app", sourceSet: "iosMain", type: "class" });
+    const expectBar = funcNode("eb", "Bar", { module: "app", sourceSet: "commonMain", type: "class" });
+    const actualBar = funcNode("ab", "Bar", { module: "app", sourceSet: "iosMain", type: "class" });
+    const fooExpectLog = funcNode("fel", "log", { module: "app", sourceSet: "commonMain", platformModifier: "expect", type: "method" });
+    const fooActualLog = funcNode("fal", "log", { module: "app", sourceSet: "iosMain", platformModifier: "actual", type: "method" });
+    const barExpectLog = funcNode("bel", "log", { module: "app", sourceSet: "commonMain", platformModifier: "expect", type: "method" });
+    const barActualLog = funcNode("bal", "log", { module: "app", sourceSet: "iosMain", platformModifier: "actual", type: "method" });
+    const nodes = [expectFoo, actualFoo, expectBar, actualBar, fooExpectLog, fooActualLog, barExpectLog, barActualLog];
+    const edges: Edge[] = [
+      { source: "ef", target: "fel", relation: "defines" },
+      { source: "af", target: "fal", relation: "defines" },
+      { source: "eb", target: "bel", relation: "defines" },
+      { source: "ab", target: "bal", relation: "defines" },
+    ];
+
+    applyExpectActual(nodes, edges);
+
+    const actualizesEdges = edges.filter(e => e.relation === "actualizes");
+    expect(actualizesEdges.sort((a, b) => a.source.localeCompare(b.source))).toEqual([
+      { source: "bal", target: "bel", relation: "actualizes" },
+      { source: "fal", target: "fel", relation: "actualizes" },
+    ]);
+  });
+
   it("does not overflow the call stack clearing a huge edges array — real regression found on a real ~200,000-edge project", () => {
     // Real check (not a synthetic worry): a real ~21,447-file KMP project's
     // actual stack trace pointed at the old `edges.push(...preserved)` line

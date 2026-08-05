@@ -213,10 +213,30 @@ describe("KotlinParser expect/actual platform modifiers (spec 055)", () => {
     expect(nodes.find(n => n.label === "Plain")?.platformModifier).toBeUndefined();
   });
 
-  it("does not tag a nested member inside an actual class body — expect class members are out of scope", async () => {
+  it("tags a member with its own explicit modifier inside an actual class body (spec 075)", async () => {
     const src = `actual class Foo {\n  actual fun bar(): Int = 42\n}\n`;
     const { nodes } = await parser.parse(fileInfo("a.kt", src));
     expect(nodes.find(n => n.label === "Foo")?.platformModifier).toBe("actual");
+    expect(nodes.find(n => n.label === "bar")?.platformModifier).toBe("actual");
+  });
+
+  it("tags a member with no modifier of its own by inheriting the enclosing expect class's (spec 075)", async () => {
+    const src = `expect class HttpClientEngineProvider {\n  fun provideEngine(): String\n}\n`;
+    const { nodes } = await parser.parse(fileInfo("a.kt", src));
+    expect(nodes.find(n => n.label === "HttpClientEngineProvider")?.platformModifier).toBe("expect");
+    expect(nodes.find(n => n.label === "provideEngine")?.platformModifier).toBe("expect");
+  });
+
+  it("inherits actual for a member with no modifier of its own inside an actual class (spec 075)", async () => {
+    const src = `actual class HttpClientEngineProvider {\n  fun provideEngine(): String = "engine"\n}\n`;
+    const { nodes } = await parser.parse(fileInfo("a.kt", src));
+    expect(nodes.find(n => n.label === "provideEngine")?.platformModifier).toBe("actual");
+  });
+
+  it("leaves a member of a plain (non-expect/actual) class untagged (spec 075)", async () => {
+    const src = `class Foo {\n  fun bar(): Int = 42\n}\n`;
+    const { nodes } = await parser.parse(fileInfo("a.kt", src));
+    expect(nodes.find(n => n.label === "Foo")?.platformModifier).toBeUndefined();
     expect(nodes.find(n => n.label === "bar")?.platformModifier).toBeUndefined();
   });
 });
