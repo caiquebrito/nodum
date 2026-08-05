@@ -53,7 +53,7 @@ async function loadProjectIndex(): Promise<ProjectIndex> {
   }
 }
 
-async function loadGraph(projectName: string): Promise<Graph> {
+export async function loadGraph(projectName: string): Promise<Graph> {
   return globalGraphCache.get(projectName, () => readGraphFromDisk(projectName));
 }
 

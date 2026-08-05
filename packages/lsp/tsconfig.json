@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    // vscode-languageserver's package.json exports map (a "./node" subpath,
+    // not exposed under the root tsconfig's classic "node" resolution) needs
+    // a resolver that understands `exports` — same fix, same scoping
+    // (this package only) as spec 057 applied for the MCP SDK's own
+    // conditional-exports incompatibility with classic resolution.
+    "moduleResolution": "bundler"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

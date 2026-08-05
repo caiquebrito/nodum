@@ -6,6 +6,7 @@
 // etc.) one layer up.
 export {
   NODUM_DATA_DIR,
+  loadGraph,
   handleSync,
   handleStatus,
   handleGetGraph,
