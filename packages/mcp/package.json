@@ -1,6 +1,6 @@
 {
   "name": "@caiquebrito/nodum-mcp",
-  "version": "2.17.1",
+  "version": "2.17.2",
   "description": "Model Context Protocol server for Nodum — integrate code knowledge graphs with Claude AI",
   "type": "module",
   "main": "dist/index.js",
@@ -29,7 +29,7 @@
     "url": "https://github.com/caiquebrito/nodum"
   },
   "dependencies": {
-    "@caiquebrito/nodum-core": "^2.17.1",
+    "@caiquebrito/nodum-core": "^2.17.2",
     "@caiquebrito/nodum-query": "^2.17.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "zod": "^3.25.76"
