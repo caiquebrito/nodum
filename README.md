@@ -424,9 +424,27 @@ npm install -g .
 
 ## Roadmap
 
-62 specs shipped so far, each with real end-to-end verification against synced projects — see
+72 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.17.0** across all four packages (lockstep).
+**v2.17.1** across all four packages (lockstep).
+
+### ✅ Measurement & retrieval accuracy, plus a dead-code follow-on (shipped as v2.17.1)
+- Second gate release, same spirit as v2.5.0: built an offline retrieval-quality harness and a
+  real `tokensPerCorrectAnswer` computation first, then used them to validate three real retrieval
+  fixes with before/after numbers instead of estimates
+- Fixed a real hybrid-search bug (`mergeScores` combined an 0-40 keyword rank with a 0-1 cosine
+  similarity via weighted sum, making semantic search functionally near-disabled) with Reciprocal
+  Rank Fusion — golden-set MRR `0.821 → 0.962`
+- Enriched node embedding text with graph context (file/module/layer/calls/callers, not just
+  `"<label> <type>"`) — fixed its target zero-lexical-overlap case, with a small, root-caused
+  regression elsewhere disclosed rather than hidden behind an aggregate number
+- Added identifier-aware, IDF-weighted keyword scoring, cached the raw-dump token baseline
+  (9.08x faster per `search_graph` call), and cut context-rendering cost (63-78x faster adjacency
+  reuse)
+- Also: dead-code detection no longer flags CI/shell-invoked scripts as unreachable, and
+  `packages/mcp`'s query logic moved into a new transport-neutral `packages/query` workspace — the
+  first step toward LSP-based IDE reach — see [`docs/development/ROADMAP.md`](./docs/development/ROADMAP.md)'s "Universal IDE reach via LSP" section
+- Real check: every retrieval-quality fix validated against `benchmarks/retrieval/retrieval-eval.ts --embeddings` before and after, numbers in [`docs/development/ROADMAP.md`](./docs/development/ROADMAP.md)
 
 ### ✅ Fix dead-code/duplication/cycle/bottleneck accuracy (shipped as v2.17.0)
 - A user-supplied, independently-verified real-world audit against a Kotlin/Android app found
@@ -608,7 +626,7 @@ A: TypeScript, Python, Java, JavaScript, Swift, Objective-C, Go, and Kotlin — 
 parsing (TypeScript via the compiler API, the rest via tree-sitter).
 
 **Q: Is this production-ready?**
-A: Yes — v2.17.0 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.17.1 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.

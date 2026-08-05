@@ -1,6 +1,6 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-08-04 · **Current release:** v2.17.0 (all four packages, lockstep; specs 062-071 are merged to `develop` and awaiting the next release cut) · **Specs shipped:** 72 (`docs/development/completed/`) · **Specs fully designed, not yet started:** 072-074 (`docs/development/refined/`)
+**Last updated:** 2026-08-05 · **Current release:** v2.17.1 (all four packages, lockstep; specs 062-071 published; specs 072-073 merged to `develop`, private/unpublished new `packages/lsp` + `packages/vscode-extension` workspaces, awaiting the next release cut; spec 074 closed via a documented deferral, no code; spec 075 merged to `develop`, a real `@caiquebrito/nodum-core` fix awaiting the next release cut) · **Specs shipped:** 76 (`docs/development/completed/`) · **Specs fully designed, not yet started:** none — `docs/development/refined/` is currently empty
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -395,27 +395,28 @@ resolution and interpretation issues, not the underlying numbers.
 
 ---
 
-### Dead-code accuracy follow-on — spec `062`, merged to `develop`, awaiting release
-A small follow-on to v2.17.0's spec 061, merged just after that release cut (so it never made it
-into the published v2.17.0) rather than held back for a future batch.
-- **062 — Dead-code detection: CI/shell-invoked scripts.** `detectUnreachableFiles` was flagging
-  scripts only ever invoked as a CI/shell subprocess (never `import`ed by tracked source) as dead
-  code — the exact false positive the v2.17.0 external accuracy audit caught. New
-  `packages/core/src/analyzer/ci-invoked-scripts.ts` (`findCiInvokedFiles`,
-  `parseCiInvokedPaths`) resolves entry points declared in CI config/shell scripts (e.g. a
-  `bitrise.yml` invoking `python3 tools/ci/run_quality_checks.py`) before flagging their targets.
-  Wired into CLI `nodum dead-code` and MCP `suggest_refactoring`. Verified end-to-end against a
-  scratch fixture reproducing the exact false positive.
-
-### v2.18.0 (all specs merged, awaiting release cut) — Measurement & retrieval accuracy (specs `063`–`070`)
+### v2.18.0 — Measurement & retrieval accuracy, plus a dead-code follow-on — shipped as real npm v2.17.1 (specs `062`–`071`)
 
 A second gate release, same spirit as v2.5.0: before this batch, the project's own declared
 north-star metric (*"tokens spent per correct agent answer"*) was never actually computed, and
 there was no way to test whether a change to `packages/mcp`'s ranking logic improved retrieval
 without spending real API budget on the nightly benchmark. This batch built the instrument first,
-then used it. All eight specs below are complete and merged to `develop` — none have shipped in a
-real npm release yet (still `v2.17.0`); the version bump and changelog entries land with the next
-`develop → main` release PR.
+then used it. Every changeset in this batch was scoped as a `patch`, so the real npm version bump
+is `v2.17.1`, not a minor bump — a reminder that, per this roadmap's own numbering note at the
+top, the roadmap milestone label and the real npm version aren't always the same number. Spec 071
+(the transport-neutral query layer) is covered in full under "Universal IDE reach via LSP" below,
+since it doubles as that arc's first spec.
+
+- **062 — Dead-code detection: CI/shell-invoked scripts.** A small follow-on to v2.17.0's spec
+  061, landed just after that release cut (so it never made it into the published v2.17.0) rather
+  than held back for a future batch. `detectUnreachableFiles` was flagging scripts only ever
+  invoked as a CI/shell subprocess (never `import`ed by tracked source) as dead code — the exact
+  false positive the v2.17.0 external accuracy audit caught. New
+  `packages/core/src/analyzer/ci-invoked-scripts.ts` (`findCiInvokedFiles`,
+  `parseCiInvokedPaths`) resolves entry points declared in CI config/shell scripts (e.g. a
+  `bitrise.yml` invoking `python3 tools/ci/run_quality_checks.py`) before flagging their targets.
+  Wired into CLI `nodum dead-code` and MCP `suggest_refactoring`. Verified end-to-end against a
+  scratch fixture reproducing the exact false positive.
 
 **Measurement floor, specs `063`–`065`:**
 - **063 — Offline retrieval evaluation harness.** `benchmarks/retrieval/`: a 26-query labeled
@@ -489,9 +490,11 @@ numbers, not estimates:**
   not worth the readability cost for what it actually saves.
 
 **Success metric for this batch**: `npx tsx benchmarks/retrieval/retrieval-eval.ts --embeddings`
-aggregate before vs. after (captured per-spec above) and the real `tokensPerCorrectAnswer` first
-baseline, still pending — that number only comes from the nightly `benchmark-accuracy.yml` run
-against a real API budget, not from this batch's own offline verification.
+aggregate before vs. after (captured per-spec above, real and already measured) and the real
+`tokensPerCorrectAnswer` first baseline — still pending, since that number only comes from the
+nightly `benchmark-accuracy.yml` run against a real API budget, not from this batch's own offline
+verification; the next scheduled run will be the first release this baseline exists to diff
+against.
 
 ---
 
@@ -503,6 +506,21 @@ separate initiative with its own real prerequisite: `pubspec.yaml` resolution �
 first build-file reader — plus a decision on how to widen `Parser.resolveImport()`'s currently
 project-config-blind interface. Not a one-release-away item; needs its own scoped batch, same
 posture the v2.9.0 entry originally set for both KMP and Dart/Flutter together.
+
+### Xcode — deferred (spec 074): no general LSP client, no MCP client
+Every other IDE the LSP arc named (Android Studio, Visual Studio, JetBrains, VS Code) has a real
+path via specs 071-073. Xcode does not, and spec 074 weighed the two real build options against
+deferral rather than reaching for the first idea: an Xcode Source Editor Extension can only ever
+be a manually-invoked menu command (no diagnostics API, no persistent server connection — a
+materially worse experience than every other editor gets); a companion macOS app sidesteps Xcode's
+constraints by not integrating with Xcode at all, making it a separate product on a separate stack.
+Deferred, with a reason specific to how the decision itself was made: neither option could be
+verified for real in this environment either way (both need a real macOS GUI to click through, and
+a native app would additionally need Apple Developer signing/notarization no credentials exist for
+here). **Interim path, already true today, not new work**: Swift/Objective-C developers get full
+nodum context via the CLI or MCP server (specs 037-039 already parse Swift/ObjC for real) in any
+MCP-speaking editor, or the VS Code extension from spec 073 — just not inside Xcode itself. Revisit
+if Apple ever exposes a real LSP-client mechanism in Xcode, not on a fixed timeline.
 
 ### Cross-language duplication detection — still blocked on an unbuilt prerequisite
 Specs 048 and 052 (v2.10.0/v2.11.0) built the same-language near-duplicate *lookup* and *grouping*
@@ -518,30 +536,35 @@ risk requires a deliberate `NODUM_HOST` opt-in to a non-loopback bind, and the p
 read-only/metadata-only. A token/session auth scheme for that specific opt-in case remains a real
 future item, not urgent enough to force into a batch twice in a row now.
 
-### Kotlin `expect`/`actual` — real refinements found during spec 055, deliberately not expanded on
+### Kotlin `expect`/`actual` — real refinements found during spec 055, one closed, two still open
 Spec 055 (v2.12.0) scoped `expect`/`actual` edge detection to top-level functions and types
 (`class`/`interface`/`enum`/`object`). Real end-to-end verification against a genuine KMP project
-found two further real gaps — documented here rather than left implied by their absence, since
-neither was a hypothetical concern:
-- **`expect class` members are not walked.** A nested declaration inside an `expect`/`actual class`
-  body (the real verification project's own `HttpClientEngineProvider.provideEngine` case) gets no
-  `platformModifier` at all today. Extending the existing class-body member walk to also check each
-  member for a platform modifier is a real, likely-small follow-up, but wasn't attempted alongside
-  the top-level case.
+found three further real gaps — documented here rather than left implied by their absence, since
+none was a hypothetical concern:
+- **`expect class` members are not walked — closed by spec 075, merged, not yet released.** A
+  nested declaration inside an `expect`/`actual class` body (the real verification project's own
+  `HttpClientEngineProvider.provideEngine` case) got no `platformModifier` at all before this spec.
+  Fixed: a member's own explicit modifier wins if present, else it inherits the enclosing type's —
+  real Kotlin semantics, not a guess. Making method nodes carry a `platformModifier` at all
+  surfaced a second, real necessity in the same spec: `applyExpectActual`'s module+kind+label
+  matching could cross-link two different classes' same-named members in the same module, so spec
+  075 also added enclosing-class scoping for method-level matches specifically. No real KMP project
+  with `expect`/`actual` usage exists on this machine (confirmed by grep, not assumed) — verified
+  instead against a fixture built to the exact `HttpClientEngineProvider.provideEngine` shape,
+  synced with the real CLI, real `graph.json` inspected directly; a second class added to the same
+  fixture with a same-named member confirmed zero cross-class false positives in the real output.
 - **`expect`/`actual` on top-level properties (`val`/`var`) can't be detected**, because this parser
   has never extracted Kotlin top-level properties as graph nodes *at all* — a pre-existing
   limitation, not introduced by spec 055. A real `expect val platformModule: Module` declaration in
   the verification project was confirmed correctly left untagged (there is no node to tag). Fixing
   this for real would mean adding top-level-property node extraction as its own parser feature
-  first, not a small addition to the pairing logic.
+  first, not a small addition to the pairing logic. Still open.
 - **Matching is module + declaration kind + label only, with no package-path awareness** — this
   parser has never extracted Kotlin `package` declarations either. Verified sufficient against the
   one real project used for spec 055's verification (a same-name collision across two different
   modules was already disambiguated by module-scoping alone), but this is a verified-sufficient-once
   finding, not a proof that every real project's naming can't collide within a single module. Worth
-  re-checking against a second real KMP project before treating it as fully settled.
-
-None of these three are scoped to any release yet.
+  re-checking against a second real KMP project before treating it as fully settled. Still open.
 
 ### Closed: the Node `v25.9.0` large-project sync crash (spec 060 resolved it)
 Originally discovered during spec 055's real end-to-end verification (a real ~21,447-file Kotlin
@@ -602,16 +625,16 @@ actually writes in.
 - **Real authentication for `packages/server`** — see the dedicated "Next" entry above; considered
   and declined twice now (v2.11.0 and v2.12.0) as not yet urgent enough to force in.
 
-**Universal IDE reach via LSP (spec `071` merged to `develop`, specs `072`–`074` refined, not yet
-started; full designs in `docs/development/refined/`) — this extends the "no per-provider code"
-reasoning above, it doesn't contradict it.** The MCP-is-enough argument holds *for MCP-speaking
+**Universal IDE reach via LSP (specs `071`–`074` all closed — 071-073 merged to `develop` and
+awaiting the next release cut, 074 closed via a documented deferral, no code) — this extends the
+"no per-provider code" reasoning above, it doesn't contradict it.** The MCP-is-enough argument holds *for MCP-speaking
 clients*. Android Studio, Visual Studio, and every JetBrains IDE have no MCP client today and none
 is expected — MCP-only reach stops at the editors listed two bullets up. Language Server Protocol
 is the equivalent zero-per-provider-code answer for that other half of the market: every one of
 those IDEs already speaks LSP natively, so one `nodum-lsp` binary reaches all of them through thin
 packaging, not a bespoke integration per IDE — the same "one server, many clients" shape MCP
 already gave this project, applied to a protocol those specific IDEs actually support.
-- **071 — Extract a transport-neutral query layer. Done, merged to `develop`, awaiting release.**
+- **071 — Extract a transport-neutral query layer. Done, shipped as real npm v2.17.1.**
   Lifted `packages/mcp/src/handlers.ts`'s query logic (already substantively transport-neutral —
   plain arguments in, formatted text out) into a new `packages/query` workspace
   (`@caiquebrito/nodum-query`, private/unpublished) so both the MCP server and a future LSP server
@@ -623,25 +646,81 @@ already gave this project, applied to a protocol those specific IDEs actually su
   interface so `packages/query` needs the SDK only as a test-time devDependency, never at runtime.
   Verified via the full workspace suite green (922 tests, up from 920 pre-spec) and confirmed the
   moved code's behavior is byte-identical, not just re-exported.
-- **072 — LSP capability surface.** A real `nodum-lsp` binary mapping graph queries onto standard
-  LSP requests: `workspace/symbol` (search), `textDocument/hover` (node context),
-  `textDocument/codeLens` (dependents/complexity inline), `textDocument/references` (graph
-  edges), and — the sleeper feature — `textDocument/publishDiagnostics` surfacing cycles/dead-code/
-  architecture violations as inline warnings in every connected IDE, with zero per-IDE code.
-- **073 — Per-IDE shims.** Thin packaging only, no logic: a VS Code VSIX (also covers Cursor/
-  Windsurf), a JetBrains Marketplace plugin (covers IntelliJ, **Android Studio**, PyCharm,
-  GoLand, WebStorm from one artifact), config recipes for Neovim/Helix/Zed, and a Visual Studio
-  VSIX.
-- **074 — Xcode: scope honestly.** The genuine exception — no general LSP client, no MCP client.
-  Expected outcome is a documented, reasoned deferral (same posture as the Dart/Flutter and
-  server-auth entries above), not a forced integration; Swift/ObjC developers already have a path
-  today via the CLI/MCP server in any MCP-speaking editor, even one that isn't Xcode itself.
+- **072 — LSP capability surface. Done, merged to `develop`, private/unpublished new
+  `packages/lsp` workspace, awaiting the next release cut.** A real `nodum-lsp` binary mapping
+  graph queries onto standard LSP requests: `workspace/symbol` (label-substring search over the
+  graph, not `handleSearch`'s hybrid ranking — a deliberate deviation, an IDE quick-pick wants
+  exact-name matches, not conversation-tuned relevance ranking), `textDocument/hover` (node
+  context via `handleGetNode`), `textDocument/documentSymbol`, `textDocument/codeLens`
+  (dependents/complexity inline, wired to `nodum.traceImpact`), `textDocument/references` (graph
+  edges, reversed `handleGetDeps`), `workspace/executeCommand`
+  (`nodum.sync`/`traceImpact`/`findSimilar`/`deadCode`), and — the sleeper feature —
+  `textDocument/publishDiagnostics` surfacing cycles/dead-code/architecture violations as inline
+  warnings, with zero per-IDE code. `packages/query` gained one new export (`loadGraph`) — the
+  only capability this spec needed that pre-formatted MCP text handlers couldn't provide directly.
+  A never-before-synced project gets one real full sync the first time any capability needs graph
+  data (not blocking `initialize` itself); an already-synced project loads instantly from disk.
+  **Real check, not simulated**: spawned the real built binary as a child process against
+  `benchmarks/projects/sample-next-app` (already synced, 4 files/27 edges) over raw
+  Content-Length-framed JSON-RPC — every capability returned real, correct data, including a
+  genuine dead-code diagnostic (`src/api/routes.ts`, unreachable) published automatically after
+  `initialized`. That same real spawn caught two bugs no mocked test would have:
+  `createConnection(ProposedFeatures.all)` doesn't default to stdio without explicit streams or a
+  `--stdio` flag (fixed by binding `process.stdin`/`stdout` explicitly), and a `Range`'s
+  end-of-line convention used `Number.MAX_SAFE_INTEGER`, overflowing LSP's `uinteger` wire type's
+  real `2^31-1` cap. 51 new tests (`packages/lsp`), including one real, unmocked
+  `vscode-languageserver` `Connection` over an in-memory stream pair exercising the actual wire
+  protocol end to end, not just individual handlers.
+- **073 — Per-IDE shims. Done (scoped), merged to `develop`, private/unpublished new
+  `packages/vscode-extension` workspace.** Thin packaging only, no logic — everything stays in
+  `nodum-lsp`. Delivered this pass: a VS Code extension (`nodum-vscode`, also covers Cursor/
+  Windsurf — same extension format) wrapping `vscode-languageclient` around `nodum-lsp` resolved
+  from `PATH`, plus `docs/guides/LSP-SETUP.md`'s Neovim/Helix config recipes (Zed's is documented
+  but explicitly flagged unverified). **Real, not simulated, packaging check**: built, bundled via
+  `esbuild` (`vscode-languageclient` inlined, only `vscode`+Node builtins left as real `require`
+  calls — confirmed by grepping the actual bundled output), packaged into a real `.vsix`, then
+  unzipped and inspected file-by-file (5 files, 139.74 KB). That real packaging attempt caught
+  three genuine bugs no amount of code review would have: a deep import that type-checks under
+  classic module resolution but throws `ERR_PACKAGE_PATH_NOT_EXPORTED` at real Node runtime
+  (reproduced directly before fixing), `vi.mock("vscode", ...)` not intercepting a dependency's
+  own transitive `require("vscode")` (worked around by splitting the one pure-logic function into
+  its own module), and `vsce package` defaulting to its own dependency resolution and walking
+  1845 files / 36+ MB across the entire monorepo via npm workspaces' hoisted `node_modules`
+  before failing outright (fixed with `--no-dependencies`, valid once `vscode-languageclient`
+  itself was bundled in). **Deferred, not delivered this pass, and said so directly rather than
+  quietly dropped**: the JetBrains/Android Studio plugin and the Visual Studio shim — both need
+  real in-IDE click-through verification this environment has no GUI to provide, and JetBrains
+  wasn't part of the explicit scope this pass; VS Code Marketplace publishing (packaged, not
+  submitted — a real externally-visible action needing separate authorization). Also **not**
+  verified: the packaged VS Code extension actually installed and working inside a running VS
+  Code instance — real module-resolution and packaging correctness were verified for real, but
+  the GUI click-through step from the original Test Plan is still owed by whoever installs the
+  `.vsix` next.
+- **074 — Xcode: scope honestly. Done (deferred) — closes the LSP arc.** Weighed both real build
+  options against deferral rather than picking the first idea: an Xcode Source Editor Extension
+  can only ever be a manually-invoked menu command (no diagnostics API, no persistent server
+  connection — a materially worse experience than specs 071-073 give every other editor); a
+  companion macOS app sidesteps Xcode's constraints by not integrating with Xcode at all, making
+  it a separate product on a separate stack, disproportionate to this spec's own "thin" framing.
+  Deferred (option 3) — the genuine exception, no general LSP client, no MCP client — with one
+  reason specific to how this decision itself was made: neither option could be verified for real
+  in this environment even if built (both need a real macOS GUI to click through, and a native app
+  would additionally need Apple Developer signing/notarization this environment has no credentials
+  for), and shipping either blind was judged worse than naming the gap honestly. Swift/ObjC
+  developers already have a real path today via the CLI/MCP server (specs 037-039 already parse
+  Swift/ObjC) in any MCP-speaking editor, or the VS Code extension from spec 073 — just not inside
+  Xcode itself. Full reasoning: `docs/development/completed/074-xcode-scoping/spec.md`; interim
+  path also recorded in this roadmap's "Next" section below, same posture as the Dart/Flutter and
+  server-auth entries there.
 
 **Success metrics change accordingly** — not GitHub stars or provider count, but **tokens spent
 per correct agent answer**, tracked per release against real repositories, per the v2.5.0
 measurement harness (now computed for real — see spec 064) — plus, for the LSP arc specifically,
-real verification against at least one non-MCP IDE client (Android Studio, per spec 073) as proof
-this reframe reached somewhere MCP alone couldn't.
+real verification against at least one non-MCP IDE client (Android Studio). **Still open**: spec
+073 scoped Android Studio's own JetBrains plugin out of this pass (see above), so that specific
+proof point remains outstanding, tracked honestly rather than assumed satisfied by the VS Code
+shim alone — VS Code already had an MCP-capable path (Copilot/Continue/etc.), so it isn't itself
+the reach-somewhere-new proof this framing is after.
 
 ---
 
@@ -734,7 +813,7 @@ implied by their absence.
     ("graph quality... numbers an agent can trust"), fixing real precision gaps in exactly the
     analyzers v3.0 depends on being trustworthy, rather than adding a new one.
 14. **Measurement instrument, then retrieval/cost fixes, then the first LSP-arc spec (v2.18.0,
-    specs `062`–`071`, merged, not yet released):** built the offline retrieval-quality harness and
+    specs `062`–`071`, shipped as real npm v2.17.1):** built the offline retrieval-quality harness and
     the `tokensPerCorrectAnswer` computation first (063-065) precisely so the ranking and
     token-cost fixes that followed (066-070) could each ship with a real before/after number
     instead of an estimate — the same "instrument before you optimize" discipline v2.5.0 set for
@@ -748,6 +827,32 @@ implied by their absence.
     vice versa. Spec 062 (dead-code CI/shell-invoked scripts) landed alongside this batch as a
     small, independent follow-on to v2.17.0's own accuracy audit, not itself part of the
     measurement/retrieval theme.
+15. **LSP capability surface, then its first real IDE shim (specs `072`–`073`, merged, not yet
+    released):** built the `nodum-lsp` binary first, verified against a real spawned process, then
+    packaged it for VS Code — the same "build the real thing, then verify with a real check, not a
+    mocked one" discipline every batch above uses, this time surfacing genuine bugs neither code
+    review nor a type-checker alone would have caught (a runtime-only module-exports crash in
+    spec 072's `createConnection` usage, a *different* runtime-only module-exports crash in spec
+    073's `vscode-languageclient` import, and `vsce`'s own dependency-resolution walking the whole
+    monorepo). Scope for 073 was deliberately narrowed mid-spec, disclosed rather than forced: the
+    JetBrains/Android Studio plugin and Visual Studio shim both need real in-IDE verification this
+    environment can't provide, so they're tracked as open, not silently dropped or claimed done.
+16. **Close the LSP arc with a real decision, not silence (spec `074`):** weighed both real Xcode
+    integration options against deferral before choosing — same discipline the roadmap already
+    applies to Dart/Flutter and `packages/server` auth, extended here to a decision made partly
+    *because* neither option was verifiable in this environment, not only because of Xcode's own
+    platform constraints. Closes 071-074 as a fully accounted-for arc: three specs shipped or
+    awaiting release, one closed by a documented, reasoned "no" — not left as a silently-missing
+    fourth item.
+17. **Pick up the smallest, least-blocked deferred item once the LSP arc closed (spec `075`):**
+    with `docs/development/refined/` empty and nothing left to release-cut, went back to this
+    roadmap's own "Next" section rather than starting a new speculative initiative — of the three
+    documented Kotlin `expect`/`actual` gaps, the class-body-member one was the only one with no
+    unbuilt prerequisite and no open "needs re-verification" question, so it was the correct next
+    pick, not an arbitrary one. Verified against a real fixture (no real KMP project with
+    `expect`/`actual` usage exists on this machine — confirmed before building one, not assumed),
+    surfacing a second real fix (cross-class matching scope) the original one-line description
+    didn't fully anticipate until member-level `platformModifier` tagging made it a real risk.
 
 ---
 
@@ -757,8 +862,10 @@ implied by their absence.
   own real verification evidence.
 - [`docs/development/active/`](./active/) — specs currently in progress (branched, PR open).
 - [`docs/development/refined/`](./refined/) — specs fully designed and ready to execute, not yet
-  branched — currently specs 072-074, the remaining LSP-arc work above (066-071 moved to
-  `completed/` as they landed).
+  branched — currently empty. The LSP arc (071-074) is fully closed as of spec 074; the JetBrains
+  plugin, Visual Studio shim, and Xcode are all tracked as deferred future work in this roadmap's
+  own prose (the "Universal IDE reach via LSP" section and "Next" above), not yet given their own
+  spec numbers.
 - [`benchmarks/README.md`](../../benchmarks/README.md) — the measurement harness referenced
   throughout this roadmap.
 - [`benchmarks/retrieval/`](../../benchmarks/retrieval/) — the offline retrieval evaluation

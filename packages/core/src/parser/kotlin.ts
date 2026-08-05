@@ -174,6 +174,12 @@ export class KotlinParser extends TreeSitterParser {
         const memberBody = child.namedChildren.find(c => c?.type === 'function_body');
         const dupSignals = memberBody ? buildDuplicateSignals(collectNormalizedTokens(memberBody)) : {};
         const methodId = normalizeNodeId(file.path, `${typeName}#${memberName}`, 'method');
+        // A member's own explicit modifier wins if present (real code does
+        // sometimes redundantly repeat it); otherwise it inherits the
+        // enclosing type's — real Kotlin semantics, where a class member is
+        // implicitly expect/actual by virtue of its enclosing
+        // expect/actual class (spec 075).
+        const memberPlatformModifier = kotlinPlatformModifier(child) ?? platformModifier;
         nodes.push({
           id: methodId,
           label: memberName,
@@ -184,6 +190,7 @@ export class KotlinParser extends TreeSitterParser {
           ...(memberBody ? { complexity: computeComplexity(memberBody) } : {}),
           ...(memberBody ? { cognitiveComplexity: computeCognitiveComplexity(memberBody, KOTLIN_COGNITIVE_CONFIG, memberName) } : {}),
           ...dupSignals,
+          ...(memberPlatformModifier ? { platformModifier: memberPlatformModifier } : {}),
         });
         edges.push({ source: typeId, target: methodId, relation: 'defines' });
         if (memberBody) callables.push({ nodeId: methodId, name: memberName, body: memberBody });
