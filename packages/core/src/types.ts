@@ -8,7 +8,10 @@ import type { NodeCluster } from './analyzer/clustering.js';
  * Swift/ObjC protocols are similar but not identical concepts, and keeping
  * them distinct avoids conflating a Java `interface` node with a Swift
  * `protocol` node when a project mixes languages). `'extension'` has no
- * pre-036 equivalent at all.
+ * pre-036 equivalent at all. `'property'` (spec 076) is Kotlin-only so far —
+ * a top-level `val`/`var`, needed so a top-level `expect`/`actual` property
+ * pair has a node to tag with `platformModifier` at all; no other parser
+ * extracts a property/field as its own node.
  */
 export type NodeType =
   | 'file'
@@ -19,7 +22,8 @@ export type NodeType =
   | 'struct'
   | 'enum'
   | 'protocol'
-  | 'extension';
+  | 'extension'
+  | 'property';
 /**
  * `'calls'` (spec 034) is same-file only: emitted when a function/method
  * calls another function/method defined in the same file, resolved by a

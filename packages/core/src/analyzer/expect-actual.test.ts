@@ -175,6 +175,16 @@ describe("applyExpectActual", () => {
     ]);
   });
 
+  it("links a top-level expect/actual property pair the same generic way as a function (spec 076)", () => {
+    const expectNode = funcNode("e", "platformModule", { module: "app", sourceSet: "commonMain", platformModifier: "expect", type: "property" });
+    const actualNode = funcNode("a", "platformModule", { module: "app", sourceSet: "androidMain", platformModifier: "actual", type: "property" });
+    const edges: Edge[] = [];
+
+    applyExpectActual([expectNode, actualNode], edges);
+
+    expect(edges).toEqual([{ source: "a", target: "e", relation: "actualizes" }]);
+  });
+
   it("does not overflow the call stack clearing a huge edges array — real regression found on a real ~200,000-edge project", () => {
     // Real check (not a synthetic worry): a real ~21,447-file KMP project's
     // actual stack trace pointed at the old `edges.push(...preserved)` line

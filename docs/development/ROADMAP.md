@@ -1,6 +1,8 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-08-05 · **Current release:** v2.17.2 (all four packages, lockstep; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2; specs 072-073 published too as part of the same v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code) · **Specs shipped:** 76 (`docs/development/completed/`) · **Specs fully designed, not yet started:** none — `docs/development/refined/` is currently empty
+**Last updated:** 2026-08-05 · **Current release:** v2.17.2 (all four packages, lockstep; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2; specs 072-073 published too as part of the same v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code) · **Specs shipped:** 77 (`docs/development/completed/`; spec 076 merged to `develop` but not yet
+version-cut — see its changeset under `.changeset/`) · **Specs fully designed, not yet started:**
+none — `docs/development/refined/` is currently empty
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -570,12 +572,19 @@ none was a hypothetical concern:
   instead against a fixture built to the exact `HttpClientEngineProvider.provideEngine` shape,
   synced with the real CLI, real `graph.json` inspected directly; a second class added to the same
   fixture with a same-named member confirmed zero cross-class false positives in the real output.
-- **`expect`/`actual` on top-level properties (`val`/`var`) can't be detected**, because this parser
-  has never extracted Kotlin top-level properties as graph nodes *at all* — a pre-existing
-  limitation, not introduced by spec 055. A real `expect val platformModule: Module` declaration in
-  the verification project was confirmed correctly left untagged (there is no node to tag). Fixing
-  this for real would mean adding top-level-property node extraction as its own parser feature
-  first, not a small addition to the pairing logic. Still open.
+- **`expect`/`actual` on top-level properties (`val`/`var`) — closed by spec 076.** A top-level
+  `val`/`var` now gets a real `'property'` `NodeType` node (previously only its bare name was
+  tracked, via `declaredTopLevelNames`, for same-package dead-code resolution — no node existed to
+  tag with `platformModifier` at all). `applyExpectActual` needed zero changes to pick this up: it
+  already matched generically by `module + type + label`, so a `'property'`-typed node flows
+  through the exact same path a `'function'`-typed one always has. Verified against a fixture (no
+  real KMP project with `expect`/`actual` property usage exists on this machine, same situation
+  specs 055/075 documented) synced with the real CLI: a real `actualizes` edge linked the
+  `expect val platformModule`/`actual val platformModule` pair in the real output `graph.json`. One
+  real downstream bug this spec's own `npm run build` caught before any test ran:
+  `packages/lsp/src/graph-utils.ts`'s `Record<Node["type"], SymbolKind>` mapping became
+  non-exhaustive the moment `'property'` was added to `NodeType` — fixed with one line
+  (`property: SymbolKind.Property`).
 - **Matching is module + declaration kind + label only, with no package-path awareness** — this
   parser has never extracted Kotlin `package` declarations either. Verified sufficient against the
   one real project used for spec 055's verification (a same-name collision across two different
@@ -871,6 +880,15 @@ implied by their absence.
     `expect`/`actual` usage exists on this machine — confirmed before building one, not assumed),
     surfacing a second real fix (cross-class matching scope) the original one-line description
     didn't fully anticipate until member-level `platformModifier` tagging made it a real risk.
+18. **Close the second of the three Kotlin `expect`/`actual` gaps (spec `076`):** with the
+    class-body-member gap closed by spec 075, the top-level-property gap was next — unlike the
+    third (package-path-aware matching), it needed no re-verification against a second real KMP
+    project first, just a concrete, scoped implementation (a new `'property'` `NodeType`, extracted
+    the same way every other top-level declaration already is). `applyExpectActual` needed zero
+    code changes, confirming it really was already generic rather than accidentally
+    function/class-shaped. Its own `npm run build` step caught a real, otherwise-silent
+    exhaustiveness bug in `packages/lsp`'s `SymbolKind` mapping before any test ran — the kind of
+    downstream consumer a spec's own Scope section can't always name in advance.
 
 ---
 
