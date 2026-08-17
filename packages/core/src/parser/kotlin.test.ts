@@ -239,6 +239,20 @@ describe("KotlinParser expect/actual platform modifiers (spec 055)", () => {
     expect(nodes.find(n => n.label === "Foo")?.platformModifier).toBeUndefined();
     expect(nodes.find(n => n.label === "bar")?.platformModifier).toBeUndefined();
   });
+
+  it("tags a top-level expect val (spec 076)", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.kt", `expect val platformModule: Module\n`));
+    const property = nodes.find(n => n.label === "platformModule")!;
+    expect(property.type).toBe("property");
+    expect(property.platformModifier).toBe("expect");
+  });
+
+  it("tags a top-level actual val (spec 076)", async () => {
+    const { nodes } = await parser.parse(fileInfo("a.kt", `actual val platformModule: Module = Module()\n`));
+    const property = nodes.find(n => n.label === "platformModule")!;
+    expect(property.type).toBe("property");
+    expect(property.platformModifier).toBe("actual");
+  });
 });
 
 describe("KotlinParser member extraction", () => {
@@ -382,12 +396,13 @@ describe("KotlinParser referencedIdentifiers (same-package dead-code resolution)
 });
 
 describe("KotlinParser declaredTopLevelNames (same-package dead-code resolution)", () => {
-  it("includes a top-level property name even though it gets no Node of its own", async () => {
+  it("includes a top-level property name, and now also gets a real property Node (spec 076)", async () => {
     const src = `val commonModule = buildModule()\n`;
     const { nodes } = await parser.parse(fileInfo("CommonModule.kt", src));
     const fileNode = nodes.find(n => n.type === "file")!;
     expect(fileNode.declaredTopLevelNames).toEqual(["commonModule"]);
-    expect(nodes.map(n => n.type)).toEqual(["file"]); // no property Node created
+    expect(nodes.map(n => n.type)).toEqual(["file", "property"]);
+    expect(nodes.find(n => n.label === "commonModule")?.platformModifier).toBeUndefined();
   });
 
   it("includes top-level function and class names alongside property names", async () => {
