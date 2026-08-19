@@ -1,8 +1,9 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-08-05 · **Current release:** v2.17.2 (all four packages, lockstep; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2; specs 072-073 published too as part of the same v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code) · **Specs shipped:** 77 (`docs/development/completed/`; spec 076 merged to `develop` but not yet
+**Last updated:** 2026-08-19 · **Current release:** v2.17.2 (all four packages, lockstep; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2; specs 072-073 published too as part of the same v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code) · **Specs shipped:** 77 (`docs/development/completed/`; spec 076 merged to `develop` but not yet
 version-cut — see its changeset under `.changeset/`) · **Specs fully designed, not yet started:**
-none — `docs/development/refined/` is currently empty
+4 (`077`-`080`, `docs/development/refined/`) — the remaining "Next" items below, each written up
+ahead of time so the plan survives a session boundary; none branched yet
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -519,12 +520,21 @@ full detail in the "Universal IDE reach via LSP" section of v3.0.0 below and in 
 
 ## Next
 
-### Dart/Flutter — still its own future initiative
+**Four items below now have a fully-designed spec waiting in
+[`docs/development/refined/`](./refined/)** (077-080, written up 2026-08-19, not yet branched) —
+each entry names its own spec number so picking one up later means reading that spec, not
+re-deriving scope from this prose again.
+
+### Dart/Flutter — still its own future initiative (spec `080`, refined)
 KMP's own remaining prerequisite shipped in spec 055 (v2.12.0) — see above. Dart/Flutter is a
 separate initiative with its own real prerequisite: `pubspec.yaml` resolution — this codebase's
 first build-file reader — plus a decision on how to widen `Parser.resolveImport()`'s currently
 project-config-blind interface. Not a one-release-away item; needs its own scoped batch, same
-posture the v2.9.0 entry originally set for both KMP and Dart/Flutter together.
+posture the v2.9.0 entry originally set for both KMP and Dart/Flutter together. Spec 080's own
+scoping pass found one thing worth recording ahead of implementation: `tree-sitter-wasms` (already
+a vendored dependency for every other tree-sitter-backed parser here) already includes
+`tree-sitter-dart.wasm` — the grammar doesn't need sourcing from scratch, only the same empirical
+fidelity check spec 044 did for Kotlin's grammar before committing to it.
 
 ### Xcode — deferred (spec 074): no general LSP client, no MCP client
 Every other IDE the LSP arc named (Android Studio, Visual Studio, JetBrains, VS Code) has a real
@@ -541,19 +551,23 @@ nodum context via the CLI or MCP server (specs 037-039 already parse Swift/ObjC 
 MCP-speaking editor, or the VS Code extension from spec 073 — just not inside Xcode itself. Revisit
 if Apple ever exposes a real LSP-client mechanism in Xcode, not on a fixed timeline.
 
-### Cross-language duplication detection — still blocked on an unbuilt prerequisite
+### Cross-language duplication detection — still blocked on an unbuilt prerequisite (spec `079`, refined)
 Specs 048 and 052 (v2.10.0/v2.11.0) built the same-language near-duplicate *lookup* and *grouping*
 prerequisites this roadmap named since v2.1.0. A cross-language layer on top still cannot be built
 as an extension of either — different languages produce disjoint token vocabularies by
-construction, so it needs its own similarity mechanism entirely, deferred as its own future spec,
-not restated as imminent.
+construction, so it needs its own similarity mechanism entirely. Spec 079 scopes this as a real
+research question first (a language-agnostic control-flow vocabulary collapsed from each parser's
+existing per-node-type tokens, calibrated against real hand-ported same-logic pairs before any
+threshold is trusted) — not restated as imminent, and honestly allowed to conclude "not viable
+yet" if the real calibration doesn't hold up.
 
-### `packages/server` real authentication — considered and declined again for v2.12.0
-Re-considered during this batch's `packages/server`-adjacent research (which instead found and
-fixed the broken viewer Sync button, spec 053) and still judged not worth building: the residual
-risk requires a deliberate `NODUM_HOST` opt-in to a non-loopback bind, and the package remains
-read-only/metadata-only. A token/session auth scheme for that specific opt-in case remains a real
-future item, not urgent enough to force into a batch twice in a row now.
+### `packages/server` real authentication — considered and declined twice, third look scoped (spec `078`, refined)
+Re-considered during v2.12.0's `packages/server`-adjacent research (which instead found and fixed
+the broken viewer Sync button, spec 053) and still judged not worth building at the time: the
+residual risk requires a deliberate `NODUM_HOST` opt-in to a non-loopback bind, and the package
+remains read-only/metadata-only. Spec 078 scopes a third, real look — confirm it's still not
+urgent (a real decision, documented either way) before building a minimal single-static-token
+scheme gated to the already-opt-in wider-bind path only.
 
 ### Kotlin `expect`/`actual` — real refinements found during spec 055, one closed, two still open
 Spec 055 (v2.12.0) scoped `expect`/`actual` edge detection to top-level functions and types
@@ -585,12 +599,14 @@ none was a hypothetical concern:
   `packages/lsp/src/graph-utils.ts`'s `Record<Node["type"], SymbolKind>` mapping became
   non-exhaustive the moment `'property'` was added to `NodeType` — fixed with one line
   (`property: SymbolKind.Property`).
-- **Matching is module + declaration kind + label only, with no package-path awareness** — this
-  parser has never extracted Kotlin `package` declarations either. Verified sufficient against the
-  one real project used for spec 055's verification (a same-name collision across two different
-  modules was already disambiguated by module-scoping alone), but this is a verified-sufficient-once
-  finding, not a proof that every real project's naming can't collide within a single module. Worth
-  re-checking against a second real KMP project before treating it as fully settled. Still open.
+- **Matching is module + declaration kind + label only, with no package-path awareness — spec `077`
+  (refined) scopes the re-check.** This parser has never extracted Kotlin `package` declarations
+  either. Verified sufficient against the one real project used for spec 055's verification (a
+  same-name collision across two different modules was already disambiguated by module-scoping
+  alone), but this is a verified-sufficient-once finding, not a proof that every real project's
+  naming can't collide within a single module. Spec 077 scopes finding a second real KMP project
+  and only implementing package-path-aware matching if a real collision actually turns up — closing
+  this the same "verify before building" way 077/078/079 all now share.
 
 ### Closed: the Node `v25.9.0` large-project sync crash (spec 060 resolved it)
 Originally discovered during spec 055's real end-to-end verification (a real ~21,447-file Kotlin
@@ -898,7 +914,10 @@ implied by their absence.
   own real verification evidence.
 - [`docs/development/active/`](./active/) — specs currently in progress (branched, PR open).
 - [`docs/development/refined/`](./refined/) — specs fully designed and ready to execute, not yet
-  branched — currently empty. The LSP arc (071-074) is fully closed as of spec 074; the JetBrains
+  branched. Currently holds `077`-`080`: the four remaining "Next" items below, each written up in
+  full ahead of when they'll actually be picked up (Kotlin `expect`/`actual` package-path
+  re-verification, `packages/server` auth's third look, cross-language duplication's research
+  step, and Dart/Flutter). The LSP arc (071-074) is fully closed as of spec 074; the JetBrains
   plugin, Visual Studio shim, and Xcode are all tracked as deferred future work in this roadmap's
   own prose (the "Universal IDE reach via LSP" section and "Next" above), not yet given their own
   spec numbers.
