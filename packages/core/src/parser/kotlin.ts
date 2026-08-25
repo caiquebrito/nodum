@@ -237,16 +237,39 @@ export class KotlinParser extends TreeSitterParser {
     }
 
     // Top-level `val`/`var` declarations (e.g. a Koin `val commonModule =
-    // module { ... }`) — deliberately not extracted as their own `Node`
-    // (no dedicated NodeType for a property, matching the platformModifier
-    // doc comment's own scope note), just their bare name, so same-package
-    // usage resolution (see `Node.declaredTopLevelNames`) can still see
-    // them even though nothing else about them is tracked.
+    // module { ... }`, or a KMP `expect val platformModule: Module`) — get a
+    // real `'property'` node (spec 076) so an `expect`/`actual` pair on a
+    // top-level property has something for `applyExpectActual` to tag and
+    // match, the same generic `module + type + label` path every other
+    // declaration kind already flows through. No complexity/duplicateHash —
+    // a property has no body to measure. `declaredTopLevelNames` keeps
+    // collecting the bare name unconditionally, same as before this spec —
+    // `usedBySamePackageSibling` in dead-code.ts already unions it with real
+    // node labels for the same file, so this is additive, not a behavior
+    // change there.
+    const seenPropertyNames = new Set<string>();
     for (const defNode of root.namedChildren) {
       if (defNode?.type !== 'property_declaration') continue;
       const varDecl = defNode.namedChildren.find(c => c?.type === 'variable_declaration');
       const nameNode = varDecl?.namedChildren.find(c => c?.type === 'simple_identifier');
-      if (nameNode) declaredTopLevelNames.add(nameNode.text);
+      if (!nameNode) continue;
+      const name = nameNode.text;
+      declaredTopLevelNames.add(name);
+      if (seenPropertyNames.has(name)) continue;
+      seenPropertyNames.add(name);
+
+      const platformModifier = kotlinPlatformModifier(defNode);
+      const propertyId = normalizeNodeId(file.path, name, 'property');
+      nodes.push({
+        id: propertyId,
+        label: name,
+        type: 'property',
+        file: file.path,
+        group: getNodeGroup(file.path),
+        line: defNode.startPosition.row + 1,
+        ...(platformModifier ? { platformModifier } : {}),
+      });
+      edges.push({ source: fileId, target: propertyId, relation: 'defines' });
     }
 
     extractCalls(callables, edges);

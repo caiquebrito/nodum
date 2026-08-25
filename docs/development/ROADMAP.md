@@ -1,6 +1,9 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-08-05 · **Current release:** v2.17.1 (all four packages, lockstep; specs 062-071 published; specs 072-073 merged to `develop`, private/unpublished new `packages/lsp` + `packages/vscode-extension` workspaces, awaiting the next release cut; spec 074 closed via a documented deferral, no code; spec 075 merged to `develop`, a real `@caiquebrito/nodum-core` fix awaiting the next release cut) · **Specs shipped:** 76 (`docs/development/completed/`) · **Specs fully designed, not yet started:** none — `docs/development/refined/` is currently empty
+**Last updated:** 2026-08-19 · **Current release:** v2.17.2 (all four packages, lockstep; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2; specs 072-073 published too as part of the same v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code) · **Specs shipped:** 77 (`docs/development/completed/`; spec 076 merged to `develop` but not yet
+version-cut — see its changeset under `.changeset/`) · **Specs fully designed, not yet started:**
+4 (`077`-`080`, `docs/development/refined/`) — the remaining "Next" items below, each written up
+ahead of time so the plan survives a session boundary; none branched yet
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -496,16 +499,42 @@ nightly `benchmark-accuracy.yml` run against a real API budget, not from this ba
 verification; the next scheduled run will be the first release this baseline exists to diff
 against.
 
+### LSP arc + Kotlin expect/actual member linking — shipped as real npm v2.17.2 (specs `072`–`075`)
+A patch release (every changeset in the batch was scoped `patch`, same numbering caveat as
+v2.18.0's own v2.17.1) closing the LSP arc's build-and-package work and one real accuracy fix,
+full detail in the "Universal IDE reach via LSP" section of v3.0.0 below and in each spec's own
+`docs/development/completed/` writeup:
+- **072 — `nodum-lsp`**: a real Language Server Protocol binary over the graph (private/
+  unpublished `packages/lsp` workspace — this release's version bump came from spec 075's
+  `nodum-core` fix, not from 072/073 themselves, since neither touches a published package).
+- **073 — `nodum-vscode`**: a VS Code extension wrapping `vscode-languageclient` around
+  `nodum-lsp` (private/unpublished `packages/vscode-extension`), plus Neovim/Helix/Zed setup docs.
+  Scoped to VS Code this pass — JetBrains/Android Studio and Visual Studio deferred, both needing
+  real in-IDE verification unavailable in this environment.
+- **074 — Xcode**: closed via a documented deferral, no code shipped (nothing to publish).
+- **075 — Kotlin `expect`/`actual` class-body members**: the one real `@caiquebrito/nodum-core`
+  change in this release — class-body methods now get tagged and correctly linked, closing the
+  first of three real gaps spec 055 documented as follow-ups.
+
 ---
 
 ## Next
 
-### Dart/Flutter — still its own future initiative
+**Four items below now have a fully-designed spec waiting in
+[`docs/development/refined/`](./refined/)** (077-080, written up 2026-08-19, not yet branched) —
+each entry names its own spec number so picking one up later means reading that spec, not
+re-deriving scope from this prose again.
+
+### Dart/Flutter — still its own future initiative (spec `080`, refined)
 KMP's own remaining prerequisite shipped in spec 055 (v2.12.0) — see above. Dart/Flutter is a
 separate initiative with its own real prerequisite: `pubspec.yaml` resolution — this codebase's
 first build-file reader — plus a decision on how to widen `Parser.resolveImport()`'s currently
 project-config-blind interface. Not a one-release-away item; needs its own scoped batch, same
-posture the v2.9.0 entry originally set for both KMP and Dart/Flutter together.
+posture the v2.9.0 entry originally set for both KMP and Dart/Flutter together. Spec 080's own
+scoping pass found one thing worth recording ahead of implementation: `tree-sitter-wasms` (already
+a vendored dependency for every other tree-sitter-backed parser here) already includes
+`tree-sitter-dart.wasm` — the grammar doesn't need sourcing from scratch, only the same empirical
+fidelity check spec 044 did for Kotlin's grammar before committing to it.
 
 ### Xcode — deferred (spec 074): no general LSP client, no MCP client
 Every other IDE the LSP arc named (Android Studio, Visual Studio, JetBrains, VS Code) has a real
@@ -522,26 +551,30 @@ nodum context via the CLI or MCP server (specs 037-039 already parse Swift/ObjC 
 MCP-speaking editor, or the VS Code extension from spec 073 — just not inside Xcode itself. Revisit
 if Apple ever exposes a real LSP-client mechanism in Xcode, not on a fixed timeline.
 
-### Cross-language duplication detection — still blocked on an unbuilt prerequisite
+### Cross-language duplication detection — still blocked on an unbuilt prerequisite (spec `079`, refined)
 Specs 048 and 052 (v2.10.0/v2.11.0) built the same-language near-duplicate *lookup* and *grouping*
 prerequisites this roadmap named since v2.1.0. A cross-language layer on top still cannot be built
 as an extension of either — different languages produce disjoint token vocabularies by
-construction, so it needs its own similarity mechanism entirely, deferred as its own future spec,
-not restated as imminent.
+construction, so it needs its own similarity mechanism entirely. Spec 079 scopes this as a real
+research question first (a language-agnostic control-flow vocabulary collapsed from each parser's
+existing per-node-type tokens, calibrated against real hand-ported same-logic pairs before any
+threshold is trusted) — not restated as imminent, and honestly allowed to conclude "not viable
+yet" if the real calibration doesn't hold up.
 
-### `packages/server` real authentication — considered and declined again for v2.12.0
-Re-considered during this batch's `packages/server`-adjacent research (which instead found and
-fixed the broken viewer Sync button, spec 053) and still judged not worth building: the residual
-risk requires a deliberate `NODUM_HOST` opt-in to a non-loopback bind, and the package remains
-read-only/metadata-only. A token/session auth scheme for that specific opt-in case remains a real
-future item, not urgent enough to force into a batch twice in a row now.
+### `packages/server` real authentication — considered and declined twice, third look scoped (spec `078`, refined)
+Re-considered during v2.12.0's `packages/server`-adjacent research (which instead found and fixed
+the broken viewer Sync button, spec 053) and still judged not worth building at the time: the
+residual risk requires a deliberate `NODUM_HOST` opt-in to a non-loopback bind, and the package
+remains read-only/metadata-only. Spec 078 scopes a third, real look — confirm it's still not
+urgent (a real decision, documented either way) before building a minimal single-static-token
+scheme gated to the already-opt-in wider-bind path only.
 
 ### Kotlin `expect`/`actual` — real refinements found during spec 055, one closed, two still open
 Spec 055 (v2.12.0) scoped `expect`/`actual` edge detection to top-level functions and types
 (`class`/`interface`/`enum`/`object`). Real end-to-end verification against a genuine KMP project
 found three further real gaps — documented here rather than left implied by their absence, since
 none was a hypothetical concern:
-- **`expect class` members are not walked — closed by spec 075, merged, not yet released.** A
+- **`expect class` members are not walked — closed by spec 075, shipped as real npm v2.17.2.** A
   nested declaration inside an `expect`/`actual class` body (the real verification project's own
   `HttpClientEngineProvider.provideEngine` case) got no `platformModifier` at all before this spec.
   Fixed: a member's own explicit modifier wins if present, else it inherits the enclosing type's —
@@ -553,18 +586,27 @@ none was a hypothetical concern:
   instead against a fixture built to the exact `HttpClientEngineProvider.provideEngine` shape,
   synced with the real CLI, real `graph.json` inspected directly; a second class added to the same
   fixture with a same-named member confirmed zero cross-class false positives in the real output.
-- **`expect`/`actual` on top-level properties (`val`/`var`) can't be detected**, because this parser
-  has never extracted Kotlin top-level properties as graph nodes *at all* — a pre-existing
-  limitation, not introduced by spec 055. A real `expect val platformModule: Module` declaration in
-  the verification project was confirmed correctly left untagged (there is no node to tag). Fixing
-  this for real would mean adding top-level-property node extraction as its own parser feature
-  first, not a small addition to the pairing logic. Still open.
-- **Matching is module + declaration kind + label only, with no package-path awareness** — this
-  parser has never extracted Kotlin `package` declarations either. Verified sufficient against the
-  one real project used for spec 055's verification (a same-name collision across two different
-  modules was already disambiguated by module-scoping alone), but this is a verified-sufficient-once
-  finding, not a proof that every real project's naming can't collide within a single module. Worth
-  re-checking against a second real KMP project before treating it as fully settled. Still open.
+- **`expect`/`actual` on top-level properties (`val`/`var`) — closed by spec 076.** A top-level
+  `val`/`var` now gets a real `'property'` `NodeType` node (previously only its bare name was
+  tracked, via `declaredTopLevelNames`, for same-package dead-code resolution — no node existed to
+  tag with `platformModifier` at all). `applyExpectActual` needed zero changes to pick this up: it
+  already matched generically by `module + type + label`, so a `'property'`-typed node flows
+  through the exact same path a `'function'`-typed one always has. Verified against a fixture (no
+  real KMP project with `expect`/`actual` property usage exists on this machine, same situation
+  specs 055/075 documented) synced with the real CLI: a real `actualizes` edge linked the
+  `expect val platformModule`/`actual val platformModule` pair in the real output `graph.json`. One
+  real downstream bug this spec's own `npm run build` caught before any test ran:
+  `packages/lsp/src/graph-utils.ts`'s `Record<Node["type"], SymbolKind>` mapping became
+  non-exhaustive the moment `'property'` was added to `NodeType` — fixed with one line
+  (`property: SymbolKind.Property`).
+- **Matching is module + declaration kind + label only, with no package-path awareness — spec `077`
+  (refined) scopes the re-check.** This parser has never extracted Kotlin `package` declarations
+  either. Verified sufficient against the one real project used for spec 055's verification (a
+  same-name collision across two different modules was already disambiguated by module-scoping
+  alone), but this is a verified-sufficient-once finding, not a proof that every real project's
+  naming can't collide within a single module. Spec 077 scopes finding a second real KMP project
+  and only implementing package-path-aware matching if a real collision actually turns up — closing
+  this the same "verify before building" way 077/078/079 all now share.
 
 ### Closed: the Node `v25.9.0` large-project sync crash (spec 060 resolved it)
 Originally discovered during spec 055's real end-to-end verification (a real ~21,447-file Kotlin
@@ -625,8 +667,8 @@ actually writes in.
 - **Real authentication for `packages/server`** — see the dedicated "Next" entry above; considered
   and declined twice now (v2.11.0 and v2.12.0) as not yet urgent enough to force in.
 
-**Universal IDE reach via LSP (specs `071`–`074` all closed — 071-073 merged to `develop` and
-awaiting the next release cut, 074 closed via a documented deferral, no code) — this extends the
+**Universal IDE reach via LSP (specs `071`–`074` all closed — 071-073 shipped as real npm
+v2.17.1/v2.17.2, 074 closed via a documented deferral, no code) — this extends the
 "no per-provider code" reasoning above, it doesn't contradict it.** The MCP-is-enough argument holds *for MCP-speaking
 clients*. Android Studio, Visual Studio, and every JetBrains IDE have no MCP client today and none
 is expected — MCP-only reach stops at the editors listed two bullets up. Language Server Protocol
@@ -646,8 +688,9 @@ already gave this project, applied to a protocol those specific IDEs actually su
   interface so `packages/query` needs the SDK only as a test-time devDependency, never at runtime.
   Verified via the full workspace suite green (922 tests, up from 920 pre-spec) and confirmed the
   moved code's behavior is byte-identical, not just re-exported.
-- **072 — LSP capability surface. Done, merged to `develop`, private/unpublished new
-  `packages/lsp` workspace, awaiting the next release cut.** A real `nodum-lsp` binary mapping
+- **072 — LSP capability surface. Done, shipped as real npm v2.17.2 (as a private/unpublished new
+  `packages/lsp` workspace — no npm-publish impact of its own; the version bump came from spec
+  075's `nodum-core` fix in the same release cut).** A real `nodum-lsp` binary mapping
   graph queries onto standard LSP requests: `workspace/symbol` (label-substring search over the
   graph, not `handleSearch`'s hybrid ranking — a deliberate deviation, an IDE quick-pick wants
   exact-name matches, not conversation-tuned relevance ranking), `textDocument/hover` (node
@@ -671,7 +714,7 @@ already gave this project, applied to a protocol those specific IDEs actually su
   real `2^31-1` cap. 51 new tests (`packages/lsp`), including one real, unmocked
   `vscode-languageserver` `Connection` over an in-memory stream pair exercising the actual wire
   protocol end to end, not just individual handlers.
-- **073 — Per-IDE shims. Done (scoped), merged to `develop`, private/unpublished new
+- **073 — Per-IDE shims. Done (scoped), shipped as real npm v2.17.2, private/unpublished new
   `packages/vscode-extension` workspace.** Thin packaging only, no logic — everything stays in
   `nodum-lsp`. Delivered this pass: a VS Code extension (`nodum-vscode`, also covers Cursor/
   Windsurf — same extension format) wrapping `vscode-languageclient` around `nodum-lsp` resolved
@@ -827,8 +870,8 @@ implied by their absence.
     vice versa. Spec 062 (dead-code CI/shell-invoked scripts) landed alongside this batch as a
     small, independent follow-on to v2.17.0's own accuracy audit, not itself part of the
     measurement/retrieval theme.
-15. **LSP capability surface, then its first real IDE shim (specs `072`–`073`, merged, not yet
-    released):** built the `nodum-lsp` binary first, verified against a real spawned process, then
+15. **LSP capability surface, then its first real IDE shim (specs `072`–`073`, shipped as real npm
+    v2.17.2):** built the `nodum-lsp` binary first, verified against a real spawned process, then
     packaged it for VS Code — the same "build the real thing, then verify with a real check, not a
     mocked one" discipline every batch above uses, this time surfacing genuine bugs neither code
     review nor a type-checker alone would have caught (a runtime-only module-exports crash in
@@ -841,8 +884,8 @@ implied by their absence.
     integration options against deferral before choosing — same discipline the roadmap already
     applies to Dart/Flutter and `packages/server` auth, extended here to a decision made partly
     *because* neither option was verifiable in this environment, not only because of Xcode's own
-    platform constraints. Closes 071-074 as a fully accounted-for arc: three specs shipped or
-    awaiting release, one closed by a documented, reasoned "no" — not left as a silently-missing
+    platform constraints. Closes 071-074 as a fully accounted-for arc: three specs shipped as real
+    npm v2.17.1/v2.17.2, one closed by a documented, reasoned "no" — not left as a silently-missing
     fourth item.
 17. **Pick up the smallest, least-blocked deferred item once the LSP arc closed (spec `075`):**
     with `docs/development/refined/` empty and nothing left to release-cut, went back to this
@@ -853,6 +896,15 @@ implied by their absence.
     `expect`/`actual` usage exists on this machine — confirmed before building one, not assumed),
     surfacing a second real fix (cross-class matching scope) the original one-line description
     didn't fully anticipate until member-level `platformModifier` tagging made it a real risk.
+18. **Close the second of the three Kotlin `expect`/`actual` gaps (spec `076`):** with the
+    class-body-member gap closed by spec 075, the top-level-property gap was next — unlike the
+    third (package-path-aware matching), it needed no re-verification against a second real KMP
+    project first, just a concrete, scoped implementation (a new `'property'` `NodeType`, extracted
+    the same way every other top-level declaration already is). `applyExpectActual` needed zero
+    code changes, confirming it really was already generic rather than accidentally
+    function/class-shaped. Its own `npm run build` step caught a real, otherwise-silent
+    exhaustiveness bug in `packages/lsp`'s `SymbolKind` mapping before any test ran — the kind of
+    downstream consumer a spec's own Scope section can't always name in advance.
 
 ---
 
@@ -862,7 +914,10 @@ implied by their absence.
   own real verification evidence.
 - [`docs/development/active/`](./active/) — specs currently in progress (branched, PR open).
 - [`docs/development/refined/`](./refined/) — specs fully designed and ready to execute, not yet
-  branched — currently empty. The LSP arc (071-074) is fully closed as of spec 074; the JetBrains
+  branched. Currently holds `077`-`080`: the four remaining "Next" items below, each written up in
+  full ahead of when they'll actually be picked up (Kotlin `expect`/`actual` package-path
+  re-verification, `packages/server` auth's third look, cross-language duplication's research
+  step, and Dart/Flutter). The LSP arc (071-074) is fully closed as of spec 074; the JetBrains
   plugin, Visual Studio shim, and Xcode are all tracked as deferred future work in this roadmap's
   own prose (the "Universal IDE reach via LSP" section and "Next" above), not yet given their own
   spec numbers.

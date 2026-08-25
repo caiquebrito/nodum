@@ -17,6 +17,7 @@ const SYMBOL_KIND_BY_NODE_TYPE: Record<Node["type"], SymbolKind> = {
   enum: SymbolKind.Enum,
   protocol: SymbolKind.Interface,
   extension: SymbolKind.Namespace,
+  property: SymbolKind.Property,
 };
 
 export function symbolKindForNode(node: Node): SymbolKind {
