@@ -7,6 +7,7 @@
       "@caiquebrito/nodum-core",
       "@caiquebrito/nodum-cli",
       "@caiquebrito/nodum-mcp",
+      "@caiquebrito/nodum-query",
       "@caiquebrito/nodum-server"
     ]
   ],
