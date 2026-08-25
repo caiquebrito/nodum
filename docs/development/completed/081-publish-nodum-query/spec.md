@@ -1,6 +1,20 @@
 # 081 — Publish `@caiquebrito/nodum-query` so `npm install -g @caiquebrito/nodum-mcp` works
 
-## Status: active — branch created, PR open
+## Status: done
+
+Shipped as designed: `packages/query/package.json` no longer has `"private": true`, and
+`@caiquebrito/nodum-query` was added to `.changeset/config.json`'s `fixed` group alongside
+`core`/`cli`/`mcp`/`server`. `npx changeset status` confirmed all five packages resolve to the
+same patch-bumped version with `.changeset/publish-nodum-query.md` in place. `npm run build && npm
+test --workspaces` stayed green at 986 tests (612 core, 127 query, 51 lsp, 5 vscode-extension, 119
+cli, 15 server, 18 mcp, 39 benchmarks), no regressions — this PR touched no source code.
+`cd packages/query && npm pack --dry-run` produced a normal dist-only tarball (61 files, 67.6kB),
+the same shape as `nodum-core`'s, confirming it's publish-ready. Merged via PR #158 once
+`build-and-test` went green, per the repo's merge policy.
+
+The registry-level fix (the 404 actually going away) still lands on the next `develop → main`
+release — publishing only happens through that release train (`docs/development/PUBLISH.md`), not
+this PR. That release hasn't run yet as of this spec's completion.
 
 ## Goal
 
