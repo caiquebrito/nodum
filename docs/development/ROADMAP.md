@@ -1,9 +1,9 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-08-19 · **Current release:** v2.17.2 (all four packages, lockstep; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2; specs 072-073 published too as part of the same v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code) · **Specs shipped:** 77 (`docs/development/completed/`; spec 076 merged to `develop` but not yet
+**Last updated:** 2026-08-26 · **Current release:** v2.17.3 (all five packages, lockstep — `@caiquebrito/nodum-query` joined the fixed group at spec 081; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2, spec 076's top-level-property fix and spec 081's `nodum-query` publish fix both published at v2.17.3; specs 072-073 published too as part of the v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code) · **Specs shipped:** 79 (`docs/development/completed/`; spec 078 merged to `develop` but not yet
 version-cut — see its changeset under `.changeset/`) · **Specs fully designed, not yet started:**
-4 (`077`-`080`, `docs/development/refined/`) — the remaining "Next" items below, each written up
-ahead of time so the plan survives a session boundary; none branched yet
+3 (`077`, `079`-`080`, `docs/development/refined/`) — the remaining "Next" items below, each
+written up ahead of time so the plan survives a session boundary; none branched yet
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -520,10 +520,11 @@ full detail in the "Universal IDE reach via LSP" section of v3.0.0 below and in 
 
 ## Next
 
-**Four items below now have a fully-designed spec waiting in
-[`docs/development/refined/`](./refined/)** (077-080, written up 2026-08-19, not yet branched) —
-each entry names its own spec number so picking one up later means reading that spec, not
-re-deriving scope from this prose again.
+**Three items below still have a fully-designed spec waiting in
+[`docs/development/refined/`](./refined/)** (077, 079-080, written up 2026-08-19, not yet
+branched) — each entry names its own spec number so picking one up later means reading that spec,
+not re-deriving scope from this prose again. `packages/server` auth (spec 078) was the fourth;
+it's now built — see the "Why this order" entry above and its own dedicated section below.
 
 ### Dart/Flutter — still its own future initiative (spec `080`, refined)
 KMP's own remaining prerequisite shipped in spec 055 (v2.12.0) — see above. Dart/Flutter is a
@@ -561,13 +562,25 @@ existing per-node-type tokens, calibrated against real hand-ported same-logic pa
 threshold is trusted) — not restated as imminent, and honestly allowed to conclude "not viable
 yet" if the real calibration doesn't hold up.
 
-### `packages/server` real authentication — considered and declined twice, third look scoped (spec `078`, refined)
+### `packages/server` real authentication — considered and declined twice, built the third time (spec `078`, done)
 Re-considered during v2.12.0's `packages/server`-adjacent research (which instead found and fixed
-the broken viewer Sync button, spec 053) and still judged not worth building at the time: the
-residual risk requires a deliberate `NODUM_HOST` opt-in to a non-loopback bind, and the package
-remains read-only/metadata-only. Spec 078 scopes a third, real look — confirm it's still not
-urgent (a real decision, documented either way) before building a minimal single-static-token
-scheme gated to the already-opt-in wider-bind path only.
+the broken viewer Sync button, spec 053) and judged not worth building at the time: the residual
+risk requires a deliberate `NODUM_HOST` opt-in to a non-loopback bind, and the package remains
+read-only/metadata-only. Spec 078's third look didn't overturn either prior decision as wrong —
+`~/.nodum/*/logs/metrics.jsonl` still has zero signal on real non-loopback usage, since it only
+ever instrumented MCP tool calls, never `nodum serve` — but found the specific condition those
+two declines both hinged on ("would a minimal scheme be cheap to add") now holds: `packages/
+viewer/app.js`'s plain-SPA `fetch()` calls needed only a `?token=` read from `location.search` and
+an `Authorization` header on two call sites, no session or login flow. Given the real exposure
+(full file paths/symbol names/dependency graph, zero credential, on any non-loopback bind) and a
+confirmed-small cost, built it rather than declining a third time: `createApp(dataDir, { token })`
+gates `/api/*` with `crypto.timingSafeEqual`, only when a token is passed — loopback stays exactly
+as before, verified via the untouched spec-047 `app.test.ts` cases. `nodum serve` generates and
+persists one token per data dir (`~/.nodum/server-token`) only on a non-loopback bind, prints it
+plus a ready-to-open `?token=...` URL. Verified against a real spawned `nodum serve
+--host 0.0.0.0` process, not just the unit-level test harness: no-token/wrong-token requests both
+got a real 401, the printed token worked via header and query param, and a second real
+loopback-default run confirmed zero token file was created and `/api/projects` stayed a bare 200.
 
 ### Kotlin `expect`/`actual` — real refinements found during spec 055, one closed, two still open
 Spec 055 (v2.12.0) scoped `expect`/`actual` edge detection to top-level functions and types
@@ -905,6 +918,25 @@ implied by their absence.
     function/class-shaped. Its own `npm run build` step caught a real, otherwise-silent
     exhaustiveness bug in `packages/lsp`'s `SymbolKind` mapping before any test ran — the kind of
     downstream consumer a spec's own Scope section can't always name in advance.
+19. **Publish the missing `@caiquebrito/nodum-query` package (spec `081`):** a user-reported
+    install failure, not roadmap-driven research — `npm install -g @caiquebrito/nodum-mcp` 404'd
+    on its own `nodum-query` dependency because spec 071 had deliberately marked it `private` for
+    workspace-only use and never added it to the publish group. Pure config fix (unmark private,
+    add to `.changeset/config.json`'s fixed group, add a changeset), no source changes, verified
+    via `npm pack --dry-run` matching `nodum-core`'s tarball shape.
+20. **Build `packages/server` auth on the third look (spec `078`):** of the three "Next" items
+    left once 081 landed, this was the only one with no unbuilt prerequisite (077 needs a second
+    real KMP project to test against; 079 is open-ended research). The research step this spec
+    required before writing any code found real signal was still absent
+    (`~/.nodum/*/logs/metrics.jsonl` never instrumented `nodum serve` at all, loopback or not) but
+    the other half of the two prior declines' reasoning — "would a minimal scheme be cheap to
+    add" — no longer held: `packages/viewer/app.js`'s plain-SPA `fetch()` calls needed only a
+    `?token=` read from `location.search` and one header, no session/login flow. Verified against
+    a real spawned `nodum serve --host 0.0.0.0` process rather than only the unit-level
+    `app.test.ts` harness, and confirmed the untouched loopback-default path stays byte-for-byte
+    unaffected (no token file created, `/api/projects` still a bare 200) — the same "verify the
+    unchanged path stays unchanged" discipline the Kotlin `expect`/`actual` specs (075/076) above
+    applied to their own existing test suites.
 
 ---
 
@@ -914,13 +946,14 @@ implied by their absence.
   own real verification evidence.
 - [`docs/development/active/`](./active/) — specs currently in progress (branched, PR open).
 - [`docs/development/refined/`](./refined/) — specs fully designed and ready to execute, not yet
-  branched. Currently holds `077`-`080`: the four remaining "Next" items below, each written up in
-  full ahead of when they'll actually be picked up (Kotlin `expect`/`actual` package-path
-  re-verification, `packages/server` auth's third look, cross-language duplication's research
-  step, and Dart/Flutter). The LSP arc (071-074) is fully closed as of spec 074; the JetBrains
-  plugin, Visual Studio shim, and Xcode are all tracked as deferred future work in this roadmap's
-  own prose (the "Universal IDE reach via LSP" section and "Next" above), not yet given their own
-  spec numbers.
+  branched. Currently holds `077`, `079`-`080`: the three remaining "Next" items below, each
+  written up in full ahead of when they'll actually be picked up (Kotlin `expect`/`actual`
+  package-path re-verification, cross-language duplication's research step, and Dart/Flutter).
+  `packages/server` auth's third look (spec 078), the fourth item in this set, is now built —
+  see `docs/development/completed/078-server-auth/`. The LSP arc (071-074) is fully closed as of
+  spec 074; the JetBrains plugin, Visual Studio shim, and Xcode are all tracked as deferred future
+  work in this roadmap's own prose (the "Universal IDE reach via LSP" section and "Next" above),
+  not yet given their own spec numbers.
 - [`benchmarks/README.md`](../../benchmarks/README.md) — the measurement harness referenced
   throughout this roadmap.
 - [`benchmarks/retrieval/`](../../benchmarks/retrieval/) — the offline retrieval evaluation
