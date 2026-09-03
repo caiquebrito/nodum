@@ -48,6 +48,25 @@ Then Claude understands:
 npm install -g @caiquebrito/nodum-cli @caiquebrito/nodum-mcp
 ```
 
+#### Troubleshooting: `zsh: command not found: nodum` / `permission denied: nodum`
+
+npm's global bin directory isn't always on your `PATH` by default (common on locked-down
+corporate machines). Check where npm put it, and make sure that directory is on `PATH`:
+
+```bash
+npm prefix -g                          # e.g. /opt/homebrew or /usr/local
+ls "$(npm prefix -g)/bin" | grep nodum # should list nodum and nodum-mcp
+echo $PATH                             # does it include the bin dir above?
+```
+
+If the bin dir is missing from `$PATH`, add it to your shell profile (`~/.zshrc`):
+
+```bash
+export PATH="$(npm prefix -g)/bin:$PATH"
+```
+
+Then open a new terminal (or `source ~/.zshrc`) and try `nodum sync` again.
+
 ### 2. Sync Your Project
 
 ```bash
@@ -374,10 +393,13 @@ See [benchmarks/README.md](./benchmarks/README.md) for the suite's methodology.
 ```
 nodum/
 ├── packages/
-│   ├── core/           # Code parsing + graph generation
-│   ├── cli/            # Command-line interface
-│   ├── server/         # HTTP server (3D viewer)
-│   └── mcp/            # MCP server (Claude integration)
+│   ├── core/               # Code parsing + graph generation
+│   ├── query/              # Transport-neutral search/context logic (used by mcp)
+│   ├── cli/                # Command-line interface
+│   ├── server/             # HTTP server (3D viewer)
+│   ├── mcp/                # MCP server (Claude integration)
+│   ├── lsp/                # Language Server Protocol binary (nodum-lsp)
+│   └── vscode-extension/   # VS Code/Cursor/Windsurf extension
 ├── benchmarks/         # Token efficiency benchmarks & demos
 ├── docs/
 │   ├── guides/         # Getting started & usage
@@ -426,7 +448,7 @@ npm install -g .
 
 76 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.17.2** across all four packages (lockstep).
+**v2.17.2** across the five lockstep packages (`core`, `cli`, `mcp`, `query`, `server`).
 
 ### ✅ LSP arc + Kotlin expect/actual member linking (shipped as v2.17.2)
 - `nodum-lsp` (spec 072): a real Language Server Protocol binary over the graph — `workspace/symbol`,
@@ -696,4 +718,4 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 **[Get Started Now →](./docs/guides/SETUP-GUIDE.md)**
 
-**Version 2.16.0** · MIT License · No cloud, no subscriptions, no BS.
+**Version 2.17.2** · MIT License · No cloud, no subscriptions, no BS.
