@@ -1,8 +1,8 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-09-30 · **Current release:** v2.17.3 (all five packages, lockstep — `@caiquebrito/nodum-query` joined the fixed group at spec 081; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2, spec 076's top-level-property fix and spec 081's `nodum-query` publish fix both published at v2.17.3; specs 072-073 published too as part of the v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code; spec 077 closed via a documented re-verification, no code) · **Specs shipped:** 80 (`docs/development/completed/`; spec 078 merged to `develop` but not yet
+**Last updated:** 2026-09-30 · **Current release:** v2.17.3 (all five packages, lockstep — `@caiquebrito/nodum-query` joined the fixed group at spec 081; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2, spec 076's top-level-property fix and spec 081's `nodum-query` publish fix both published at v2.17.3; specs 072-073 published too as part of the v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code; spec 077 closed via a documented re-verification, no code; spec 079 closed via a real calibration finding it not viable at a usable threshold, no code) · **Specs shipped:** 81 (`docs/development/completed/`; spec 078 merged to `develop` but not yet
 version-cut — see its changeset under `.changeset/`) · **Specs fully designed, not yet started:**
-2 (`079`-`080`, `docs/development/refined/`) — the remaining "Next" items below, each
+1 (`080`, `docs/development/refined/`) — the remaining "Next" item below, each
 written up ahead of time so the plan survives a session boundary; none branched yet
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
@@ -520,13 +520,15 @@ full detail in the "Universal IDE reach via LSP" section of v3.0.0 below and in 
 
 ## Next
 
-**Two items below still have a fully-designed spec waiting in
-[`docs/development/refined/`](./refined/)** (079-080, written up 2026-08-19, not yet
-branched) — each entry names its own spec number so picking one up later means reading that spec,
-not re-deriving scope from this prose again. `packages/server` auth (spec 078) was the third;
-it's now built — see the "Why this order" entry above and its own dedicated section below. Kotlin
-`expect`/`actual` package-path matching (spec 077) was the fourth; it closed via a real
-re-verification with no code change — see its own dedicated section below.
+**One item below still has a fully-designed spec waiting in
+[`docs/development/refined/`](./refined/)** (080, written up 2026-08-19, not yet branched) — it
+names its own spec number so picking it up later means reading that spec, not re-deriving scope
+from this prose again. `packages/server` auth (spec 078) was the third; it's now built — see the
+"Why this order" entry above and its own dedicated section below. Kotlin `expect`/`actual`
+package-path matching (spec 077) was the fourth; it closed via a real re-verification with no code
+change — see its own dedicated section below. Cross-language duplication detection (spec 079) was
+the fifth; it closed via a real calibration finding the candidate signal not viable at a usable
+threshold, no code shipped — see its own dedicated section below.
 
 ### Dart/Flutter — still its own future initiative (spec `080`, refined)
 KMP's own remaining prerequisite shipped in spec 055 (v2.12.0) — see above. Dart/Flutter is a
@@ -554,15 +556,28 @@ nodum context via the CLI or MCP server (specs 037-039 already parse Swift/ObjC 
 MCP-speaking editor, or the VS Code extension from spec 073 — just not inside Xcode itself. Revisit
 if Apple ever exposes a real LSP-client mechanism in Xcode, not on a fixed timeline.
 
-### Cross-language duplication detection — still blocked on an unbuilt prerequisite (spec `079`, refined)
+### Cross-language duplication detection — researched, not viable at a usable threshold (spec `079`, done, no code)
 Specs 048 and 052 (v2.10.0/v2.11.0) built the same-language near-duplicate *lookup* and *grouping*
-prerequisites this roadmap named since v2.1.0. A cross-language layer on top still cannot be built
-as an extension of either — different languages produce disjoint token vocabularies by
-construction, so it needs its own similarity mechanism entirely. Spec 079 scopes this as a real
-research question first (a language-agnostic control-flow vocabulary collapsed from each parser's
-existing per-node-type tokens, calibrated against real hand-ported same-logic pairs before any
-threshold is trusted) — not restated as imminent, and honestly allowed to conclude "not viable
-yet" if the real calibration doesn't hold up.
+prerequisites this roadmap named since v2.1.0. Spec 079 built and calibrated the candidate
+cross-language mechanism those specs were blocked on: a language-agnostic control-flow vocabulary
+(`IF`/`FOR`/`WHILE`/`CATCH`/`CALL`/`RETURN`/`ASSIGN`/`LOGIC`/`TERNARY`/`CASE`, plus the existing
+`ID`/`LIT`) collapsed from each of the 6 non-TypeScript parsers' own grammar-node-type tokens
+(shapes verified empirically against the real vendored grammars first), MinHash/Jaccard-estimated
+over 5-gram shingles — architecturally identical to `similarity-signature.ts`'s existing
+same-language approach. Calibrated against 4 real hand-ported functions (deliberately varied
+shapes: guard-clause-plus-loop, accumulator-loop, multi-guard-plus-loop, pure iterative-
+accumulator) across 6 languages — 60 real same-function cross-language pairs scored 0.182–1.000
+(avg 0.473), 216 real different-function cross-language pairs scored 0.000–0.357 (avg 0.078). The
+averages separate clearly, but the tails overlap (0.182–0.357) enough that no single threshold is
+defensible: one high enough to exclude the real false-positive-adjacent case misses over a third of
+genuine matches; one low enough to catch most genuine matches admits real false positives. Root
+cause: collapsing to a ~12-symbol alphabet sheds the fine-grained structure same-language shingling
+relies on for clean separation, and real per-language idiom differences (Java's getter-chain
+`.getX().isEmpty()` vs. Go's direct field access, for one real example found during calibration) add
+noise a same-language signal never has to absorb. **Closed honestly as "not viable yet," matching
+this spec's own stated escape valve — no `crossLanguageSimilaritySignature`, no new
+`find_similar_code` mode shipped.** A future attempt would need a richer collapsed vocabulary or a
+fundamentally different (e.g. embedding-based) representation — out of this spec's own scope.
 
 ### `packages/server` real authentication — considered and declined twice, built the third time (spec `078`, done)
 Re-considered during v2.12.0's `packages/server`-adjacent research (which instead found and fixed
@@ -954,6 +969,16 @@ implied by their absence.
     Also found and cleaned up a stray duplicate spec (`refined/076-kotlin-package-path-matching`,
     an invalid reuse of the already-completed spec-076 number) that had reached the opposite
     conclusion without this spec's real verification data.
+22. **Research cross-language near-duplicate detection to a real verdict (spec `079`):** with the
+    two same-language prerequisites (048, 052) long built, this was the last unblocked "Next" item.
+    Built the candidate language-agnostic signal (a collapsed control-flow vocabulary over each
+    parser's own grammar-node-type tokens, grammar shapes verified empirically first) and
+    calibrated it against 4 real hand-ported functions across 6 languages — 60 real same-function
+    cross-language pairs vs. 216 real different-function pairs. The two distributions' averages
+    separated clearly (0.473 vs. 0.078) but their tails overlapped (0.182–0.357) enough that no
+    threshold was defensible without either missing over a third of genuine matches or admitting
+    real false positives. Closed honestly as "not viable yet," the exact escape valve this spec's
+    own Scope section named in advance — no code shipped, calibration numbers are the deliverable.
 
 ---
 
@@ -963,15 +988,16 @@ implied by their absence.
   own real verification evidence.
 - [`docs/development/active/`](./active/) — specs currently in progress (branched, PR open).
 - [`docs/development/refined/`](./refined/) — specs fully designed and ready to execute, not yet
-  branched. Currently holds `079`-`080`: the two remaining "Next" items below, each written up in
-  full ahead of when they'll actually be picked up (cross-language duplication's research step,
-  and Dart/Flutter). `packages/server` auth's third look (spec 078) and the Kotlin `expect`/
-  `actual` package-path re-verification (spec 077), the other two items originally in this set,
-  are both now closed — see `docs/development/completed/078-server-auth/` and
-  `docs/development/completed/077-kotlin-expect-actual-package-scoping/`. The LSP arc (071-074) is
-  fully closed as of spec 074; the JetBrains plugin, Visual Studio shim, and Xcode are all tracked
-  as deferred future work in this roadmap's own prose (the "Universal IDE reach via LSP" section
-  and "Next" above), not yet given their own spec numbers.
+  branched. Currently holds `080`: the one remaining "Next" item below, written up in full ahead
+  of when it'll actually be picked up (Dart/Flutter). `packages/server` auth's third look (spec
+  078), the Kotlin `expect`/`actual` package-path re-verification (spec 077), and cross-language
+  duplication's research step (spec 079) — the other three items originally in this set — are all
+  now closed. See `docs/development/completed/078-server-auth/`,
+  `docs/development/completed/077-kotlin-expect-actual-package-scoping/`, and
+  `docs/development/completed/079-cross-language-duplication/`. The LSP arc (071-074) is fully
+  closed as of spec 074; the JetBrains plugin, Visual Studio shim, and Xcode are all tracked as
+  deferred future work in this roadmap's own prose (the "Universal IDE reach via LSP" section and
+  "Next" above), not yet given their own spec numbers.
 - [`benchmarks/README.md`](../../benchmarks/README.md) — the measurement harness referenced
   throughout this roadmap.
 - [`benchmarks/retrieval/`](../../benchmarks/retrieval/) — the offline retrieval evaluation
