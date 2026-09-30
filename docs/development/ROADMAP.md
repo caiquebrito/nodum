@@ -1,8 +1,8 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-08-26 · **Current release:** v2.17.3 (all five packages, lockstep — `@caiquebrito/nodum-query` joined the fixed group at spec 081; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2, spec 076's top-level-property fix and spec 081's `nodum-query` publish fix both published at v2.17.3; specs 072-073 published too as part of the v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code) · **Specs shipped:** 79 (`docs/development/completed/`; spec 078 merged to `develop` but not yet
+**Last updated:** 2026-09-30 · **Current release:** v2.17.3 (all five packages, lockstep — `@caiquebrito/nodum-query` joined the fixed group at spec 081; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2, spec 076's top-level-property fix and spec 081's `nodum-query` publish fix both published at v2.17.3; specs 072-073 published too as part of the v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code; spec 077 closed via a documented re-verification, no code) · **Specs shipped:** 80 (`docs/development/completed/`; spec 078 merged to `develop` but not yet
 version-cut — see its changeset under `.changeset/`) · **Specs fully designed, not yet started:**
-3 (`077`, `079`-`080`, `docs/development/refined/`) — the remaining "Next" items below, each
+2 (`079`-`080`, `docs/development/refined/`) — the remaining "Next" items below, each
 written up ahead of time so the plan survives a session boundary; none branched yet
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
@@ -520,11 +520,13 @@ full detail in the "Universal IDE reach via LSP" section of v3.0.0 below and in 
 
 ## Next
 
-**Three items below still have a fully-designed spec waiting in
-[`docs/development/refined/`](./refined/)** (077, 079-080, written up 2026-08-19, not yet
+**Two items below still have a fully-designed spec waiting in
+[`docs/development/refined/`](./refined/)** (079-080, written up 2026-08-19, not yet
 branched) — each entry names its own spec number so picking one up later means reading that spec,
-not re-deriving scope from this prose again. `packages/server` auth (spec 078) was the fourth;
-it's now built — see the "Why this order" entry above and its own dedicated section below.
+not re-deriving scope from this prose again. `packages/server` auth (spec 078) was the third;
+it's now built — see the "Why this order" entry above and its own dedicated section below. Kotlin
+`expect`/`actual` package-path matching (spec 077) was the fourth; it closed via a real
+re-verification with no code change — see its own dedicated section below.
 
 ### Dart/Flutter — still its own future initiative (spec `080`, refined)
 KMP's own remaining prerequisite shipped in spec 055 (v2.12.0) — see above. Dart/Flutter is a
@@ -582,7 +584,7 @@ plus a ready-to-open `?token=...` URL. Verified against a real spawned `nodum se
 got a real 401, the printed token worked via header and query param, and a second real
 loopback-default run confirmed zero token file was created and `/api/projects` stayed a bare 200.
 
-### Kotlin `expect`/`actual` — real refinements found during spec 055, one closed, two still open
+### Kotlin `expect`/`actual` — real refinements found during spec 055, all three now closed
 Spec 055 (v2.12.0) scoped `expect`/`actual` edge detection to top-level functions and types
 (`class`/`interface`/`enum`/`object`). Real end-to-end verification against a genuine KMP project
 found three further real gaps — documented here rather than left implied by their absence, since
@@ -612,14 +614,19 @@ none was a hypothetical concern:
   `packages/lsp/src/graph-utils.ts`'s `Record<Node["type"], SymbolKind>` mapping became
   non-exhaustive the moment `'property'` was added to `NodeType` — fixed with one line
   (`property: SymbolKind.Property`).
-- **Matching is module + declaration kind + label only, with no package-path awareness — spec `077`
-  (refined) scopes the re-check.** This parser has never extracted Kotlin `package` declarations
-  either. Verified sufficient against the one real project used for spec 055's verification (a
-  same-name collision across two different modules was already disambiguated by module-scoping
-  alone), but this is a verified-sufficient-once finding, not a proof that every real project's
-  naming can't collide within a single module. Spec 077 scopes finding a second real KMP project
-  and only implementing package-path-aware matching if a real collision actually turns up — closing
-  this the same "verify before building" way 077/078/079 all now share.
+- **Matching is module + declaration kind + label only, with no package-path awareness — closed by
+  spec 077, verified sufficient, no code change.** This parser has never extracted Kotlin `package`
+  declarations. Spec 055 verified this sufficient against one real project (a same-name collision
+  across two different modules was already disambiguated by module-scoping alone), but flagged that
+  as verified-sufficient-once, not proof against every real project's naming. No second, distinct
+  real KMP project exists on this machine (confirmed by filesystem search), so spec 077
+  re-verified against the fullest real dataset available instead: a fresh, current, whole-repo
+  resync of the same `mobile-app-develop` monorepo (21,447 files, 135,367 nodes, 250,139 edges) —
+  a strict superset of spec 055's original 320-file hand-picked fixture. Direct inspection of the
+  real `graph.json` found 13 real `expect` nodes with zero same-`(module, type, label)` collisions,
+  and all 22 real `actualizes` edges pairing to the correct package on both sides — two-for-two
+  verified-sufficient, now at full-repo scale. No `Node.package` field, no `package_header`
+  extraction, no matching-logic change shipped.
 
 ### Closed: the Node `v25.9.0` large-project sync crash (spec 060 resolved it)
 Originally discovered during spec 055's real end-to-end verification (a real ~21,447-file Kotlin
@@ -925,7 +932,7 @@ implied by their absence.
     add to `.changeset/config.json`'s fixed group, add a changeset), no source changes, verified
     via `npm pack --dry-run` matching `nodum-core`'s tarball shape.
 20. **Build `packages/server` auth on the third look (spec `078`):** of the three "Next" items
-    left once 081 landed, this was the only one with no unbuilt prerequisite (077 needs a second
+    left once 081 landed, this was the only one with no unbuilt prerequisite (077 needed a second
     real KMP project to test against; 079 is open-ended research). The research step this spec
     required before writing any code found real signal was still absent
     (`~/.nodum/*/logs/metrics.jsonl` never instrumented `nodum serve` at all, loopback or not) but
@@ -937,6 +944,16 @@ implied by their absence.
     unaffected (no token file created, `/api/projects` still a bare 200) — the same "verify the
     unchanged path stays unchanged" discipline the Kotlin `expect`/`actual` specs (075/076) above
     applied to their own existing test suites.
+21. **Close the last of the three Kotlin `expect`/`actual` gaps (spec `077`):** no second, distinct
+    real KMP project exists on this machine (confirmed by filesystem search), so re-verified
+    against the fullest real dataset available instead — a fresh, current, whole-repo resync of the
+    same `mobile-app-develop` monorepo spec 055 originally hand-picked a 320-file fixture from, now
+    the real, current, full 21,447-file project. Zero same-`(module, type, label)` collisions among
+    the 13 real `expect` nodes, zero package mismatches across all 22 real `actualizes` edges — a
+    real, whole-repo-scale, two-for-two verified-sufficient finding, closed with no code change.
+    Also found and cleaned up a stray duplicate spec (`refined/076-kotlin-package-path-matching`,
+    an invalid reuse of the already-completed spec-076 number) that had reached the opposite
+    conclusion without this spec's real verification data.
 
 ---
 
@@ -946,14 +963,15 @@ implied by their absence.
   own real verification evidence.
 - [`docs/development/active/`](./active/) — specs currently in progress (branched, PR open).
 - [`docs/development/refined/`](./refined/) — specs fully designed and ready to execute, not yet
-  branched. Currently holds `077`, `079`-`080`: the three remaining "Next" items below, each
-  written up in full ahead of when they'll actually be picked up (Kotlin `expect`/`actual`
-  package-path re-verification, cross-language duplication's research step, and Dart/Flutter).
-  `packages/server` auth's third look (spec 078), the fourth item in this set, is now built —
-  see `docs/development/completed/078-server-auth/`. The LSP arc (071-074) is fully closed as of
-  spec 074; the JetBrains plugin, Visual Studio shim, and Xcode are all tracked as deferred future
-  work in this roadmap's own prose (the "Universal IDE reach via LSP" section and "Next" above),
-  not yet given their own spec numbers.
+  branched. Currently holds `079`-`080`: the two remaining "Next" items below, each written up in
+  full ahead of when they'll actually be picked up (cross-language duplication's research step,
+  and Dart/Flutter). `packages/server` auth's third look (spec 078) and the Kotlin `expect`/
+  `actual` package-path re-verification (spec 077), the other two items originally in this set,
+  are both now closed — see `docs/development/completed/078-server-auth/` and
+  `docs/development/completed/077-kotlin-expect-actual-package-scoping/`. The LSP arc (071-074) is
+  fully closed as of spec 074; the JetBrains plugin, Visual Studio shim, and Xcode are all tracked
+  as deferred future work in this roadmap's own prose (the "Universal IDE reach via LSP" section
+  and "Next" above), not yet given their own spec numbers.
 - [`benchmarks/README.md`](../../benchmarks/README.md) — the measurement harness referenced
   throughout this roadmap.
 - [`benchmarks/retrieval/`](../../benchmarks/retrieval/) — the offline retrieval evaluation
