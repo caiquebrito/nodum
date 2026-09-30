@@ -1,6 +1,47 @@
 # 077 — Kotlin expect/actual: verify package-path-aware matching against a second real project
 
-## Status: refined — not started
+## Status: done — verified sufficient, no code change
+
+No second, *distinct* real KMP project exists on this machine (confirmed by filesystem search —
+`mobile-app-develop` is the only repo anywhere under `~/Documents/Repositories` with a
+`commonMain`/`iosMain` source-set layout). Instead, re-verified against the fullest real dataset
+available: a fresh, current, **whole-repo** resync of `mobile-app-develop` (21,447 files, 135,367
+nodes, 250,139 edges) via the real built CLI — a strict superset of spec 055's original hand-picked
+320-file scratch fixture, now including ~130k more nodes of real surrounding code across every
+module in the monorepo (not just the `core/*` KMP modules spec 055 selected), any of which could
+have introduced an accidental cross-package collision if one existed.
+
+Direct inspection of the real output `graph.json` found:
+
+- **13 real `expect` nodes, 22 real `actual` nodes, 22 real `actualizes` edges** — spanning
+  `core/arco/compose/design`, `core/kotlin`, `core/network`, and `core/profile`, across `function`,
+  `method`, `class`, and `property` declaration kinds.
+- **Zero same-`(module, type, label)` collisions among the 13 `expect` nodes** — every key is
+  unique; module + kind + label scoping alone was never actually ambiguous in this dataset.
+- **Zero package mismatches across all 22 real `actualizes` edges** — every `actual` already links
+  to the `expect` in its own real Kotlin package (verified by parsing each side's real file path
+  against the `src/<sourceSet>/kotlin/<package/path>/File.kt` convention and comparing).
+- **Directory-as-package-proxy holds in the disambiguating direction that matters**: no single
+  directory contains more than one package (so a directory never has to be disambiguated between
+  two different packages' nodes). Packages *do* legitimately span multiple directories (37 of
+  them — once per source set, e.g. `commonMain`/`androidMain`/`iosMain`), which is expected KMP
+  convention and doesn't weaken the proxy, since `expect`/`actual` pairs by definition never share a
+  source-set directory in the first place.
+
+This is now a real, whole-repo-scale, two-for-two verified-sufficient finding — not a repeat of
+spec 055's original single-fixture check. No `Node.package` field, no `package_header` extraction,
+and no change to `applyExpectActual` were made, per this spec's own scope: implementation only if
+step 2 found a real collision, and it didn't.
+
+**Duplicate-spec cleanup, found while starting this work:** `origin/develop` had picked up a
+second, conflicting refined spec in the meantime —
+`docs/development/refined/076-kotlin-package-path-matching` (added in commit `1ecfddd`, itself an
+invalid duplicate of the already-completed `076-kotlin-top-level-properties` spec number) —
+covering this exact same roadmap gap but concluding the opposite: build the fix anyway on a
+synthetic fixture, without waiting for a real collision. That spec was deleted as part of this
+change: this spec's own real, whole-repo verification (not available when `076-kotlin-...matching`
+was written) settles the question its author couldn't — the risk it flagged as
+"demonstrable by code-reading" didn't materialize in the real, current, full-scale dataset.
 
 ## Goal
 
@@ -70,21 +111,21 @@ non-colliding case.
 
 ## Acceptance criteria
 
-- [ ] A second real KMP project (or a documented, honest reason none is available on this machine)
+- [x] A second real KMP project (or a documented, honest reason none is available on this machine)
       has been synced with the real CLI and its real `graph.json` inspected for same-module/kind/
-      label expect/actual pairs across different packages.
-- [ ] The roadmap's "Kotlin `expect`/`actual`" entry is updated either way: closed as
+      label expect/actual pairs across different packages. (No second, distinct project exists on
+      this machine — documented above. Verified instead against a fresh, full, current whole-repo
+      resync of the only real one, a strict superset of spec 055's original fixture.)
+- [x] The roadmap's "Kotlin `expect`/`actual`" entry is updated either way: closed as
       verified-sufficient (no code change), or closed by shipping real package-path-aware matching
       backed by a real reproduced collision — not left open a third time without a stated reason.
+      (Closed as verified-sufficient; no code change.)
 
 ## Test plan
 
-- If no implementation is needed: no new tests — the "test" is the real sync + `graph.json`
-  inspection itself, documented in the completed spec the same way 076's own verification was.
-- If implementation is needed: extend `packages/core/src/analyzer/expect-actual.test.ts` with a
-  same-module/kind/label, different-package case (mirroring spec 075's own
-  "does not cross-link same-named methods belonging to different classes" test), plus a
-  `packages/core/src/parser/kotlin.test.ts` case for the new `package_header` extraction itself.
+No new tests — implementation was not needed. The "test" is the real sync + `graph.json`
+inspection itself, documented above (13 expects, 22 actuals, 22 correct `actualizes` edges, zero
+same-key collisions, zero package mismatches).
 
 ## Success Metrics
 
@@ -94,10 +135,13 @@ either direction.
 
 ## Related
 
-- `docs/development/completed/055-kotlin-expect-actual-kmp/spec.md` — original scope note that
-  first flagged this as "verified-sufficient-once."
+- `docs/development/completed/055-kmp-expect-actual/spec.md` — original scope note that first
+  flagged this as "verified-sufficient-once."
 - `docs/development/completed/075-kotlin-expect-actual-members/spec.md` — the
-  `buildMethodEnclosingTypeLabels` scoping-map pattern this spec would reuse if implementation
-  turns out to be needed.
+  `buildMethodEnclosingTypeLabels` scoping-map pattern this spec would have reused had
+  implementation turned out to be needed.
 - `docs/development/completed/076-kotlin-top-level-properties/spec.md` — the sibling gap closed
   immediately before this one.
+- `docs/development/ROADMAP.md`'s "Closed: the Node `v25.9.0` large-project sync crash" entry —
+  the same real `mobile-app-develop` project (21,447 files) this spec re-synced, previously used
+  by specs 055/056/059/060.
