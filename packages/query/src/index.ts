@@ -20,5 +20,7 @@ export {
   handleExplainArchitecture,
   handleFindSimilarCode,
   handleSuggestRefactoring,
+  handleAddNote,
+  handleGetNotes,
   type TextContent,
 } from "./handlers.js";

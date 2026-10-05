@@ -106,6 +106,8 @@ const EXPECTED_TOOL_NAMES = [
   "explain_architecture",
   "find_similar_code",
   "suggest_refactoring",
+  "add_note",
+  "get_notes",
 ];
 
 async function loadIndex() {
@@ -120,7 +122,7 @@ describe("mcp index.ts (spec 057 — registerTool migration)", () => {
     vi.clearAllMocks();
   });
 
-  it("registers all 14 tools with zod inputSchemas", async () => {
+  it("registers all 16 tools with zod inputSchemas", async () => {
     const tools = await loadIndex();
     expect([...tools.keys()]).toEqual(EXPECTED_TOOL_NAMES);
     for (const name of EXPECTED_TOOL_NAMES) {

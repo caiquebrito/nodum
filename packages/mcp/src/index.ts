@@ -25,6 +25,8 @@ import {
   handleExplainArchitecture,
   handleFindSimilarCode,
   handleSuggestRefactoring,
+  handleAddNote,
+  handleGetNotes,
   NODUM_DATA_DIR,
 } from "@caiquebrito/nodum-query";
 
@@ -347,6 +349,31 @@ server.registerTool(
     },
   },
   withMetrics("suggest_refactoring", async (args) => handleSuggestRefactoring(args.project_name, args.complexity_threshold))
+);
+
+server.registerTool(
+  "add_note",
+  {
+    description:
+      "Record a short, timestamped note in a local, cross-session decision log (spec 082) — the cheap way to recover a decision or in-progress thread after a lost session, without re-deriving it from scratch. Capped at 50 entries; only the single latest note is auto-surfaced into the project's CLAUDE.md, so writing notes never grows per-prompt token cost.",
+    inputSchema: {
+      project_name: z.string().describe("Project name"),
+      text: z.string().describe("The note to record, e.g. 'closed spec 079, not viable, see PR 166'"),
+    },
+  },
+  withMetrics("add_note", async (args) => handleAddNote(args.project_name, args.text))
+);
+
+server.registerTool(
+  "get_notes",
+  {
+    description: "Read back the most recent entries from a project's local decision log (spec 082).",
+    inputSchema: {
+      project_name: z.string().describe("Project name"),
+      limit: z.number().optional().describe("Optional: how many recent entries to return (default 10)"),
+    },
+  },
+  withMetrics("get_notes", async (args) => handleGetNotes(args.project_name, args.limit))
 );
 
 async function main() {
