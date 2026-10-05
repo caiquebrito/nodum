@@ -1,7 +1,7 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-09-30 · **Current release:** v2.17.3 (all five packages, lockstep — `@caiquebrito/nodum-query` joined the fixed group at spec 081; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2, spec 076's top-level-property fix and spec 081's `nodum-query` publish fix both published at v2.17.3; specs 072-073 published too as part of the v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code; spec 077 closed via a documented re-verification, no code; spec 079 closed via a real calibration finding it not viable at a usable threshold, no code) · **Specs shipped:** 81 (`docs/development/completed/`; spec 078 merged to `develop` but not yet
-version-cut — see its changeset under `.changeset/`) · **Specs fully designed, not yet started:**
+**Last updated:** 2026-10-05 · **Current release:** v2.17.3 (all five packages, lockstep — `@caiquebrito/nodum-query` joined the fixed group at spec 081; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2, spec 076's top-level-property fix and spec 081's `nodum-query` publish fix both published at v2.17.3; specs 072-073 published too as part of the v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code; spec 077 closed via a documented re-verification, no code; spec 079 closed via a real calibration finding it not viable at a usable threshold, no code) · **Specs shipped:** 82 (`docs/development/completed/`; specs 078 and 082 merged to `develop` but not yet
+version-cut — see their changesets under `.changeset/`) · **Specs fully designed, not yet started:**
 1 (`080`, `docs/development/refined/`) — the remaining "Next" item below, each
 written up ahead of time so the plan survives a session boundary; none branched yet
 
@@ -599,6 +599,24 @@ plus a ready-to-open `?token=...` URL. Verified against a real spawned `nodum se
 got a real 401, the printed token worked via header and query param, and a second real
 loopback-default run confirmed zero token file was created and `/api/projects` stayed a bare 200.
 
+### Local decision log — cheap cross-session memory (spec `082`, done)
+Not roadmap-driven: raised directly in real usage — an API-key-billed, possibly-cache-broken
+corporate LLM proxy makes every token count, and a long Claude Code session can get lost entirely
+to a context limit or a `/clear`. nodum's existing memory layer (`SUMMARY.md`, `activity.md`, the
+`CLAUDE.md` sync-stats marker block) already persisted *structural* facts across sessions but
+nothing *narrative* (a decision made, a spec closed, a thing deliberately deferred) — a real,
+current gap this conversation's own closing of specs 077/079 made concrete. Shipped a small,
+deliberately capped append-only log: `nodum note "<message>"` / `nodum notes [--limit N]` (CLI)
+and `add_note`/`get_notes` (MCP tools, for the in-session path), all sharing one
+`<project>/memory/DECISIONS.md` file capped at the most recent 50 entries. The auto-injected
+`CLAUDE.md` block (a second, independent marker pair from the existing sync-stats one — refactored
+`claude-injector.ts`'s marker-replace logic into a shared `upsertMarkerBlock` helper to add it)
+shows only the single latest entry, never the full history — a deliberate design constraint so the
+recovery mechanism itself never becomes a new source of per-prompt token growth; full history is
+always an opt-in pull. Verified end to end against a real synced fixture: both marker blocks
+coexist, a re-sync leaves the notes block untouched, and two real notes round-tripped correctly
+through `nodum notes` while the injected block kept showing just the latest one.
+
 ### Kotlin `expect`/`actual` — real refinements found during spec 055, all three now closed
 Spec 055 (v2.12.0) scoped `expect`/`actual` edge detection to top-level functions and types
 (`class`/`interface`/`enum`/`object`). Real end-to-end verification against a genuine KMP project
@@ -979,6 +997,15 @@ implied by their absence.
     threshold was defensible without either missing over a third of genuine matches or admitting
     real false positives. Closed honestly as "not viable yet," the exact escape valve this spec's
     own Scope section named in advance — no code shipped, calibration numbers are the deliverable.
+23. **Ship a local decision log for cross-session memory (spec `082`):** not roadmap-driven —
+    raised directly in real usage on a corporate, API-key-billed, possibly-cache-broken LLM proxy,
+    where a lost session needs a cheap way to recover "what we decided" without resending or
+    re-deriving it. `appendDecisionLog`/`readDecisionLog` (capped at 50 entries) plus `nodum note`/
+    `notes` and `add_note`/`get_notes` MCP tools, all sharing one `DECISIONS.md`. The one real
+    design constraint: the auto-injected `CLAUDE.md` block shows only the single latest entry, never
+    the full log, so the recovery mechanism can't itself grow into a new token-cost problem. Verified
+    end to end against a real synced fixture — both marker blocks coexist, survive a re-sync
+    untouched, and two real notes round-tripped correctly.
 
 ---
 

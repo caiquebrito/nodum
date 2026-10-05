@@ -12,6 +12,9 @@ import {
   suggestRefactoring,
   findManifestEntryFiles,
   findCiInvokedFiles,
+  appendDecisionLog,
+  readDecisionLog,
+  injectLatestNote,
   type ProjectIndexEntry,
   type Graph,
 } from "@caiquebrito/nodum-core";
@@ -657,5 +660,49 @@ export async function handleSuggestRefactoring(
     };
   } catch (error) {
     return errorResult(`Failed to suggest refactoring: ${String(error)}`);
+  }
+}
+
+/**
+ * Local, cross-session decision log (spec 082) — the in-session path for
+ * recording or recovering a short note without shelling out to
+ * `nodum note`/`nodum notes`. Shares `DECISIONS.md` with the CLI commands
+ * via the same `<nodumDataDir>/<project>/memory/` path, so a note written
+ * through either surface is visible through the other.
+ */
+export async function handleAddNote(projectName: string, noteText: string) {
+  try {
+    const projects = await loadProjectIndex();
+    const project = projects[projectName];
+    if (!project) {
+      return errorResult(`Unknown project "${projectName}" — sync it first with sync_project.`);
+    }
+
+    const memoryDir = join(NODUM_DATA_DIR, projectName, "memory");
+    await appendDecisionLog(memoryDir, noteText);
+    const [latest] = await readDecisionLog(memoryDir, 1);
+    await injectLatestNote(project.path, memoryDir, latest);
+
+    return { content: [text(`📝 Noted for "${projectName}".`)] };
+  } catch (error) {
+    return errorResult(`Failed to add note: ${String(error)}`);
+  }
+}
+
+export async function handleGetNotes(projectName: string, limit = 10) {
+  try {
+    const memoryDir = join(NODUM_DATA_DIR, projectName, "memory");
+    const entries = await readDecisionLog(memoryDir, limit);
+
+    if (entries.length === 0) {
+      return {
+        content: [text(`No notes recorded yet for "${projectName}". Add one with the add_note tool.`)],
+      };
+    }
+
+    const lines = entries.map((e) => `- **${e.timestamp}**: ${e.text}`);
+    return { content: [text(`📝 Recent notes — ${projectName}\n\n${lines.join("\n")}`)] };
+  } catch (error) {
+    return errorResult(`Failed to read notes: ${String(error)}`);
   }
 }
