@@ -142,7 +142,7 @@ and can give accurate, context-aware answers. ✨
 ### 📊 Scans Your Code
 - **TypeScript** (.ts, .tsx) — via the TypeScript compiler API (real resolved-type data)
 - **Python, Java, JavaScript, Swift, Objective-C, Go, Kotlin** (.py, .java, .js/.jsx, .swift, .m/.h, .go, .kt) — via [tree-sitter](https://tree-sitter.github.io/tree-sitter/) (real AST, not regex)
-- **More coming** (KMP, Flutter)
+- **More coming** (Dart/Flutter — Kotlin Multiplatform `expect`/`actual` support already shipped, see Roadmap)
 
 Extracts: files, functions, classes, interfaces, methods, imports, and same-file `calls` edges
 
@@ -158,7 +158,7 @@ Files ──imports──> Files
 Stored at `~/.nodum/projectname/graph/graph.json`
 
 ### 🤖 Claude Integration via MCP
-14 tools Claude can use:
+16 tools Claude can use:
 - `sync_project` — Scan a project
 - `get_graph` — Fetch the knowledge graph
 - `search_graph` — Find functions/classes/files with semantic search (v2.0)
@@ -173,6 +173,8 @@ Stored at `~/.nodum/projectname/graph/graph.json`
 - `explain_architecture` — Auto-generate a layer/dependency overview + rule violations (v2.1)
 - `find_similar_code` — Find structurally near-identical functions to a given node (v2.1)
 - `suggest_refactoring` — Unified suggestions: cycles, dead code, violations, complexity, duplication (v2.1)
+- `add_note` — Record a short, timestamped note in a local, cross-session decision log (spec 082)
+- `get_notes` — Read back a project's recent decision-log entries (spec 082)
 
 ### 🎨 3D Visualization
 View your code as an interactive 3D graph:
@@ -225,8 +227,12 @@ nodum serve
 # Check synced projects
 nodum status
 
-# MCP tool call telemetry (v2.18)
+# MCP tool call telemetry (spec 065)
 nodum metrics                   # Calls, latency, cache hits, truncation per tool
+
+# Local, cross-session decision log (spec 082) -- survives a lost/cleared session
+nodum note "<message>"          # Record a short, timestamped note
+nodum notes --limit 10          # Read back recent notes (default limit: 10)
 ```
 
 ### Data Storage
@@ -238,7 +244,9 @@ Everything local, nothing uploaded:
 ├── projects.json              # Index of all projects
 └── my-project/
     ├── graph/graph.json      # Knowledge graph
-    ├── memory/SUMMARY.md     # Project summary (auto-generated)
+    ├── memory/
+    │   ├── SUMMARY.md         # Project summary (auto-generated)
+    │   └── DECISIONS.md       # Local decision log (spec 082) -- capped at 50 entries
     └── logs/
         ├── activity.md
         └── YYYY-MM-DD.md     # Daily sync logs
@@ -252,6 +260,7 @@ Everything local, nothing uploaded:
 - ✅ Search across entire codebase
 - ✅ Dependency analysis
 - ✅ Impact assessment (what breaks if I change X?)
+- ✅ Cheap cross-session memory — a local decision log survives a lost session or `/clear` without re-sending or re-deriving context (spec 082)
 
 ---
 
@@ -347,7 +356,7 @@ Saves to `~/.nodum/projectname/`:
 - `activity.md` — sync history
 
 ### 4. Claude Access via MCP
-- Nodum MCP server exposes 14 tools
+- Nodum MCP server exposes 16 tools
 - Claude Code calls these tools on demand
 - Graph stays local, nothing uploaded
 
@@ -446,9 +455,28 @@ npm install -g .
 
 ## Roadmap
 
-76 specs shipped so far, each with real end-to-end verification against synced projects — see
+82 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.17.2** across the five lockstep packages (`core`, `cli`, `mcp`, `query`, `server`).
+**v2.17.3** across the five lockstep packages (`core`, `cli`, `mcp`, `query`, `server`).
+`packages/server` auth (spec 078) and a local decision log (spec 082) are both merged to
+`develop`, awaiting the next release cut.
+
+### ✅ Kotlin `expect`/`actual` arc fully closed, `nodum-query` install fix (shipped as v2.17.3, specs `076`, `077`, `079`, `081`)
+- **076 — Kotlin top-level properties**: `expect val`/`actual val` pairs now get a real
+  `'property'` node and link correctly — the second of three gaps spec 055 documented.
+  `applyExpectActual` needed zero changes (it already matched generically); a real `packages/lsp`
+  exhaustiveness bug was caught by `npm run build` before any test ran
+- **077 — Kotlin package-path matching, re-verified, no code**: re-synced the only real KMP
+  project on this machine at full-repo scale (21,447 files — a strict superset of spec 055's
+  original hand-picked fixture) and found zero real `expect`/`actual` collisions across
+  packages — closes the last of the three gaps as verified-sufficient rather than shipping
+  matching logic nobody needs
+- **079 — Cross-language near-duplicate detection, researched, no code**: built and calibrated a
+  candidate language-agnostic similarity signal across 6 languages; real same-function vs.
+  different-function score distributions overlapped enough that no threshold was defensible —
+  closed honestly as "not viable yet," the outcome this spec's own scope allowed for
+- **081**: fixed a real `npm install -g @caiquebrito/nodum-mcp` 404 caused by `nodum-query` being
+  marked `private` and left out of the publish group since spec 071 split it out
 
 ### ✅ LSP arc + Kotlin expect/actual member linking (shipped as v2.17.2)
 - `nodum-lsp` (spec 072): a real Language Server Protocol binary over the graph — `workspace/symbol`,
@@ -614,7 +642,7 @@ npm install -g .
 - **expand_cluster tool** — on-demand cluster expansion
 - TypeScript/Node.js monorepo, 5 language parsers, MCP integration, 3D graph viewer, benchmark suite
 
-### 🔜 Next: Dart/Flutter (own future initiative), `packages/server` auth, a known large-project sync issue — see ROADMAP.md
+### 🔜 Next: Dart/Flutter support (spec 080, fully designed, not yet started) — see ROADMAP.md
 ### 🔮 v3.0.0 — reframed as MCP-native, not a multi-AI adapter hub
 
 The original v3.0 vision was per-provider adapters (OpenAI, Gemini, Ollama). MCP already gives
@@ -666,7 +694,7 @@ A: TypeScript, Python, Java, JavaScript, Swift, Objective-C, Go, and Kotlin — 
 parsing (TypeScript via the compiler API, the rest via tree-sitter).
 
 **Q: Is this production-ready?**
-A: Yes — v2.17.2 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.17.3 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.
@@ -718,4 +746,4 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 **[Get Started Now →](./docs/guides/SETUP-GUIDE.md)**
 
-**Version 2.17.2** · MIT License · No cloud, no subscriptions, no BS.
+**Version 2.17.3** · MIT License · No cloud, no subscriptions, no BS.
