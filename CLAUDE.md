@@ -1,7 +1,7 @@
 <!-- nodum:start -->
 ## Knowledge Graph Context — Nodum
 
-**Load this before each response.** Stack: **TypeScript · Node.js (ESM)** | Files: **54** | Functions: **491** | Last sync: **2026-06-01 20:33**
+**Load this before each response.** Stack: **TypeScript · Node.js (ESM)** | Files: **214** | Functions: **473** | Last sync: **2026-10-09 09:46**
 
 Analyze code with this project's structure in mind. Reference the knowledge graph when answering questions about code organization, dependencies, or implementation patterns.
 <!-- nodum:end -->
@@ -53,7 +53,12 @@ before/after.
 
 ### Current plan
 
-The active multi-spec plan (accuracy, token efficiency, measurement, IDE reach) lives fully
-written under `docs/development/refined/066-*` through `074-*`, sequenced in
-`docs/development/ROADMAP.md`. Specs 063-065 (the measurement floor this plan's later specs
-depend on) are done, in `docs/development/completed/`.
+Current published release: **v2.18.0** (all five lockstep packages — `core`, `cli`, `mcp`,
+`query`, `server`). 82 specs shipped, in `docs/development/completed/`. The LSP arc (071-074),
+the Kotlin `expect`/`actual` arc (055/075-077), `packages/server` auth (078), cross-language
+duplication research (079), the `nodum-query` install fix (081), and the local decision log (082)
+are all closed — see `docs/development/ROADMAP.md`'s "✅ Shipped" section for the full account.
+`docs/development/refined/` currently holds exactly one fully-designed, not-yet-started spec:
+`080` (Dart/Flutter support — a new build-file reader plus a new tree-sitter parser). Pick that up
+next, or re-derive the next item from `docs/development/ROADMAP.md`'s own "Next" section if it's
+moved on since this was last updated.
