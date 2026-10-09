@@ -457,9 +457,18 @@ npm install -g .
 
 82 specs shipped so far, each with real end-to-end verification against synced projects — see
 [`docs/development/completed/`](./docs/development/completed/). Current published version is
-**v2.17.3** across the five lockstep packages (`core`, `cli`, `mcp`, `query`, `server`).
-`packages/server` auth (spec 078) and a local decision log (spec 082) are both merged to
-`develop`, awaiting the next release cut.
+**v2.18.0** across the five lockstep packages (`core`, `cli`, `mcp`, `query`, `server`).
+
+### ✅ `packages/server` real authentication, local decision log (shipped as v2.18.0, specs `078`, `082`)
+- **078 — `packages/server` auth, built on the third look**: considered and declined twice before
+  as not yet urgent; `nodum serve` now requires a token on `/api/*` when bound beyond loopback
+  (`?token=` or an `Authorization` header, constant-time compared). Loopback (the default) stays
+  exactly as before — no token generated, no credential required
+- **082 — local decision log for cheap cross-session memory**: `nodum note "<message>"` /
+  `nodum notes [--limit N]` (CLI) and `add_note`/`get_notes` (MCP tools) all share one
+  `<project>/memory/DECISIONS.md`, capped at the most recent 50 entries. Only the single latest
+  entry auto-surfaces into the project's `CLAUDE.md` — full history is always an opt-in pull, so
+  recovering a lost session never grows per-prompt token cost
 
 ### ✅ Kotlin `expect`/`actual` arc fully closed, `nodum-query` install fix (shipped as v2.17.3, specs `076`, `077`, `079`, `081`)
 - **076 — Kotlin top-level properties**: `expect val`/`actual val` pairs now get a real
@@ -694,7 +703,7 @@ A: TypeScript, Python, Java, JavaScript, Swift, Objective-C, Go, and Kotlin — 
 parsing (TypeScript via the compiler API, the rest via tree-sitter).
 
 **Q: Is this production-ready?**
-A: Yes — v2.17.3 is stable and in active use. Roadmap is public, contributions welcome.
+A: Yes — v2.18.0 is stable and in active use. Roadmap is public, contributions welcome.
 
 **Q: Can I self-host the MCP server?**
 A: Not yet — local only for now. Self-hosting isn't on the near-term roadmap; the MCP server is designed to run alongside your own Claude Code session, not as a shared service.
@@ -746,4 +755,4 @@ Inspired by the need for Claude to understand entire codebases without constant 
 
 **[Get Started Now →](./docs/guides/SETUP-GUIDE.md)**
 
-**Version 2.17.3** · MIT License · No cloud, no subscriptions, no BS.
+**Version 2.18.0** · MIT License · No cloud, no subscriptions, no BS.
