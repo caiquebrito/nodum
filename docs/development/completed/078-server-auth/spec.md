@@ -1,6 +1,31 @@
 # 078 — `packages/server`: token auth for non-loopback binds
 
-## Status: refined — not started
+## Status: done
+
+Shipped. The research step found the two prior "considered and declined" decisions weren't
+overturned as wrong, but the specific bounded-cost condition this spec was checking for now
+holds: `~/.nodum/*/logs/metrics.jsonl` has no signal either way on real non-loopback usage (it
+only instruments MCP tool calls, never `nodum serve`), but `packages/viewer/app.js`'s plain-SPA
+`fetch()` calls turned out cheap to gate — no framework, no session, just a `?token=` read from
+`location.search` and an `Authorization` header on two call sites. Given the real exposure (full
+file paths/symbol names/dependency graph with zero credential on any non-loopback bind) and a
+confirmed-small implementation cost, built the minimal scheme rather than declining a third time.
+
+`packages/server/src/app.ts`'s `createApp(dataDir, options?: { token })` gates `/api/*` with a
+`crypto.timingSafeEqual` check (`Authorization: Bearer <token>` or `?token=`) only when a token is
+passed; loopback callers (including all of `app.test.ts`'s existing spec-047 cases) pass none and
+are unaffected — verified unchanged. `packages/cli/src/commands/serve.ts` generates a token once
+per data dir (`~/.nodum/server-token`, persisted across restarts) only when `NODUM_HOST` is
+non-loopback, prints it and a ready-to-open `?token=...` URL, and opens the browser with it
+attached. `packages/viewer/app.js` reads `?token=` from its own URL and attaches it to both
+`/api/projects` and `/api/projects/:name/graph` fetches via a small `apiFetch` helper.
+
+Verified against a real spawned `nodum serve --host 0.0.0.0` process (not just `app.test.ts`'s
+unit-level harness): no-token and wrong-token requests both got a real 401, the printed token
+worked via both header and query param, the token file persisted across a second start, and a
+second real loopback-default run confirmed zero token file was created and `/api/projects`
+stayed a bare 200 — the existing behavior, byte-for-byte. Full `npm run build && npm test
+--workspaces` stayed green: 991 tests (up from 986; 7 new `app.test.ts` cases), zero regressions.
 
 ## Goal
 
@@ -78,10 +103,10 @@ comparison itself — this codebase already reaches for real crypto primitives e
 
 ## Acceptance criteria
 
-- [ ] A documented decision either way, added to `docs/development/ROADMAP.md`'s "Next" section
+- [x] A documented decision either way, added to `docs/development/ROADMAP.md`'s "Next" section
       alongside the two prior "considered and declined" entries — a third real answer, not a
       third open question.
-- [ ] If built: a non-loopback `nodum serve` refuses `/api/*` requests without a valid token
+- [x] If built: a non-loopback `nodum serve` refuses `/api/*` requests without a valid token
       (real integration test against `packages/server/src/app.test.ts`'s existing `createApp`
       harness, not just a unit test of the comparison function), and loopback binds are
       unaffected (existing `app.test.ts` cases stay green with zero changes needed).

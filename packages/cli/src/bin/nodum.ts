@@ -149,6 +149,36 @@ program
   });
 
 program
+  .command('note <message> [projectPath]')
+  .description('Record a short, timestamped note in a local, cross-session decision log (spec 082)')
+  .action(async (message: string, projectPath: string | undefined) => {
+    try {
+      const nodumDataDir = getNodeumDataDir();
+      const { noteCommand } = await import('../commands/note.js');
+      await noteCommand(message, projectPath || process.cwd(), nodumDataDir);
+    } catch (error) {
+      console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+program
+  .command('notes [projectPath]')
+  .description('Show the most recent entries from the local decision log (spec 082)')
+  .option('--limit <n>', 'Number of recent entries to show (default 10)', (v) => parseInt(v, 10))
+  .option('--json', 'Output machine-readable JSON instead of a formatted summary')
+  .action(async (projectPath: string | undefined, options: { limit?: number; json?: boolean }) => {
+    try {
+      const nodumDataDir = getNodeumDataDir();
+      const { notesCommand } = await import('../commands/note.js');
+      await notesCommand(projectPath || process.cwd(), nodumDataDir, options);
+    } catch (error) {
+      console.error('❌ Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+program
   .command('diff <a> <b>')
   .description('Compare two graph snapshots (file paths or synced project names)')
   .option('--json', 'Output machine-readable JSON instead of a formatted summary')

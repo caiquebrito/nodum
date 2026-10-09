@@ -12,7 +12,7 @@ Releases are automated via [Changesets](https://github.com/changesets/changesets
 
 ## Adding a changeset
 
-Every PR that changes a publishable package (`packages/core`, `packages/cli`, `packages/mcp`, `packages/server`) should include a changeset describing the bump:
+Every PR that changes a publishable package (`packages/core`, `packages/cli`, `packages/mcp`, `packages/query`, `packages/server`) should include a changeset describing the bump:
 
 ```bash
 npx changeset
@@ -35,14 +35,20 @@ If a PR doesn't touch anything user-facing (docs, internal refactor with no publ
 
 ## What gets published
 
-The four workspace packages, each independently versioned:
+The five workspace packages, each independently versioned but bumped in lockstep (see the
+`fixed` group in `.changeset/config.json`):
 
 | Package | What it is |
 |---|---|
 | `@caiquebrito/nodum-core` | Graph generation / analysis engine |
 | `@caiquebrito/nodum-cli` | `nodum` CLI |
 | `@caiquebrito/nodum-mcp` | MCP server for Claude integration |
+| `@caiquebrito/nodum-query` | Transport-neutral search/context logic (used by `nodum-mcp`) |
 | `@caiquebrito/nodum-server` | 3D visualizer HTTP server |
+
+`packages/lsp` (`@caiquebrito/nodum-lsp`) and `packages/vscode-extension` (`nodum-vscode`) are
+`"private": true` and not published to npm — they're distributed separately (built from source /
+bundled as a `.vsix`), see [`docs/guides/LSP-SETUP.md`](../guides/LSP-SETUP.md).
 
 The root `@caiquebrito/nodum` package is `"private": true` and is never published — it's just the monorepo workspace root.
 

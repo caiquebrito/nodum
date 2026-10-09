@@ -1,9 +1,9 @@
 # Nodum Roadmap
 
-**Last updated:** 2026-08-19 · **Current release:** v2.17.2 (all four packages, lockstep; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2; specs 072-073 published too as part of the same v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code) · **Specs shipped:** 77 (`docs/development/completed/`; spec 076 merged to `develop` but not yet
-version-cut — see its changeset under `.changeset/`) · **Specs fully designed, not yet started:**
-4 (`077`-`080`, `docs/development/refined/`) — the remaining "Next" items below, each written up
-ahead of time so the plan survives a session boundary; none branched yet
+**Last updated:** 2026-10-05 · **Current release:** v2.17.3 (all five packages, lockstep — `@caiquebrito/nodum-query` joined the fixed group at spec 081; specs 062-071 published at v2.17.1, spec 075's `@caiquebrito/nodum-core` fix published at v2.17.2, spec 076's top-level-property fix and spec 081's `nodum-query` publish fix both published at v2.17.3; specs 072-073 published too as part of the v2.17.2 cut — private/unpublished `packages/lsp` + `packages/vscode-extension` workspaces, no npm-publish impact of their own; spec 074 closed via a documented deferral, no code; spec 077 closed via a documented re-verification, no code; spec 079 closed via a real calibration finding it not viable at a usable threshold, no code) · **Specs shipped:** 82 (`docs/development/completed/`; specs 078 and 082 merged to `develop` but not yet
+version-cut — see their changesets under `.changeset/`) · **Specs fully designed, not yet started:**
+1 (`080`, `docs/development/refined/`) — the remaining "Next" item below, each
+written up ahead of time so the plan survives a session boundary; none branched yet
 
 This roadmap tracks real shipped state, not aspiration. Every "✅ Shipped" release below has a
 matching set of specs under [`docs/development/completed/`](./completed/), each with its own
@@ -520,10 +520,15 @@ full detail in the "Universal IDE reach via LSP" section of v3.0.0 below and in 
 
 ## Next
 
-**Four items below now have a fully-designed spec waiting in
-[`docs/development/refined/`](./refined/)** (077-080, written up 2026-08-19, not yet branched) —
-each entry names its own spec number so picking one up later means reading that spec, not
-re-deriving scope from this prose again.
+**One item below still has a fully-designed spec waiting in
+[`docs/development/refined/`](./refined/)** (080, written up 2026-08-19, not yet branched) — it
+names its own spec number so picking it up later means reading that spec, not re-deriving scope
+from this prose again. `packages/server` auth (spec 078) was the third; it's now built — see the
+"Why this order" entry above and its own dedicated section below. Kotlin `expect`/`actual`
+package-path matching (spec 077) was the fourth; it closed via a real re-verification with no code
+change — see its own dedicated section below. Cross-language duplication detection (spec 079) was
+the fifth; it closed via a real calibration finding the candidate signal not viable at a usable
+threshold, no code shipped — see its own dedicated section below.
 
 ### Dart/Flutter — still its own future initiative (spec `080`, refined)
 KMP's own remaining prerequisite shipped in spec 055 (v2.12.0) — see above. Dart/Flutter is a
@@ -551,25 +556,68 @@ nodum context via the CLI or MCP server (specs 037-039 already parse Swift/ObjC 
 MCP-speaking editor, or the VS Code extension from spec 073 — just not inside Xcode itself. Revisit
 if Apple ever exposes a real LSP-client mechanism in Xcode, not on a fixed timeline.
 
-### Cross-language duplication detection — still blocked on an unbuilt prerequisite (spec `079`, refined)
+### Cross-language duplication detection — researched, not viable at a usable threshold (spec `079`, done, no code)
 Specs 048 and 052 (v2.10.0/v2.11.0) built the same-language near-duplicate *lookup* and *grouping*
-prerequisites this roadmap named since v2.1.0. A cross-language layer on top still cannot be built
-as an extension of either — different languages produce disjoint token vocabularies by
-construction, so it needs its own similarity mechanism entirely. Spec 079 scopes this as a real
-research question first (a language-agnostic control-flow vocabulary collapsed from each parser's
-existing per-node-type tokens, calibrated against real hand-ported same-logic pairs before any
-threshold is trusted) — not restated as imminent, and honestly allowed to conclude "not viable
-yet" if the real calibration doesn't hold up.
+prerequisites this roadmap named since v2.1.0. Spec 079 built and calibrated the candidate
+cross-language mechanism those specs were blocked on: a language-agnostic control-flow vocabulary
+(`IF`/`FOR`/`WHILE`/`CATCH`/`CALL`/`RETURN`/`ASSIGN`/`LOGIC`/`TERNARY`/`CASE`, plus the existing
+`ID`/`LIT`) collapsed from each of the 6 non-TypeScript parsers' own grammar-node-type tokens
+(shapes verified empirically against the real vendored grammars first), MinHash/Jaccard-estimated
+over 5-gram shingles — architecturally identical to `similarity-signature.ts`'s existing
+same-language approach. Calibrated against 4 real hand-ported functions (deliberately varied
+shapes: guard-clause-plus-loop, accumulator-loop, multi-guard-plus-loop, pure iterative-
+accumulator) across 6 languages — 60 real same-function cross-language pairs scored 0.182–1.000
+(avg 0.473), 216 real different-function cross-language pairs scored 0.000–0.357 (avg 0.078). The
+averages separate clearly, but the tails overlap (0.182–0.357) enough that no single threshold is
+defensible: one high enough to exclude the real false-positive-adjacent case misses over a third of
+genuine matches; one low enough to catch most genuine matches admits real false positives. Root
+cause: collapsing to a ~12-symbol alphabet sheds the fine-grained structure same-language shingling
+relies on for clean separation, and real per-language idiom differences (Java's getter-chain
+`.getX().isEmpty()` vs. Go's direct field access, for one real example found during calibration) add
+noise a same-language signal never has to absorb. **Closed honestly as "not viable yet," matching
+this spec's own stated escape valve — no `crossLanguageSimilaritySignature`, no new
+`find_similar_code` mode shipped.** A future attempt would need a richer collapsed vocabulary or a
+fundamentally different (e.g. embedding-based) representation — out of this spec's own scope.
 
-### `packages/server` real authentication — considered and declined twice, third look scoped (spec `078`, refined)
+### `packages/server` real authentication — considered and declined twice, built the third time (spec `078`, done)
 Re-considered during v2.12.0's `packages/server`-adjacent research (which instead found and fixed
-the broken viewer Sync button, spec 053) and still judged not worth building at the time: the
-residual risk requires a deliberate `NODUM_HOST` opt-in to a non-loopback bind, and the package
-remains read-only/metadata-only. Spec 078 scopes a third, real look — confirm it's still not
-urgent (a real decision, documented either way) before building a minimal single-static-token
-scheme gated to the already-opt-in wider-bind path only.
+the broken viewer Sync button, spec 053) and judged not worth building at the time: the residual
+risk requires a deliberate `NODUM_HOST` opt-in to a non-loopback bind, and the package remains
+read-only/metadata-only. Spec 078's third look didn't overturn either prior decision as wrong —
+`~/.nodum/*/logs/metrics.jsonl` still has zero signal on real non-loopback usage, since it only
+ever instrumented MCP tool calls, never `nodum serve` — but found the specific condition those
+two declines both hinged on ("would a minimal scheme be cheap to add") now holds: `packages/
+viewer/app.js`'s plain-SPA `fetch()` calls needed only a `?token=` read from `location.search` and
+an `Authorization` header on two call sites, no session or login flow. Given the real exposure
+(full file paths/symbol names/dependency graph, zero credential, on any non-loopback bind) and a
+confirmed-small cost, built it rather than declining a third time: `createApp(dataDir, { token })`
+gates `/api/*` with `crypto.timingSafeEqual`, only when a token is passed — loopback stays exactly
+as before, verified via the untouched spec-047 `app.test.ts` cases. `nodum serve` generates and
+persists one token per data dir (`~/.nodum/server-token`) only on a non-loopback bind, prints it
+plus a ready-to-open `?token=...` URL. Verified against a real spawned `nodum serve
+--host 0.0.0.0` process, not just the unit-level test harness: no-token/wrong-token requests both
+got a real 401, the printed token worked via header and query param, and a second real
+loopback-default run confirmed zero token file was created and `/api/projects` stayed a bare 200.
 
-### Kotlin `expect`/`actual` — real refinements found during spec 055, one closed, two still open
+### Local decision log — cheap cross-session memory (spec `082`, done)
+Not roadmap-driven: raised directly in real usage — an API-key-billed, possibly-cache-broken
+corporate LLM proxy makes every token count, and a long Claude Code session can get lost entirely
+to a context limit or a `/clear`. nodum's existing memory layer (`SUMMARY.md`, `activity.md`, the
+`CLAUDE.md` sync-stats marker block) already persisted *structural* facts across sessions but
+nothing *narrative* (a decision made, a spec closed, a thing deliberately deferred) — a real,
+current gap this conversation's own closing of specs 077/079 made concrete. Shipped a small,
+deliberately capped append-only log: `nodum note "<message>"` / `nodum notes [--limit N]` (CLI)
+and `add_note`/`get_notes` (MCP tools, for the in-session path), all sharing one
+`<project>/memory/DECISIONS.md` file capped at the most recent 50 entries. The auto-injected
+`CLAUDE.md` block (a second, independent marker pair from the existing sync-stats one — refactored
+`claude-injector.ts`'s marker-replace logic into a shared `upsertMarkerBlock` helper to add it)
+shows only the single latest entry, never the full history — a deliberate design constraint so the
+recovery mechanism itself never becomes a new source of per-prompt token growth; full history is
+always an opt-in pull. Verified end to end against a real synced fixture: both marker blocks
+coexist, a re-sync leaves the notes block untouched, and two real notes round-tripped correctly
+through `nodum notes` while the injected block kept showing just the latest one.
+
+### Kotlin `expect`/`actual` — real refinements found during spec 055, all three now closed
 Spec 055 (v2.12.0) scoped `expect`/`actual` edge detection to top-level functions and types
 (`class`/`interface`/`enum`/`object`). Real end-to-end verification against a genuine KMP project
 found three further real gaps — documented here rather than left implied by their absence, since
@@ -599,14 +647,19 @@ none was a hypothetical concern:
   `packages/lsp/src/graph-utils.ts`'s `Record<Node["type"], SymbolKind>` mapping became
   non-exhaustive the moment `'property'` was added to `NodeType` — fixed with one line
   (`property: SymbolKind.Property`).
-- **Matching is module + declaration kind + label only, with no package-path awareness — spec `077`
-  (refined) scopes the re-check.** This parser has never extracted Kotlin `package` declarations
-  either. Verified sufficient against the one real project used for spec 055's verification (a
-  same-name collision across two different modules was already disambiguated by module-scoping
-  alone), but this is a verified-sufficient-once finding, not a proof that every real project's
-  naming can't collide within a single module. Spec 077 scopes finding a second real KMP project
-  and only implementing package-path-aware matching if a real collision actually turns up — closing
-  this the same "verify before building" way 077/078/079 all now share.
+- **Matching is module + declaration kind + label only, with no package-path awareness — closed by
+  spec 077, verified sufficient, no code change.** This parser has never extracted Kotlin `package`
+  declarations. Spec 055 verified this sufficient against one real project (a same-name collision
+  across two different modules was already disambiguated by module-scoping alone), but flagged that
+  as verified-sufficient-once, not proof against every real project's naming. No second, distinct
+  real KMP project exists on this machine (confirmed by filesystem search), so spec 077
+  re-verified against the fullest real dataset available instead: a fresh, current, whole-repo
+  resync of the same `mobile-app-develop` monorepo (21,447 files, 135,367 nodes, 250,139 edges) —
+  a strict superset of spec 055's original 320-file hand-picked fixture. Direct inspection of the
+  real `graph.json` found 13 real `expect` nodes with zero same-`(module, type, label)` collisions,
+  and all 22 real `actualizes` edges pairing to the correct package on both sides — two-for-two
+  verified-sufficient, now at full-repo scale. No `Node.package` field, no `package_header`
+  extraction, no matching-logic change shipped.
 
 ### Closed: the Node `v25.9.0` large-project sync crash (spec 060 resolved it)
 Originally discovered during spec 055's real end-to-end verification (a real ~21,447-file Kotlin
@@ -905,6 +958,54 @@ implied by their absence.
     function/class-shaped. Its own `npm run build` step caught a real, otherwise-silent
     exhaustiveness bug in `packages/lsp`'s `SymbolKind` mapping before any test ran — the kind of
     downstream consumer a spec's own Scope section can't always name in advance.
+19. **Publish the missing `@caiquebrito/nodum-query` package (spec `081`):** a user-reported
+    install failure, not roadmap-driven research — `npm install -g @caiquebrito/nodum-mcp` 404'd
+    on its own `nodum-query` dependency because spec 071 had deliberately marked it `private` for
+    workspace-only use and never added it to the publish group. Pure config fix (unmark private,
+    add to `.changeset/config.json`'s fixed group, add a changeset), no source changes, verified
+    via `npm pack --dry-run` matching `nodum-core`'s tarball shape.
+20. **Build `packages/server` auth on the third look (spec `078`):** of the three "Next" items
+    left once 081 landed, this was the only one with no unbuilt prerequisite (077 needed a second
+    real KMP project to test against; 079 is open-ended research). The research step this spec
+    required before writing any code found real signal was still absent
+    (`~/.nodum/*/logs/metrics.jsonl` never instrumented `nodum serve` at all, loopback or not) but
+    the other half of the two prior declines' reasoning — "would a minimal scheme be cheap to
+    add" — no longer held: `packages/viewer/app.js`'s plain-SPA `fetch()` calls needed only a
+    `?token=` read from `location.search` and one header, no session/login flow. Verified against
+    a real spawned `nodum serve --host 0.0.0.0` process rather than only the unit-level
+    `app.test.ts` harness, and confirmed the untouched loopback-default path stays byte-for-byte
+    unaffected (no token file created, `/api/projects` still a bare 200) — the same "verify the
+    unchanged path stays unchanged" discipline the Kotlin `expect`/`actual` specs (075/076) above
+    applied to their own existing test suites.
+21. **Close the last of the three Kotlin `expect`/`actual` gaps (spec `077`):** no second, distinct
+    real KMP project exists on this machine (confirmed by filesystem search), so re-verified
+    against the fullest real dataset available instead — a fresh, current, whole-repo resync of the
+    same `mobile-app-develop` monorepo spec 055 originally hand-picked a 320-file fixture from, now
+    the real, current, full 21,447-file project. Zero same-`(module, type, label)` collisions among
+    the 13 real `expect` nodes, zero package mismatches across all 22 real `actualizes` edges — a
+    real, whole-repo-scale, two-for-two verified-sufficient finding, closed with no code change.
+    Also found and cleaned up a stray duplicate spec (`refined/076-kotlin-package-path-matching`,
+    an invalid reuse of the already-completed spec-076 number) that had reached the opposite
+    conclusion without this spec's real verification data.
+22. **Research cross-language near-duplicate detection to a real verdict (spec `079`):** with the
+    two same-language prerequisites (048, 052) long built, this was the last unblocked "Next" item.
+    Built the candidate language-agnostic signal (a collapsed control-flow vocabulary over each
+    parser's own grammar-node-type tokens, grammar shapes verified empirically first) and
+    calibrated it against 4 real hand-ported functions across 6 languages — 60 real same-function
+    cross-language pairs vs. 216 real different-function pairs. The two distributions' averages
+    separated clearly (0.473 vs. 0.078) but their tails overlapped (0.182–0.357) enough that no
+    threshold was defensible without either missing over a third of genuine matches or admitting
+    real false positives. Closed honestly as "not viable yet," the exact escape valve this spec's
+    own Scope section named in advance — no code shipped, calibration numbers are the deliverable.
+23. **Ship a local decision log for cross-session memory (spec `082`):** not roadmap-driven —
+    raised directly in real usage on a corporate, API-key-billed, possibly-cache-broken LLM proxy,
+    where a lost session needs a cheap way to recover "what we decided" without resending or
+    re-deriving it. `appendDecisionLog`/`readDecisionLog` (capped at 50 entries) plus `nodum note`/
+    `notes` and `add_note`/`get_notes` MCP tools, all sharing one `DECISIONS.md`. The one real
+    design constraint: the auto-injected `CLAUDE.md` block shows only the single latest entry, never
+    the full log, so the recovery mechanism can't itself grow into a new token-cost problem. Verified
+    end to end against a real synced fixture — both marker blocks coexist, survive a re-sync
+    untouched, and two real notes round-tripped correctly.
 
 ---
 
@@ -914,13 +1015,16 @@ implied by their absence.
   own real verification evidence.
 - [`docs/development/active/`](./active/) — specs currently in progress (branched, PR open).
 - [`docs/development/refined/`](./refined/) — specs fully designed and ready to execute, not yet
-  branched. Currently holds `077`-`080`: the four remaining "Next" items below, each written up in
-  full ahead of when they'll actually be picked up (Kotlin `expect`/`actual` package-path
-  re-verification, `packages/server` auth's third look, cross-language duplication's research
-  step, and Dart/Flutter). The LSP arc (071-074) is fully closed as of spec 074; the JetBrains
-  plugin, Visual Studio shim, and Xcode are all tracked as deferred future work in this roadmap's
-  own prose (the "Universal IDE reach via LSP" section and "Next" above), not yet given their own
-  spec numbers.
+  branched. Currently holds `080`: the one remaining "Next" item below, written up in full ahead
+  of when it'll actually be picked up (Dart/Flutter). `packages/server` auth's third look (spec
+  078), the Kotlin `expect`/`actual` package-path re-verification (spec 077), and cross-language
+  duplication's research step (spec 079) — the other three items originally in this set — are all
+  now closed. See `docs/development/completed/078-server-auth/`,
+  `docs/development/completed/077-kotlin-expect-actual-package-scoping/`, and
+  `docs/development/completed/079-cross-language-duplication/`. The LSP arc (071-074) is fully
+  closed as of spec 074; the JetBrains plugin, Visual Studio shim, and Xcode are all tracked as
+  deferred future work in this roadmap's own prose (the "Universal IDE reach via LSP" section and
+  "Next" above), not yet given their own spec numbers.
 - [`benchmarks/README.md`](../../benchmarks/README.md) — the measurement harness referenced
   throughout this roadmap.
 - [`benchmarks/retrieval/`](../../benchmarks/retrieval/) — the offline retrieval evaluation

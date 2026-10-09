@@ -6,11 +6,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // shaped as a valid MCP `CallToolResult` even though this package no longer
 // needs the SDK to produce that shape.
 import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
+import { homedir } from "os";
+import { join } from "path";
 import { globalGraphCache } from "./graph-cache.js";
 
 const readFileMock = vi.fn();
+const writeFileMock = vi.fn().mockResolvedValue(undefined);
+const mkdirMock = vi.fn().mockResolvedValue(undefined);
 vi.mock("fs/promises", () => ({
   readFile: (...args: unknown[]) => readFileMock(...args),
+  writeFile: (...args: unknown[]) => writeFileMock(...args),
+  mkdir: (...args: unknown[]) => mkdirMock(...args),
 }));
 
 const graph = {
@@ -417,5 +423,92 @@ describe("handleExpandCluster", () => {
     const text = (result as { content: { text: string }[] }).content[0].text;
     expect(text).toContain("... and 10 more"); // 30 members - 20 cap
     expect(text).toContain("... and 5 more"); // 25 externalDeps - 20 cap
+  });
+});
+
+// A real in-memory file store, not a one-shot mockResolvedValue — writeFile
+// persists into the same map readFile reads from, so these tests exercise a
+// real append-then-read-back round trip (spec 082) rather than just
+// asserting the handlers call the right functions.
+function makeFileStore(initial: Record<string, string> = {}) {
+  const store = new Map(Object.entries(initial));
+  readFileMock.mockImplementation(async (path: string) => {
+    if (store.has(path)) return store.get(path)!;
+    const err = new Error("ENOENT") as NodeJS.ErrnoException;
+    err.code = "ENOENT";
+    throw err;
+  });
+  writeFileMock.mockImplementation(async (path: string, content: string) => {
+    store.set(path, content);
+  });
+  return store;
+}
+
+describe("handleAddNote / handleGetNotes (spec 082)", () => {
+  const nodumDataDir = join(homedir(), ".nodum");
+  const projectsJsonPath = join(nodumDataDir, "projects.json");
+  const memoryDir = join(nodumDataDir, "proj", "memory");
+  const decisionsPath = join(memoryDir, "DECISIONS.md");
+  const claudePath = "/repo/proj/CLAUDE.md";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns an error for an unknown project without touching the filesystem", async () => {
+    makeFileStore({ [projectsJsonPath]: JSON.stringify({}) });
+    const { handleAddNote } = await import("./handlers.js");
+    const result = (await handleAddNote("ghost-project", "a note")) as {
+      content: { text: string }[];
+      isError?: boolean;
+    };
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Unknown project");
+    expect(writeFileMock).not.toHaveBeenCalled();
+  });
+
+  it("appends a note and the single most recent note round-trips through get_notes", async () => {
+    makeFileStore({
+      [projectsJsonPath]: JSON.stringify({ proj: { path: "/repo/proj" } }),
+    });
+    const { handleAddNote, handleGetNotes } = await import("./handlers.js");
+
+    const addResult = (await handleAddNote("proj", "closed spec 079, not viable")) as {
+      content: { text: string }[];
+    };
+    expect(addResult.content[0].text).toContain('Noted for "proj"');
+
+    const getResult = (await handleGetNotes("proj")) as { content: { text: string }[] };
+    expect(getResult.content[0].text).toContain("closed spec 079, not viable");
+  });
+
+  it("persists DECISIONS.md under the project's own memory directory", async () => {
+    const store = makeFileStore({
+      [projectsJsonPath]: JSON.stringify({ proj: { path: "/repo/proj" } }),
+    });
+    const { handleAddNote } = await import("./handlers.js");
+    await handleAddNote("proj", "a note");
+
+    expect(store.has(decisionsPath)).toBe(true);
+  });
+
+  it("surfaces only the single latest note into CLAUDE.md, not the full history", async () => {
+    const store = makeFileStore({
+      [projectsJsonPath]: JSON.stringify({ proj: { path: "/repo/proj" } }),
+    });
+    const { handleAddNote } = await import("./handlers.js");
+    await handleAddNote("proj", "first note");
+    await handleAddNote("proj", "second note");
+
+    const claudeMd = store.get(claudePath) ?? "";
+    expect(claudeMd).toContain("second note");
+    expect(claudeMd).not.toContain("first note");
+  });
+
+  it("get_notes reports no notes yet for a project with none recorded", async () => {
+    const { handleGetNotes } = await import("./handlers.js");
+    const result = (await handleGetNotes("empty-project")) as { content: { text: string }[] };
+    expect(result.content[0].text).toContain("No notes recorded yet");
   });
 });

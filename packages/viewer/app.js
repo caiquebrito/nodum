@@ -57,6 +57,16 @@ const TREE_ICONS = {
   extension: '+',
 };
 
+// Set only when the server is bound non-loopback (spec 078) — the token
+// is embedded in the URL that `nodum serve` prints/opens, since this is a
+// plain SPA with no login flow.
+const API_TOKEN = new URLSearchParams(window.location.search).get('token');
+
+function apiFetch(path) {
+  const headers = API_TOKEN ? { Authorization: `Bearer ${API_TOKEN}` } : undefined;
+  return fetch(path, { headers });
+}
+
 function nodeColor(node) {
   if (node.type === 'file') return GROUP_COLORS[node.group] ?? '#58a6ff';
   return TYPE_COLORS[node.type] ?? '#6e7681';
@@ -73,7 +83,7 @@ function nodeSize3D(type, deg, maxDeg) {
 
 async function init() {
   try {
-    const res = await fetch(`/api/projects`);
+    const res = await apiFetch(`/api/projects`);
     if (!res.ok) throw new Error();
     const data = await res.json();
     projects = data;
@@ -152,7 +162,7 @@ async function loadProject(name) {
   await new Promise(r => setTimeout(r, 40));
 
   try {
-    const res = await fetch(`/api/projects/${encodeURIComponent(name)}/graph`);
+    const res = await apiFetch(`/api/projects/${encodeURIComponent(name)}/graph`);
     if (!res.ok) throw new Error();
     const graph = await res.json();
     currentGraphData = graph;
